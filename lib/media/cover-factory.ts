@@ -1,11 +1,9 @@
-import sharp from 'sharp';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   computeCoverKey,
   hueFromCoverKey,
   plateForSport,
-} from '@/lib/media/sport-plates';
-import { DEFAULT_COVERS } from '@/lib/scrape/types';
+} from '@/lib/media/sport-plates';import { DEFAULT_COVERS } from '@/lib/scrape/types';
 
 export const EVENT_COVERS_BUCKET = 'event-covers';
 
@@ -84,6 +82,7 @@ async function renderCoverWebp(coverKey: string, sport: string, title: string): 
         fill="rgba(255,255,255,0.55)">SportSync</text>
 </svg>`;
 
+  const sharp = (await import('sharp')).default;
   return sharp(Buffer.from(svg)).webp({ quality: 82 }).toBuffer();
 }
 

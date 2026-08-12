@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
-import { hasValidServiceRoleKey, pgQuery } from '@/lib/db/pg';
+import { hasValidServiceRoleKey } from '@/lib/db/service-role';
 
 export {
   FEED_ACTIVE_GRACE_HOURS,
@@ -64,6 +64,8 @@ async function deleteExpiredViaPg(thresholdIso: string): Promise<{
   deletedEvents: number;
   deletedTournaments: number;
 }> {
+  const { pgQuery } = await import('@/lib/db/pg');
+
   const events = await pgQuery<{ n: number }>(
     `with doomed as (
        select id from events

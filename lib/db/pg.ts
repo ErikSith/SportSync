@@ -1,5 +1,7 @@
 import { Client, type QueryResultRow } from 'pg';
 
+export { hasValidServiceRoleKey } from '@/lib/db/service-role';
+
 const PROJECT_REF = 'jnxpmtaystxywjxxyexh';
 
 function stripSchemaParam(url: string): string {
@@ -56,13 +58,6 @@ export function resolvePgConnectionCandidates(raw = process.env.DATABASE_URL): s
     `postgresql://postgres:${pw}@db.${PROJECT_REF}.supabase.co:5432/${db}`,
     `postgresql://postgres:${pw}@${parts.host}:${parts.port}/${db}`,
   ];
-}
-
-export function hasValidServiceRoleKey(): boolean {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) return false;
-  if (/fill-in|placeholder|your[_-]?service/i.test(key)) return false;
-  return key.length > 40;
 }
 
 export async function withPgAdmin<T>(fn: (client: Client) => Promise<T>): Promise<T> {

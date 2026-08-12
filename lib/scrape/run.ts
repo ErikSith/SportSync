@@ -1,7 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SPORT_TYPE_THEMES } from '@/lib/ai/theme-config';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
-import { resolveEventCover } from '@/lib/media/cover-factory';
 import { aggregatorNotice, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import {
@@ -37,18 +36,12 @@ import { scrapeArealNevadzova } from '@/lib/scrape/adapters/areal-nevadzova';
 import { scrapeK2Lezenie } from '@/lib/scrape/adapters/k2-lezenie';
 import { scrapeBlockDock } from '@/lib/scrape/adapters/block-dock';
 import { scrapeNivyZone } from '@/lib/scrape/adapters/nivy-zone';
-import { hasValidServiceRoleKey } from '@/lib/db/pg';
-import {
-  ensureVenuesPg,
-  upsertEventsPg,
-  upsertTournamentsPg,
-} from '@/lib/scrape/store-pg';
+import { hasValidServiceRoleKey } from '@/lib/db/service-role';
 import {
   prepareScrapedEventsForUpsert,
   pickSoftIdentityMatch,
   softMatchWindow,
 } from '@/lib/scrape/dedupe-identity';
-import { cleanupDuplicateEventsByIdentity } from '@/lib/scrape/cleanup-duplicate-events';
 
 type ScraperFn = () => Promise<AdapterResult>;
 
@@ -198,6 +191,7 @@ async function coverForEvent(
     return event.coverUrl;
   }
   try {
+    const { resolveEventCover } = await import('@/lib/media/cover-factory');
     return await resolveEventCover({
       venueId,
       sport: event.sport,
@@ -501,7 +495,13 @@ export async function runAllScrapers(): Promise<ScrapeRunReport> {
     );
   }
 
-  const venueIds = usePg ? await ensureVenuesPg() : await ensureVenues();
+  const { ensureVenuesPg, upsertEventsPg, upsertTournamentsPg } = usePg
+    ? await import('@/lib/scrape/store-pg')
+    : { ensureVenuesPg: null, upsertEventsPg: null, upsertTournamentsPg: null };
+
+  const venueIds = usePg
+    ? await ensureVenuesPg!()
+    : await ensureVenues();
   const results = await runScrapersSequentially();
 
   const all = results.flatMap((r) => r.events);
@@ -513,14 +513,15 @@ export async function runAllScrapers(): Promise<ScrapeRunReport> {
   );
 
   const eventStats = usePg
-    ? await upsertEventsPg(eventItems, venueIds)
+    ? await upsertEventsPg!(eventItems, venueIds)
     : await upsertEvents(eventItems, venueIds);
   const tournamentStats = usePg
-    ? await upsertTournamentsPg(tournamentItems, venueIds)
+    ? await upsertTournamentsPg!(tournamentItems, venueIds)
     : await upsertTournaments(tournamentItems, venueIds);
 
   // Drop any leftover title+datetime duplicates (cross-source / unstable ids).
   try {
+    const { cleanupDuplicateEventsByIdentity } = await import('@/lib/scrape/cleanup-duplicate-events');
     const dedupe = await cleanupDuplicateEventsByIdentity();
     if (dedupe.deleted > 0) {
       console.log('[scrape] removed duplicate events', dedupe);

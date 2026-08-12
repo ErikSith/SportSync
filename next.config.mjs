@@ -12,7 +12,7 @@ const nextConfig = {
       },
     ],
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, nextRuntime }) => {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -24,6 +24,24 @@ const nextConfig = {
         child_process: false,
       };
     }
+
+    if (isServer && nextRuntime === 'edge') {
+      const edgeExternals = [
+        'pg',
+        'pg-native',
+        'pg-connection-string',
+        'pgpass',
+        'sharp',
+      ];
+      if (Array.isArray(config.externals)) {
+        config.externals.push(...edgeExternals);
+      } else if (config.externals) {
+        config.externals = [config.externals, ...edgeExternals];
+      } else {
+        config.externals = edgeExternals;
+      }
+    }
+
     return config;
   },
 };

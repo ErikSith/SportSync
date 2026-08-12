@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { cleanupExpiredEvents } from '@/lib/retention/events';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 export const maxDuration = 60;
 
@@ -32,6 +31,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const { cleanupExpiredEvents } = await import('@/lib/retention/events');
     const result = await cleanupExpiredEvents();
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
