@@ -47,11 +47,15 @@ export interface EventCardData {
   discoveryReason?: EventDiscoveryReason;
 }
 
+export const ALL_EVENTS_FALLBACK_MESSAGE = 'Showing all available events';
+
 export interface EventFeedResult {
   events: EventCardData[];
   radiusKm: number;
   showExtended: boolean;
   message?: string;
+  /** True when the feed widened beyond GPS / city scope because nearby was empty. */
+  usedAllEventsFallback?: boolean;
 }
 
 export interface EventFeedQuery {
@@ -179,6 +183,89 @@ function normalizeEventType(type: string): EventType {
   return type === 'community' ? 'community' : 'official';
 }
 
+function matchesEventSearch(event: EventRow, search: string | undefined): boolean {
+  if (!search) return true;
+  const needle = search.trim().toLowerCase();
+  if (!needle) return true;
+  const venueName = resolveVenueName(event.venues)?.toLowerCase() ?? '';
+  return (
+    event.title.toLowerCase().includes(needle) ||
+    (event.city ?? '').toLowerCase().includes(needle) ||
+    event.sport.toLowerCase().includes(needle) ||
+    venueName.includes(needle)
+  );
+}
+
+function applyEventQueryFilters<T extends { eq: (column: string, value: string) => T; ilike: (column: string, value: string) => T }>(
+  request: T,
+  query: Pick<EventFeedQuery, 'type' | 'sport' | 'participationMode'>,
+): T {
+  let next = request;
+  if (query.type && query.type !== 'ALL') {
+    next = next.eq('type', query.type);
+  }
+  if (query.sport && query.sport !== 'ALL') {
+    next = next.ilike('sport', query.sport);
+  }
+  if (query.participationMode && query.participationMode !== 'all') {
+    next = next.eq('participation_mode', query.participationMode);
+  }
+  return next;
+}
+
+/**
+ * Official / scraped events often lack GPS. Keep them visible alongside radius hits
+ * so discovery is not empty when only geo-complete rows would otherwise qualify.
+ */
+async function fetchOfficialEventsMissingCoords(
+  query: Pick<EventFeedQuery, 'type' | 'sport' | 'participationMode' | 'dateWindow' | 'search'> & {
+    lat?: number;
+    lng?: number;
+  },
+): Promise<EventCardData[]> {
+  if (query.type && query.type !== 'ALL' && query.type !== 'official') return [];
+
+  const supabase = await createClient();
+  const bounds = dateWindowBounds(query.dateWindow);
+  let request = supabase
+    .from('events')
+    .select('*, venues ( name )')
+    .eq('type', 'official')
+    .in('status', ['open', 'live'])
+    .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
+    .or('latitude.is.null,longitude.is.null')
+    .order('starts_at', { ascending: true })
+    .limit(80);
+
+  if (bounds) {
+    request = request.lte('starts_at', bounds.to.toISOString());
+  }
+  request = applyEventQueryFilters(request, { ...query, type: 'official' });
+
+  const { data, error } = await request;
+  if (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[events.fetchOfficialEventsMissingCoords]', error.message);
+    }
+    return [];
+  }
+
+  return ((data ?? []) as EventRow[])
+    .filter((event) => matchesEventSearch(event, query.search))
+    .map((event) => mapEventCard(event, 0));
+}
+
+function mergeEventCards(primary: EventCardData[], extra: EventCardData[]): EventCardData[] {
+  const seen = new Set(primary.map((e) => e.id));
+  const merged = [...primary];
+  for (const event of extra) {
+    if (seen.has(event.id)) continue;
+    seen.add(event.id);
+    merged.push(event);
+  }
+  return merged;
+}
+
 async function findWithinRadius(query: EventFeedQuery, radiusKm: number): Promise<EventCardData[]> {
   const box = boundingBox(query.lat, query.lng, radiusKm);
   const supabase = await createClient();
@@ -199,47 +286,82 @@ async function findWithinRadius(query: EventFeedQuery, radiusKm: number): Promis
   if (bounds) {
     request = request.lte('starts_at', bounds.to.toISOString());
   }
+  request = applyEventQueryFilters(request, query);
 
-  if (query.type && query.type !== 'ALL') {
-    request = request.eq('type', query.type);
-  }
+  const [{ data, error }, missingCoords] = await Promise.all([
+    request,
+    fetchOfficialEventsMissingCoords(query),
+  ]);
 
-  if (query.sport && query.sport !== 'ALL') {
-    request = request.ilike('sport', query.sport);
-  }
-
-  if (query.participationMode && query.participationMode !== 'all') {
-    request = request.eq('participation_mode', query.participationMode);
-  }
-
-  const { data, error } = await request;
   if (error) {
     if (process.env.NODE_ENV !== 'production') console.error('[events.findWithinRadius]', error.message);
-    return [];
   }
-  if (!data) return [];
 
-  const search = query.search?.trim().toLowerCase();
-
-  return (data as EventRow[])
+  const geoHits = ((data ?? []) as EventRow[])
     .filter((event) => event.latitude !== null && event.longitude !== null)
     .map((event) => ({
       event,
       distanceKm: distanceKm(query.lat, query.lng, event.latitude as number, event.longitude as number),
     }))
     .filter(({ distanceKm: d }) => d <= radiusKm)
-    .filter(({ event }) => {
-      if (!search) return true;
-      const venueName = resolveVenueName(event.venues)?.toLowerCase() ?? '';
-      return (
-        event.title.toLowerCase().includes(search) ||
-        event.city.toLowerCase().includes(search) ||
-        event.sport.toLowerCase().includes(search) ||
-        venueName.includes(search)
-      );
-    })
+    .filter(({ event }) => matchesEventSearch(event, query.search))
     .sort((a, b) => a.distanceKm - b.distanceKm || a.event.starts_at.localeCompare(b.event.starts_at))
     .map(({ event, distanceKm: d }) => mapEventCard(event, d));
+
+  return mergeEventCards(geoHits, missingCoords);
+}
+
+/** Active open/live events across all cities — GPS-independent discovery fallback. */
+export async function getAllActiveEventsFeed(
+  query: Omit<EventFeedQuery, 'lat' | 'lng'> & { lat?: number; lng?: number } = {},
+): Promise<EventFeedResult> {
+  const supabase = await createClient();
+  const bounds = dateWindowBounds(query.dateWindow);
+  const lat = query.lat ?? 48.1486;
+  const lng = query.lng ?? 17.1077;
+
+  let request = supabase
+    .from('events')
+    .select('*, venues ( name )')
+    .in('status', ['open', 'live'])
+    .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
+    .order('starts_at', { ascending: true })
+    .limit(120);
+
+  if (bounds) {
+    request = request.lte('starts_at', bounds.to.toISOString());
+  }
+  request = applyEventQueryFilters(request, query);
+
+  const { data, error } = await request;
+  if (error) {
+    if (process.env.NODE_ENV !== 'production') console.error('[events.getAllActiveEventsFeed]', error.message);
+    return {
+      events: [],
+      radiusKm: 0,
+      showExtended: true,
+      usedAllEventsFallback: true,
+      message: ALL_EVENTS_FALLBACK_MESSAGE,
+    };
+  }
+
+  const events = ((data ?? []) as EventRow[])
+    .filter((event) => matchesEventSearch(event, query.search))
+    .map((event) => {
+      const d =
+        event.latitude != null && event.longitude != null
+          ? distanceKm(lat, lng, event.latitude, event.longitude)
+          : 0;
+      return mapEventCard(event, d);
+    });
+
+  return {
+    events,
+    radiusKm: 0,
+    showExtended: true,
+    usedAllEventsFallback: true,
+    message: ALL_EVENTS_FALLBACK_MESSAGE,
+  };
 }
 
 /** City-first Bratislava discover feed (no GPS required). */
@@ -272,27 +394,21 @@ export async function getCityEventsFeed(
     request = request.eq('participation_mode', query.participationMode);
   }
 
-  const { data, error } = await request;
+  const [{ data, error }, missingCoords] = await Promise.all([
+    request,
+    fetchOfficialEventsMissingCoords(query),
+  ]);
+
   if (error) {
     if (process.env.NODE_ENV !== 'production') console.error('[events.getCityEventsFeed]', error.message);
-    return { events: [], radiusKm: 0, showExtended: false, message: error.message };
+    return getAllActiveEventsFeed(query);
   }
 
-  const search = query.search?.trim().toLowerCase();
   const lat = query.lat ?? 48.1486;
   const lng = query.lng ?? 17.1077;
 
-  const events = ((data ?? []) as EventRow[])
-    .filter((event) => {
-      if (!search) return true;
-      const venueName = resolveVenueName(event.venues)?.toLowerCase() ?? '';
-      return (
-        event.title.toLowerCase().includes(search) ||
-        event.city.toLowerCase().includes(search) ||
-        event.sport.toLowerCase().includes(search) ||
-        venueName.includes(search)
-      );
-    })
+  const cityEvents = ((data ?? []) as EventRow[])
+    .filter((event) => matchesEventSearch(event, query.search))
     .map((event) => {
       const d =
         event.latitude != null && event.longitude != null
@@ -300,6 +416,11 @@ export async function getCityEventsFeed(
           : 0;
       return mapEventCard(event, d);
     });
+
+  const events = mergeEventCards(cityEvents, missingCoords);
+  if (events.length === 0) {
+    return getAllActiveEventsFeed(query);
+  }
 
   return { events, radiusKm: 0, showExtended: false };
 }
@@ -364,7 +485,7 @@ export async function getEventsAtVenuesFeed(query: {
   return { events, radiusKm: 0, showExtended: false };
 }
 
-/** Nearby event feed with 20km → 50km fallback (unless radius overridden). */
+/** Nearby event feed with 20km → 50km → all-events fallback. */
 export async function getNearbyEventsFeed(query: EventFeedQuery): Promise<EventFeedResult> {
   const primaryRadius = query.radiusKm ?? DEFAULT_RADIUS_KM;
   const nearby = await findWithinRadius(query, primaryRadius);
@@ -372,21 +493,25 @@ export async function getNearbyEventsFeed(query: EventFeedQuery): Promise<EventF
     return { events: nearby, radiusKm: primaryRadius, showExtended: false };
   }
 
-  if (query.allowExtended === false) {
-    return {
-      events: [],
-      radiusKm: primaryRadius,
-      showExtended: false,
-      message: 'Nothing in this area right now.',
-    };
+  if (query.allowExtended !== false) {
+    const extended = await findWithinRadius(query, EXTENDED_RADIUS_KM);
+    if (extended.length > 0) {
+      return {
+        events: extended,
+        radiusKm: EXTENDED_RADIUS_KM,
+        showExtended: true,
+        message: `Nothing nearby? Check out matches ${EXTENDED_RADIUS_KM}km away.`,
+      };
+    }
   }
 
-  const extended = await findWithinRadius(query, EXTENDED_RADIUS_KM);
+  const all = await getAllActiveEventsFeed(query);
   return {
-    events: extended,
-    radiusKm: EXTENDED_RADIUS_KM,
+    ...all,
+    radiusKm: primaryRadius,
     showExtended: true,
-    message: `Nothing nearby? Check out matches ${EXTENDED_RADIUS_KM}km away.`,
+    usedAllEventsFallback: true,
+    message: ALL_EVENTS_FALLBACK_MESSAGE,
   };
 }
 

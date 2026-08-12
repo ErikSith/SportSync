@@ -64,6 +64,7 @@ export async function GET(request: Request) {
   }
 
 let events = (await eventsQuery).data ?? [];
+  let usedAllEventsFallback = false;
   // Fallback to extended radius if no events found
   if (events.length === 0 && radius === DEFAULT_RADIUS_KM && userLat != null && userLng != null) {
     const fallbackRadius = EXTENDED_RADIUS_KM;
@@ -71,7 +72,7 @@ let events = (await eventsQuery).data ?? [];
     const fallbackQuery = supabase
       .from('events')
       .select('id, title, sport, city, type, status, price, capacity, registered_count, starts_at, latitude, longitude, cover_url, created_at')
-      .in('status', ['open', 'full'])
+      .in('status', ['open', 'full', 'live'])
       .gte('starts_at', now)
       .order('starts_at', { ascending: true })
       .limit(20)
@@ -81,6 +82,19 @@ let events = (await eventsQuery).data ?? [];
       .lte('longitude', fallbackBox.maxLng);
     const { data: fallbackEvents } = await fallbackQuery;
     events = fallbackEvents ?? [];
+  }
+
+  // Final fallback: all active events (includes official rows with null GPS)
+  if (events.length === 0) {
+    const { data: allEvents } = await supabase
+      .from('events')
+      .select('id, title, sport, city, type, status, price, capacity, registered_count, starts_at, latitude, longitude, cover_url, created_at')
+      .in('status', ['open', 'full', 'live'])
+      .gte('starts_at', now)
+      .order('starts_at', { ascending: true })
+      .limit(40);
+    events = allEvents ?? [];
+    usedAllEventsFallback = events.length > 0;
   }
 
   // 3. Fetch open lobbies (within radius or same city)
@@ -163,9 +177,22 @@ let tournaments = (await tournamentsQuery).data ?? [];
     tournaments = fallbackTournaments ?? [];
   }
 
+  if (tournaments.length === 0) {
+    const { data: allTournaments } = await supabase
+      .from('tournaments')
+      .select('id, name, sport, format, city, status, entry_fee, max_participants, current_participants, skill_level_min, skill_level_max, starts_at, latitude, longitude, cover_url, created_at')
+      .eq('status', 'REGISTRATION_OPEN')
+      .gte('starts_at', now)
+      .order('starts_at', { ascending: true })
+      .limit(20);
+    tournaments = allTournaments ?? [];
+  }
+
   return NextResponse.json({
     ok: true,
     radius,
+    used_all_events_fallback: usedAllEventsFallback,
+    message: usedAllEventsFallback ? 'Showing all available events' : null,
     user: {
       city: userCity,
       preferredSports,

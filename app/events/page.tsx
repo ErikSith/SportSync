@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { getVenuesForHomeFilter } from '@/lib/data/homepage';
-import type { EventFeedResult, ParticipationMode } from '@/lib/data/events';
+import type { ParticipationMode } from '@/lib/data/events';
+import { ALL_EVENTS_FALLBACK_MESSAGE, getAllActiveEventsFeed } from '@/lib/data/events';
 import { getEventsForArea } from '@/lib/data/area-feed';
 import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import type { EventType } from '@/lib/constants/events';
@@ -118,16 +119,14 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   const needsGpsPrompt =
     requestedArea === 'near_me' && (profile.latitude === null || profile.longitude === null);
 
-  const emptyFeed: EventFeedResult = {
-    events: [],
-    showExtended: false,
-    radiusKm: location.radiusKm,
-  };
-
   const [filterVenues, rawFeed] = await Promise.all([
     getVenuesForHomeFilter(city, 40),
     needsGpsPrompt
-      ? Promise.resolve(emptyFeed)
+      ? getAllActiveEventsFeed({
+          type: typeFilter,
+          lat: location.lat,
+          lng: location.lng,
+        })
       : getEventsForArea({
           location,
           type: typeFilter,
@@ -220,17 +219,39 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         />
 
         {needsGpsPrompt ? (
-          <LocationPrompt />
+          <section className="flex flex-col gap-4">
+            <LocationPrompt variant="inline" />
+            {rawFeed.usedAllEventsFallback && events.length > 0 && (
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-outline-variant/15" />
+                <span className="font-label-caps text-label-caps text-on-surface-variant uppercase text-center text-xs">
+                  {rawFeed.message ?? ALL_EVENTS_FALLBACK_MESSAGE}
+                </span>
+                <div className="h-px flex-1 bg-outline-variant/15" />
+              </div>
+            )}
+            <EventsFeed
+              events={events}
+              allEvents={areaScoped}
+              mode={mode}
+              typeFilter={typeFilter}
+              selectedSports={feedFilters.sports}
+              eventDayKeys={dayKeys}
+              feedTab={feedTab}
+              emptyTitle={emptyState.title}
+              emptySubtitle={emptyState.subtitle}
+            />
+          </section>
         ) : (
           <section className="flex flex-col gap-4">
             {location.allowExtended && (
               <GeoFallbackTracker showExtended={rawFeed.showExtended} radiusKm={rawFeed.radiusKm} />
             )}
-            {rawFeed.showExtended && events.length > 0 && (
+            {(rawFeed.showExtended || rawFeed.usedAllEventsFallback) && events.length > 0 && (
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-outline-variant/15" />
                 <span className="font-label-caps text-label-caps text-on-surface-variant uppercase text-center text-xs">
-                  {rawFeed.message}
+                  {rawFeed.message ?? ALL_EVENTS_FALLBACK_MESSAGE}
                 </span>
                 <div className="h-px flex-1 bg-outline-variant/15" />
               </div>

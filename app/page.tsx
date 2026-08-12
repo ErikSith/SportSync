@@ -76,15 +76,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const hasGps = profile.latitude !== null && profile.longitude !== null;
   const city = profile.city ?? 'Bratislava';
   const feedFilters = parseHomeFeedFilters(searchParams);
-  const needsGpsForNearMe = feedFilters.area === 'near_me' && !hasGps;
-  const canShowInspiration = !needsGpsForNearMe && (hasGps || Boolean(profile.city));
-
+  // Always attempt inspiration — GPS / city / all-events fallbacks live in the data layer.
   let inspiration: HomepageEventInspiration | null = null;
   let filterVenues: HomeFilterVenue[] = [];
 
   try {
     const [inspirationResult, venuesResult] = await Promise.all([
-      canShowInspiration ? getHomepageEventInspiration(profile, feedFilters) : Promise.resolve(null),
+      getHomepageEventInspiration(profile, feedFilters),
       getVenuesForHomeFilter(city),
     ]);
     inspiration = inspirationResult;
@@ -131,13 +129,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                   {displayName}
                 </h2>
               </div>
-              {canShowInspiration && (
-                <Suspense fallback={null}>
-                  <div className="shrink-0 pt-0.5">
-                    <HomeFeedPreferencesAside venues={filterVenues} city={city} />
-                  </div>
-                </Suspense>
-              )}
+              <Suspense fallback={null}>
+                <div className="shrink-0 pt-0.5">
+                  <HomeFeedPreferencesAside venues={filterVenues} city={city} />
+                </div>
+              </Suspense>
             </div>
           </header>
           <QuickActions />

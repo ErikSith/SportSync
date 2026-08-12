@@ -408,15 +408,16 @@ export function matchesFeedArea(
     if (item.lat != null && item.lng != null) {
       return distanceKm(location.lat, location.lng, item.lat, item.lng) <= BRATISLAVA_CITY_RADIUS_KM;
     }
-    return false;
+    // Scraped / official rows often lack GPS — keep them in the city feed.
+    return !item.city || item.city.trim() === '';
   }
 
   if (location.area === 'near_me') {
     if (item.lat != null && item.lng != null) {
       return distanceKm(location.lat, location.lng, item.lat, item.lng) <= location.radiusKm;
     }
-    // No coords — keep Bratislava items so the feed isn't empty.
-    return isBratislavaCity(item.city) || text.includes('bratislav');
+    // No coords — keep Bratislava / unknown-city items so scraped events still show.
+    return !item.city || item.city.trim() === '' || isBratislavaCity(item.city) || text.includes('bratislav');
   }
 
   const district = findDistrictById(location.area);

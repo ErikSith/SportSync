@@ -11,5 +11,5 @@ export function resolveShareAppUrl(hostHeader?: string | null): string {
     }
   }
 
-  return 'http://localhost:3000';
+  return 'https://sportsync-ct5.pages.dev';
 }

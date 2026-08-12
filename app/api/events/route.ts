@@ -9,8 +9,65 @@ import { resolveOrganizerVenue } from '@/lib/data/organizer-venues';
 import { persistAiPlan } from '@/lib/ai/plan-executor';
 import { emitDomainEvent } from '@/lib/orchestration/emit';
 import { DOMAIN_EVENTS } from '@/lib/orchestration/types';
+import {
+  getAllActiveEventsFeed,
+  getNearbyEventsFeed,
+  type ParticipationMode,
+} from '@/lib/data/events';
+import type { EventType } from '@/lib/constants/events';
 
 export const runtime = 'edge';
+
+/**
+ * GET /api/events?lat=&lng=&sport=&type=&city=
+ * Nearby discovery with 20km → 50km → all-events fallback (includes official
+ * rows that have null latitude/longitude).
+ */
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const latRaw = searchParams.get('lat');
+  const lngRaw = searchParams.get('lng');
+  const lat = latRaw != null ? Number(latRaw) : NaN;
+  const lng = lngRaw != null ? Number(lngRaw) : NaN;
+  const sport = searchParams.get('sport') ?? undefined;
+  const typeParam = searchParams.get('type')?.toLowerCase();
+  const type: EventType | 'ALL' =
+    typeParam === 'official' || typeParam === 'community' ? typeParam : 'ALL';
+  const modeParam = searchParams.get('mode');
+  const participationMode: ParticipationMode | 'all' =
+    modeParam === 'spectator' || modeParam === 'participate' ? modeParam : 'all';
+  const search = searchParams.get('q') ?? searchParams.get('search') ?? undefined;
+
+  const hasGps = Number.isFinite(lat) && Number.isFinite(lng);
+
+  const feed = hasGps
+    ? await getNearbyEventsFeed({
+        lat,
+        lng,
+        sport,
+        type,
+        participationMode,
+        search,
+        allowExtended: true,
+      })
+    : await getAllActiveEventsFeed({
+        sport,
+        type,
+        participationMode,
+        search,
+      });
+
+  return NextResponse.json({
+    events: feed.events.map((event) => ({
+      ...event,
+      startsAt: event.startsAt.toISOString(),
+    })),
+    radius_km: feed.radiusKm,
+    show_extended: feed.showExtended,
+    used_all_events_fallback: Boolean(feed.usedAllEventsFallback),
+    message: feed.message ?? null,
+  });
+}
 
 const createEventSchema = eventIntentSchema.extend({
   type: z.enum(['community', 'official']).default('community'),

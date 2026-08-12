@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
-import { matchesFeedArea, parseFeedArea, resolveFeedLocation, type FeedAreaId } from '@/lib/cities';
+import { matchesFeedArea, resolveFeedLocation, type FeedAreaId } from '@/lib/cities';
 import { getVenueIdsForDistrict } from '@/lib/data/area-feed';
 import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
 import type { EventType } from '@/lib/constants/events';
 import type { EventCardData } from '@/lib/data/events';
+import { ALL_EVENTS_FALLBACK_MESSAGE } from '@/lib/data/events';
 import type { HomeFeedFilters } from '@/lib/home-feed-filters';
 import { matchesHomeFeedFilters } from '@/lib/home-feed-filters';
 import { mixMatchDiscoveryFeed } from '@/lib/feed/mix-discovery';
@@ -163,6 +164,7 @@ export interface FeaturedEventsResult {
   radiusKm: number;
   showExtended: boolean;
   message?: string;
+  usedAllEventsFallback?: boolean;
 }
 
 export interface HomepageEventInspiration {
@@ -180,6 +182,9 @@ export interface HomepageEventInspiration {
   /** Active feed area — keeps Featured UI stable while adapting copy/content. */
   area: FeedAreaId;
   areaLabel: string;
+  /** True when nearby radius/city scope returned nothing and we widened to all events. */
+  usedAllEventsFallback?: boolean;
+  fallbackMessage?: string;
 }
 
 function normalizeEventType(type: string): EventType {
@@ -348,27 +353,29 @@ async function fetchEventCandidatePool(
   const box = boundingBox(lat, lng, searchRadiusKm);
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from('events')
-    .select('*, venues(name)')
-    .in('status', ['open', 'live'])
-    .gte('starts_at', activeFeedSinceIso())
-    .gte('latitude', box.minLat)
-    .lte('latitude', box.maxLat)
-    .gte('longitude', box.minLng)
-    .lte('longitude', box.maxLng)
-    .order('starts_at', { ascending: true })
-    .limit(50);
+  const [{ data, error }, missingCoords] = await Promise.all([
+    supabase
+      .from('events')
+      .select('*, venues(name)')
+      .in('status', ['open', 'live'])
+      .gte('starts_at', activeFeedSinceIso())
+      .gte('latitude', box.minLat)
+      .lte('latitude', box.maxLat)
+      .gte('longitude', box.minLng)
+      .lte('longitude', box.maxLng)
+      .order('starts_at', { ascending: true })
+      .limit(50),
+    fetchOfficialEventsMissingCoordsPool(filters),
+  ]);
 
-  if (error || !data) {
-    if (error && process.env.NODE_ENV !== 'production') {
+  if (error) {
+    if (process.env.NODE_ENV !== 'production') {
       console.error('[homepage.fetchEventCandidatePool]', error.message);
     }
-    return [];
   }
 
-  return applyFeedFilters(
-    (data as EventRow[])
+  const geoHits = applyFeedFilters(
+    ((data ?? []) as EventRow[])
       .filter((event) => event.latitude !== null && event.longitude !== null)
       .map((event) => ({
         event,
@@ -378,6 +385,79 @@ async function fetchEventCandidatePool(
       .map(({ event, distanceKm: d }) => toEventCard(event, d)),
     filters,
   );
+
+  return mergeHomepageCards(geoHits, missingCoords);
+}
+
+async function fetchOfficialEventsMissingCoordsPool(
+  filters?: HomeFeedFilters,
+): Promise<EventCardData[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('events')
+    .select('*, venues(name)')
+    .eq('type', 'official')
+    .in('status', ['open', 'live'])
+    .gte('starts_at', activeFeedSinceIso())
+    .or('latitude.is.null,longitude.is.null')
+    .order('starts_at', { ascending: true })
+    .limit(50);
+
+  if (error || !data) {
+    if (error && process.env.NODE_ENV !== 'production') {
+      console.error('[homepage.fetchOfficialEventsMissingCoordsPool]', error.message);
+    }
+    return [];
+  }
+
+  return applyFeedFilters(
+    (data as EventRow[]).map((event) => toEventCard(event, 0)),
+    filters,
+  );
+}
+
+async function fetchAllActiveEventCandidates(
+  lat: number,
+  lng: number,
+  filters?: HomeFeedFilters,
+): Promise<EventCardData[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('events')
+    .select('*, venues(name)')
+    .in('status', ['open', 'live'])
+    .gte('starts_at', activeFeedSinceIso())
+    .order('starts_at', { ascending: true })
+    .limit(120);
+
+  if (error || !data) {
+    if (error && process.env.NODE_ENV !== 'production') {
+      console.error('[homepage.fetchAllActiveEventCandidates]', error.message);
+    }
+    return [];
+  }
+
+  return applyFeedFilters(
+    (data as EventRow[]).map((event) => {
+      const dist =
+        event.latitude != null && event.longitude != null
+          ? distanceKm(lat, lng, event.latitude, event.longitude)
+          : 0;
+      return toEventCard(event, dist);
+    }),
+    filters,
+  );
+}
+
+function mergeHomepageCards(primary: EventCardData[], extra: EventCardData[]): EventCardData[] {
+  const seen = new Set(primary.map((e) => e.id));
+  const merged = [...primary];
+  for (const event of extra) {
+    if (seen.has(event.id)) continue;
+    seen.add(event.id);
+    merged.push(event);
+  }
+  return merged;
 }
 
 /** Homepage event inspiration: featured + Near You / Starting Soon / Last Spots rows. */
@@ -385,25 +465,12 @@ export async function getHomepageEventInspiration(
   profile: Profile,
   filters?: HomeFeedFilters,
 ): Promise<HomepageEventInspiration | null> {
-  const requestedArea = parseFeedArea(filters?.area);
-  if (
-    requestedArea === 'near_me' &&
-    (profile.latitude === null || profile.longitude === null)
-  ) {
-    return null;
-  }
-
   const location = resolveFeedLocation({
     areaRaw: filters?.area,
     profileCity: profile.city,
     profileLat: profile.latitude,
     profileLng: profile.longitude,
   });
-
-  // Still need a city/GPS fallback when filters default to Bratislava with no profile location.
-  if (!profile.city && profile.latitude === null && profile.longitude === null) {
-    return null;
-  }
 
   const primaryRadius = location.radiusKm;
   const useGpsNearby = location.area === 'near_me';
@@ -442,11 +509,27 @@ export async function getHomepageEventInspiration(
     });
   };
 
-  const featured = {
+  let featured = {
     ...featuredRaw,
     events: featuredRaw.events.filter(inArea).slice(0, FEATURED_ROW_LIMIT),
   };
-  const candidates = candidatesRaw.filter(inArea);
+  let candidates = candidatesRaw.filter(inArea);
+  let usedAllEventsFallback = Boolean(featuredRaw.usedAllEventsFallback);
+
+  if (candidates.length === 0 && featured.events.length === 0) {
+    const allCandidates = await fetchAllActiveEventCandidates(location.lat, location.lng, filters);
+    candidates = allCandidates;
+    if (featured.events.length === 0) {
+      featured = {
+        events: allCandidates.filter((e) => e.type === 'official').slice(0, FEATURED_ROW_LIMIT),
+        radiusKm: primaryRadius,
+        showExtended: true,
+        usedAllEventsFallback: true,
+        message: ALL_EVENTS_FALLBACK_MESSAGE,
+      };
+    }
+    usedAllEventsFallback = true;
+  }
 
   const usedIds = new Set<string>();
   featured.events.forEach((event) => usedIds.add(event.id));
@@ -482,6 +565,8 @@ export async function getHomepageEventInspiration(
     lastSpots,
     area: location.area,
     areaLabel: location.label,
+    usedAllEventsFallback,
+    fallbackMessage: usedAllEventsFallback ? ALL_EVENTS_FALLBACK_MESSAGE : undefined,
     anchor: {
       lat: location.lat,
       lng: location.lng,
@@ -537,24 +622,26 @@ async function fetchEventCandidatePoolByCity(
   filters?: HomeFeedFilters,
 ): Promise<EventCardData[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('events')
-    .select('*, venues(name)')
-    .in('status', ['open', 'live'])
-    .ilike('city', city)
-    .gte('starts_at', activeFeedSinceIso())
-    .order('starts_at', { ascending: true })
-    .limit(50);
+  const [{ data, error }, missingCoords] = await Promise.all([
+    supabase
+      .from('events')
+      .select('*, venues(name)')
+      .in('status', ['open', 'live'])
+      .ilike('city', city)
+      .gte('starts_at', activeFeedSinceIso())
+      .order('starts_at', { ascending: true })
+      .limit(50),
+    fetchOfficialEventsMissingCoordsPool(filters),
+  ]);
 
-  if (error || !data) {
-    if (error && process.env.NODE_ENV !== 'production') {
+  if (error) {
+    if (process.env.NODE_ENV !== 'production') {
       console.error('[homepage.fetchEventCandidatePoolByCity]', error.message);
     }
-    return [];
   }
 
-  return applyFeedFilters(
-    (data as EventRow[]).map((event) => {
+  const cityEvents = applyFeedFilters(
+    ((data ?? []) as EventRow[]).map((event) => {
       const dist =
         event.latitude != null && event.longitude != null
           ? distanceKm(lat, lng, event.latitude, event.longitude)
@@ -563,6 +650,8 @@ async function fetchEventCandidatePoolByCity(
     }),
     filters,
   );
+
+  return mergeHomepageCards(cityEvents, missingCoords);
 }
 
 export async function getFeaturedNearbyEvents(
@@ -578,20 +667,23 @@ export async function getFeaturedNearbyEvents(
   const within = async (radiusKm: number): Promise<EventCardData[]> => {
     const box = boundingBox(lat, lng, radiusKm);
     const supabase = await createClient();
-    const { data } = await supabase
-      .from('events')
-      .select('*, venues(name)')
-      .eq('type', 'official')
-      .in('status', ['open', 'live'])
-      .gte('starts_at', activeFeedSinceIso())
-      .gte('latitude', box.minLat)
-      .lte('latitude', box.maxLat)
-      .gte('longitude', box.minLng)
-      .lte('longitude', box.maxLng)
-      .order('starts_at', { ascending: true })
-      .limit(20);
+    const [{ data }, missingCoords] = await Promise.all([
+      supabase
+        .from('events')
+        .select('*, venues(name)')
+        .eq('type', 'official')
+        .in('status', ['open', 'live'])
+        .gte('starts_at', activeFeedSinceIso())
+        .gte('latitude', box.minLat)
+        .lte('latitude', box.maxLat)
+        .gte('longitude', box.minLng)
+        .lte('longitude', box.maxLng)
+        .order('starts_at', { ascending: true })
+        .limit(20),
+      fetchOfficialEventsMissingCoordsPool(filters),
+    ]);
 
-    return applyFeedFilters(
+    const geoHits = applyFeedFilters(
       (data as EventRow[] | null)
         ?.filter((event) => event.latitude !== null && event.longitude !== null)
         .map((event) => ({
@@ -604,6 +696,8 @@ export async function getFeaturedNearbyEvents(
         .map(({ event, distanceKm: d }) => toEventCard(event, d)) ?? [],
       filters,
     );
+
+    return mergeHomepageCards(geoHits, missingCoords).slice(0, take);
   };
 
   const nearby = await within(primaryRadiusKm);
@@ -621,10 +715,19 @@ export async function getFeaturedNearbyEvents(
         message: `Nothing nearby? Check out matches ${EXTENDED_RADIUS_KM}km away.`,
       };
     }
-    return { events: [], radiusKm: EXTENDED_RADIUS_KM, showExtended: true };
   }
 
-  return { events: [], radiusKm: primaryRadiusKm, showExtended: false };
+  const allOfficial = (await fetchAllActiveEventCandidates(lat, lng, filters))
+    .filter((event) => event.type === 'official')
+    .slice(0, take);
+
+  return {
+    events: allOfficial,
+    radiusKm: primaryRadiusKm,
+    showExtended: true,
+    usedAllEventsFallback: true,
+    message: ALL_EVENTS_FALLBACK_MESSAGE,
+  };
 }
 
 /** @deprecated Use getFeaturedNearbyEvents — kept for single-item callers if needed. */

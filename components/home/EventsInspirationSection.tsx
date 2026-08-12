@@ -8,15 +8,21 @@ interface EventsInspirationSectionProps {
 }
 
 export function EventsInspirationSection({ data }: EventsInspirationSectionProps) {
-  const { nearby, lastSpots, anchor, area, areaLabel } = data;
+  const { nearby, lastSpots, startingSoon, anchor, area, areaLabel, usedAllEventsFallback, fallbackMessage } =
+    data;
 
-  const hasAnyRow = nearby.length > 0 || lastSpots.length > 0;
+  const hasAnyRow = nearby.length > 0 || lastSpots.length > 0 || startingSoon.length > 0;
   const isEmpty = !hasAnyRow;
 
-  const showLocationPrompt = anchor.source === 'city' && nearby.length === 0 && area === 'near_me';
+  const showLocationPrompt =
+    !usedAllEventsFallback &&
+    anchor.source === 'city' &&
+    nearby.length === 0 &&
+    area === 'near_me';
 
-  const nearbySubtitle =
-    area === 'near_me'
+  const nearbySubtitle = usedAllEventsFallback
+    ? 'All available events'
+    : area === 'near_me'
       ? 'Within 20km'
       : area === 'bratislava'
         ? 'Across Bratislava'
@@ -25,6 +31,16 @@ export function EventsInspirationSection({ data }: EventsInspirationSectionProps
   return (
     <section className="space-y-8">
       {/* PromotedBannerSection intentionally hidden until traction — keep lib/data/promoted* + component. */}
+
+      {usedAllEventsFallback && hasAnyRow && (
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-outline-variant/15" />
+          <span className="font-label-caps text-label-caps text-on-surface-variant uppercase text-center text-xs">
+            {fallbackMessage ?? 'Showing all available events'}
+          </span>
+          <div className="h-px flex-1 bg-outline-variant/15" />
+        </div>
+      )}
 
       {lastSpots.length > 0 && (
         <EventInspirationRow
@@ -36,10 +52,20 @@ export function EventsInspirationSection({ data }: EventsInspirationSectionProps
         />
       )}
 
+      {startingSoon.length > 0 && (
+        <EventInspirationRow
+          icon="schedule"
+          title="Coming up"
+          subtitle="Next 7 days"
+          events={startingSoon}
+          badgeKind="distance"
+        />
+      )}
+
       {nearby.length > 0 && (
         <EventInspirationRow
           icon="near_me"
-          title="Near You"
+          title={usedAllEventsFallback ? 'Available Events' : 'Near You'}
           subtitle={nearbySubtitle}
           events={nearby}
           badgeKind="distance"

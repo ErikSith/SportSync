@@ -11,6 +11,7 @@ import {
 } from '@/lib/cities';
 import { createClient } from '@/lib/supabase/server';
 import {
+  getAllActiveEventsFeed,
   getCityEventsFeed,
   getEventsAtVenuesFeed,
   getNearbyEventsFeed,
@@ -105,14 +106,20 @@ export async function getEventsForArea(input: {
         textParts: [event.venueName, event.title, event.description],
       }),
     );
-    return {
-      ...cityFeed,
-      events: filtered,
-      message:
-        filtered.length === 0
-          ? `No events in ${location.label} right now.`
-          : cityFeed.message,
-    };
+    if (filtered.length > 0) {
+      return {
+        ...cityFeed,
+        events: filtered,
+        message: cityFeed.message,
+      };
+    }
+    // Last resort: all active events across cities
+    return getAllActiveEventsFeed({
+      type,
+      participationMode,
+      lat: location.lat,
+      lng: location.lng,
+    });
   }
 
   return {
@@ -182,7 +189,7 @@ export async function getTournamentsForArea(input: {
 
   if (location.area === 'near_me') {
     const all = await getUpcomingTournaments({});
-    return all.filter((t) =>
+    const nearby = all.filter((t) =>
       matchesFeedArea(location, {
         lat: t.venueLatitude,
         lng: t.venueLongitude,
@@ -190,6 +197,7 @@ export async function getTournamentsForArea(input: {
         textParts: [t.venueName, t.venueAddress, t.name],
       }),
     );
+    return nearby.length > 0 ? nearby : all;
   }
 
   const venueIds = await getVenueIdsForDistrict(location.area);

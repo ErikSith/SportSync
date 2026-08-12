@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ShareQrButton } from '@/components/home/ShareQrButton';
 
 interface TopAppBarProps {
   avatarUrl: string | null;
@@ -15,7 +16,7 @@ export function TopAppBar({ avatarUrl, name }: TopAppBarProps) {
 
   return (
     <header className="bg-surface/80 backdrop-blur-xl border-b border-outline-variant/30 shadow-2xl shadow-black/50 fixed top-0 left-0 right-0 w-full max-w-[100vw] z-50 flex items-center justify-between px-4 sm:px-gutter h-16 pt-[env(safe-area-inset-top,0px)]">
-      <span className="w-10 h-10" aria-hidden />
+      <ShareQrButton />
       <Link
         href="/"
         aria-label="Go to homepage"
