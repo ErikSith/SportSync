@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -39,13 +38,7 @@ interface EventFiltersBarProps {
   eventDayKeys?: string[];
 }
 
-type FilterPanel = 'type' | 'when' | 'sport' | null;
-
-const TYPE_SEGMENTS: Array<{ key: EventType | 'ALL'; label: string }> = [
-  { key: 'ALL', label: 'Všetko' },
-  { key: 'official', label: 'Oficiálne' },
-  { key: 'community', label: 'Komunita' },
-];
+type FilterPanel = 'when' | 'sport' | null;
 
 const DATE_PRESETS: Array<{ key: Exclude<DatePreset, 'all' | 'custom'>; label: string }> = [
   { key: 'today', label: 'Dnes' },
@@ -55,7 +48,7 @@ const DATE_PRESETS: Array<{ key: Exclude<DatePreset, 'all' | 'custom'>; label: s
 
 export function EventFiltersBar({
   mode,
-  typeFilter,
+  typeFilter: _typeFilter,
   selectedSports = [],
   availableSports,
   eventDayKeys = [],
@@ -135,13 +128,6 @@ export function EventFiltersBar({
     const id = window.setTimeout(() => otherInputRef.current?.focus(), 40);
     return () => window.clearTimeout(id);
   }, [otherOpen, openPanel]);
-
-  function withParams(mutate: (params: URLSearchParams) => void): string {
-    const params = new URLSearchParams(searchParams.toString());
-    mutate(params);
-    const qs = params.toString();
-    return qs ? `${pathname}?${qs}` : pathname;
-  }
 
   const replaceParams = useCallback(
     (mutate: (params: URLSearchParams) => void) => {
@@ -325,8 +311,6 @@ export function EventFiltersBar({
   const otherActive = otherOpen || queryFromUrl.length > 0;
   const allSportsActive = selected.size === 0 && !queryFromUrl;
 
-  const typeSummary =
-    TYPE_SEGMENTS.find((s) => s.key === typeFilter)?.label ?? 'Všetko';
   const whenSummary =
     preset === 'all'
       ? 'Kedykoľvek'
@@ -343,7 +327,7 @@ export function EventFiltersBar({
       ? sportDisplayLabel([...selected][0]!)
       : selected.size > 1
         ? sportPlayGroupForSport([...selected][0]!)?.label ?? `${selected.size} športy`
-        : 'Všetky';
+        : 'Športy';
 
   const chip =
     'inline-flex shrink-0 items-center rounded-xl border px-3 py-2 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 active:scale-[0.98] whitespace-nowrap';
@@ -366,7 +350,7 @@ export function EventFiltersBar({
         aria-controls={`filter-panel-${opts.id}`}
         onClick={() => togglePanel(opts.id)}
         className={[
-          'group flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-left transition-colors duration-200',
+          'group flex h-full min-w-0 w-full items-center justify-center gap-1 rounded-xl px-1.5 py-2.5 text-center transition-colors duration-200 sm:gap-1.5 sm:px-2',
           open
             ? 'bg-white/[0.05] text-white'
             : opts.filtered
@@ -374,7 +358,7 @@ export function EventFiltersBar({
               : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
         ].join(' ')}
       >
-        <span className="truncate font-label-caps text-[9px] uppercase tracking-[0.12em]">
+        <span className="min-w-0 truncate font-label-caps text-[9px] uppercase tracking-[0.1em] sm:tracking-[0.12em]">
           {opts.label}
         </span>
         <ChevronDown
@@ -388,18 +372,21 @@ export function EventFiltersBar({
   };
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-2" data-event-filters-bar="v6-rollup">
-      {/* 3 summary tabs — same chrome as EventListItem */}
+    <div className="flex w-full min-w-0 flex-col gap-2.5" data-event-filters-bar="v8-two-tabs">
+      {/* 2 summary tabs — when + sports */}
       <div
-        className="flex min-w-0 items-stretch gap-0.5 rounded-2xl border border-white/10 bg-transparent p-1 transition-colors duration-200"
+        className="grid min-w-0 grid-cols-2 items-stretch gap-0 rounded-2xl border border-white/10 bg-transparent p-1 transition-colors duration-200"
         role="toolbar"
         aria-label="Filtre"
       >
-        {archTab({ id: 'type', label: typeSummary, filtered: typeFilter !== 'ALL' })}
-        <span className="my-1.5 w-px shrink-0 bg-white/10" aria-hidden />
         {archTab({ id: 'when', label: whenSummary, filtered: dateActive })}
-        <span className="my-1.5 w-px shrink-0 bg-white/10" aria-hidden />
-        {archTab({ id: 'sport', label: sportSummary, filtered: !allSportsActive })}
+        <div className="relative min-w-0">
+          <span
+            className="pointer-events-none absolute inset-y-1.5 left-0 w-px bg-white/10"
+            aria-hidden
+          />
+          {archTab({ id: 'sport', label: sportSummary, filtered: !allSportsActive })}
+        </div>
       </div>
 
       {/* Rollup — list-item surface */}
@@ -415,28 +402,6 @@ export function EventFiltersBar({
             className="overflow-hidden"
           >
             <div className="rounded-2xl border border-white/10 bg-transparent px-3 py-3 space-y-2.5 sm:px-3.5">
-              {openPanel === 'type' ? (
-                <div className={scrollRow} role="list" aria-label="Typ eventu">
-                  {TYPE_SEGMENTS.map((seg) => {
-                    const active = typeFilter === seg.key;
-                    return (
-                      <Link
-                        key={seg.key}
-                        href={withParams((params) => {
-                          if (seg.key === 'ALL') params.delete('type');
-                          else params.set('type', seg.key);
-                        })}
-                        scroll={false}
-                        onClick={() => setOpenPanel(null)}
-                        className={`${chip} ${active ? chipOn : chipIdle}`}
-                      >
-                        {seg.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : null}
-
               {openPanel === 'when' ? (
                 <>
                   <div className={scrollRow} role="list" aria-label="Dátum">
@@ -778,72 +743,82 @@ export function EventFiltersBar({
         ) : null}
       </AnimatePresence>
 
-      {/* Audience + mode */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/*
+        Mobile: stack — audience scrolls horizontally, mode is a full-width 50/50 control.
+        md+: side-by-side without wrapping over each other.
+      */}
+      <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-2">
         <div
-          className={`inline-flex min-w-0 flex-1 items-stretch gap-0.5 rounded-2xl border border-white/10 bg-transparent p-1 sm:flex-none ${
+          className={`grid min-w-0 w-full grid-cols-3 items-stretch gap-0 rounded-2xl border border-white/10 bg-transparent p-1 md:max-w-[min(100%,22rem)] md:flex-1 ${
             modePending ? 'opacity-70' : ''
           }`}
           role="list"
           aria-label="Publikum"
         >
-          {EVENT_AUDIENCE_OPTIONS.map((option) => {
+          {EVENT_AUDIENCE_OPTIONS.map((option, index) => {
             const active = audience === option.key;
             return (
-              <button
-                key={option.key}
-                type="button"
-                role="listitem"
-                onClick={() => setAudience(option.key)}
-                className={[
-                  'rounded-xl px-3 py-2 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 whitespace-nowrap',
-                  active
-                    ? 'bg-white/[0.05] text-white'
-                    : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
-                ].join(' ')}
-              >
-                {option.label}
-              </button>
+              <div key={option.key} className="relative min-w-0">
+                {index > 0 ? (
+                  <span
+                    className="pointer-events-none absolute inset-y-1.5 left-0 w-px bg-white/10"
+                    aria-hidden
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  role="listitem"
+                  onClick={() => setAudience(option.key)}
+                  className={[
+                    'flex h-full w-full min-w-0 items-center justify-center rounded-xl px-1.5 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.1em] transition-colors duration-200 sm:tracking-[0.12em] md:py-2',
+                    active
+                      ? 'bg-white/[0.05] text-white'
+                      : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
+                  ].join(' ')}
+                >
+                  <span className="truncate">{option.label}</span>
+                </button>
+              </div>
             );
           })}
         </div>
 
         <div
-          className={`inline-flex w-fit items-stretch gap-0.5 rounded-2xl border border-white/10 bg-transparent p-1 transition-colors duration-200 ${
+          className={`grid w-full min-w-0 grid-cols-2 items-stretch gap-0.5 rounded-2xl border border-white/10 bg-transparent p-1 transition-colors duration-200 md:w-auto md:shrink-0 ${
             modePending ? 'opacity-70' : ''
           }`}
           role="tablist"
           aria-label="Hrať alebo sledovať"
         >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={!isSpectator}
-          onClick={() => setMode('participate')}
-          className={[
-            'rounded-xl px-3.5 py-2 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200',
-            !isSpectator
-              ? 'bg-white/[0.05] text-white'
-              : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
-          ].join(' ')}
-        >
-          Hrať
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={isSpectator}
-          onClick={() => setMode('spectator')}
-          className={[
-            'inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200',
-            isSpectator
-              ? 'bg-white/[0.05] text-white'
-              : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
-          ].join(' ')}
-        >
-          <Eye className="h-3.5 w-3.5" strokeWidth={2} />
-          Sledovať
-        </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isSpectator}
+            onClick={() => setMode('participate')}
+            className={[
+              'rounded-xl px-3 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 md:px-3.5 md:py-2',
+              !isSpectator
+                ? 'bg-white/[0.05] text-white'
+                : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
+            ].join(' ')}
+          >
+            Hrať
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isSpectator}
+            onClick={() => setMode('spectator')}
+            className={[
+              'inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 md:px-3.5 md:py-2',
+              isSpectator
+                ? 'bg-white/[0.05] text-white'
+                : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
+            ].join(' ')}
+          >
+            <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+            Sledovať
+          </button>
         </div>
       </div>
     </div>
