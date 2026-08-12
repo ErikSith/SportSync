@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import type { SignalName } from '@/lib/telemetry/track';
 
+export const runtime = 'edge';
+
 const signalSchema = z.object({
   eventName: z.string().min(1).max(64),
   payload: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),

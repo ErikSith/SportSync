@@ -5,6 +5,8 @@ import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { getVenuesForOrganizer } from '@/lib/data/organizer-venues';
 import { getVenueOccupancyStats } from '@/lib/data/venue-analytics';
 
+export const runtime = 'edge';
+
 export async function GET() {
   const supabase = await createClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();

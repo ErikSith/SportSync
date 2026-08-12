@@ -5,6 +5,8 @@ import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { canUseVenueForOrganizer } from '@/lib/data/organizer-venues';
 import { getVenueDashboard } from '@/lib/data/venue-analytics';
 
+export const runtime = 'edge';
+
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } },

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getSessionById } from '@/lib/data/sport-groups';
 
+export const runtime = 'edge';
+
 const updateSessionSchema = z.object({
   destinationName: z.string().max(120).optional().nullable(),
   destinationAddress: z.string().max(300).optional().nullable(),

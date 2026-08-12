@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { parseTournamentIntent } from '@/lib/ai/tournament-intent';
 import { canCreateTournament } from '@/lib/auth/tournament-access';
 
+export const runtime = 'edge';
+
 const parseRequestSchema = z.object({
   brief: z.string().min(12).max(4000),
   organizerName: z.string().min(1).max(80).optional(),

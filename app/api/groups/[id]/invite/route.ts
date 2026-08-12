@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 
+export const runtime = 'edge';
+
 const inviteSchema = z.object({
   username: z.string().min(2).max(50),
 });

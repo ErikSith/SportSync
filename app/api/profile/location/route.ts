@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { findCityByName } from '@/lib/cities';
 
+export const runtime = 'edge';
+
 const gpsSchema = z.object({
   source: z.literal('gps'),
   latitude: z.number().min(-90).max(90),

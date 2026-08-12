@@ -5,6 +5,8 @@ import { LOBBY_SPORTS } from '@/lib/constants/sports';
 import { getMyGroups } from '@/lib/data/sport-groups';
 import { generateInviteCode } from '@/lib/utils/invite-code';
 
+export const runtime = 'edge';
+
 const createGroupSchema = z.object({
   name: z.string().min(2).max(80),
   sport: z.enum(LOBBY_SPORTS),

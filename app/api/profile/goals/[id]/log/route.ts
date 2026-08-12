@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { logGoalProgress } from '@/lib/data/profile-goals';
 
+export const runtime = 'edge';
+
 const logSchema = z.object({
   value: z.number().positive().default(1),
   note: z.string().optional(),

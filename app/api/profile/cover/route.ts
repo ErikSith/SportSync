@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { updateProfileCoverUrl } from '@/lib/data/profile';
 import { uploadProfileImage } from '@/lib/supabase/storage';
 
+export const runtime = 'edge';
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();

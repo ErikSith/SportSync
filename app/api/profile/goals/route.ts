@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getProfileGoals } from '@/lib/data/profile-goals';
 
+export const runtime = 'edge';
+
 export async function GET() {
   const supabase = await createClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();

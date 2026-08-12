@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { broadcastMercenarySos } from '@/lib/matching/mercenary';
 
+export const runtime = 'edge';
+
 const sosSchema = z.object({
   lobbyId: z.string().uuid(),
 });

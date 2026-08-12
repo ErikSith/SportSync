@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { deleteFriendship } from '@/lib/data/profile-friends';
 
+export const runtime = 'edge';
+
 interface RouteParams {
   params: { id: string };
 }

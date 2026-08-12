@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getBratislavaVenueLeaderboard } from '@/lib/data/bratislava-leaderboard';
 
+export const runtime = 'edge';
+
 /**
  * City Leaderboard for Bratislava venues (VISION.md "City Leaderboards" pillar).
  *

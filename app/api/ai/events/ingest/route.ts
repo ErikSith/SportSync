@@ -12,6 +12,8 @@ import { DOMAIN_EVENTS } from '@/lib/orchestration/types';
 import { EVENT_SPORTS } from '@/lib/constants/sports';
 import { autoMatchPlayers } from '@/lib/matching/auto-match';
 
+export const runtime = 'edge';
+
 const sponsorSchema = z.object({
   name: z.string().min(1).max(120),
   logoUrl: z.string().url().optional().nullable(),

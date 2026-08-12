@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { LOBBY_SPORTS } from '@/lib/constants/sports';
 
+export const runtime = 'edge';
+
 const planActivitySchema = z.object({
   title: z.string().min(2).max(120),
   sport: z.enum(LOBBY_SPORTS),

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { executePendingAiTasks } from '@/lib/ai/plan-executor';
 
+export const runtime = 'edge';
+
 export async function POST(request: Request) {
   const agentKey = request.headers.get('x-agent-key');
   const cronSecret = process.env.CRON_SECRET;

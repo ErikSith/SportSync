@@ -10,6 +10,8 @@ import { emitDomainEvent } from '@/lib/orchestration/emit';
 import { DOMAIN_EVENTS } from '@/lib/orchestration/types';
 import { EVENT_SPORTS } from '@/lib/constants/sports';
 
+export const runtime = 'edge';
+
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } },

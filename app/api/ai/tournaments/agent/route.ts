@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { runTournamentAgent } from '@/lib/ai/tournament-agent';
 
+export const runtime = 'edge';
+
 function isAuthorizedCron(request: Request): boolean {
   const agentKey = request.headers.get('x-agent-key');
   const cronSecret = process.env.CRON_SECRET;

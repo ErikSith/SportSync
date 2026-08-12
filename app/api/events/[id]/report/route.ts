@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isEventReportReason } from '@/lib/constants/event-sources';
 
+export const runtime = 'edge';
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const supabase = await createClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();

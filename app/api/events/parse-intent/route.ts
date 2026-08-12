@@ -5,6 +5,8 @@ import { parseStructuredEventIntent } from '@/lib/ai/event-parse-structured';
 import { canCreateOfficialEvent } from '@/lib/auth/tournament-access';
 import { findCityByName } from '@/lib/cities';
 
+export const runtime = 'edge';
+
 const parseIntentSchema = z.object({
   brief: z.string().min(12).max(4000),
   photos: z.array(z.string().url()).max(12).default([]),

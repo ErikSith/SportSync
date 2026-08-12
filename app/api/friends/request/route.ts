@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { createFriendRequest } from '@/lib/data/profile-friends';
 
+export const runtime = 'edge';
+
 const bodySchema = z.object({
   username: z.string().min(1).max(30),
 });

@@ -10,6 +10,8 @@ import { persistAiPlan } from '@/lib/ai/plan-executor';
 import { emitDomainEvent } from '@/lib/orchestration/emit';
 import { DOMAIN_EVENTS } from '@/lib/orchestration/types';
 
+export const runtime = 'edge';
+
 const createEventSchema = eventIntentSchema.extend({
   type: z.enum(['community', 'official']).default('community'),
   status: z.enum(['draft', 'open']).default('open'),

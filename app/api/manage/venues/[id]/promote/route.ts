@@ -5,6 +5,8 @@ import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { canUseVenueForOrganizer } from '@/lib/data/organizer-venues';
 import { autoPromoteVenueEvents, getUnderfilledEvents } from '@/lib/marketing/auto-promote';
 
+export const runtime = 'edge';
+
 export async function POST(
   _request: Request,
   { params }: { params: { id: string } },

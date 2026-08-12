@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+export const runtime = 'edge';
+
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
   const supabase = await createClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();

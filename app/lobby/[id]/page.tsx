@@ -10,6 +10,8 @@ import { PollRefresh } from '@/lib/realtime/usePollingRefresh';
 import { LobbyActions } from '@/components/lobby/LobbyActions';
 import { VenueEventBookingLinks } from '@/components/shared/VenueEventBookingLinks';
 
+export const runtime = 'edge';
+
 const SPORT_ICONS: Record<string, string> = {
   TENNIS: 'sports_tennis',
   PADEL: 'sports_tennis',

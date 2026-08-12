@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 
+export const runtime = 'edge';
+
 const updateScheduleSchema = z.object({
   isActive: z.boolean(),
 });

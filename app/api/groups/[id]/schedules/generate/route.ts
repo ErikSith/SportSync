@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { nextOccurrence, wasGeneratedThisWeek } from '@/lib/utils/schedule';
 
+export const runtime = 'edge';
+
 /**
  * Simulates the "Monday morning" cron: creates a crew session for every
  * active recurring schedule that hasn't generated one yet this week. Safe

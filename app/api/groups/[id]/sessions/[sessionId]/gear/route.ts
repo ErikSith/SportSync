@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { GEAR_ITEMS } from '@/lib/data/sport-groups-shared';
 
+export const runtime = 'edge';
+
 const gearSchema = z.object({
   item: z.enum(GEAR_ITEMS),
   claim: z.boolean(),

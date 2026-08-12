@@ -2,7 +2,7 @@ import QRCode from 'qrcode';
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveShareAppUrl } from '@/lib/share/app-url';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;

@@ -12,6 +12,8 @@ import { DOMAIN_EVENTS } from '@/lib/orchestration/types';
 import { generateBracket } from '@/lib/tournaments/bracket';
 import { autoMatchPlayers } from '@/lib/matching/auto-match';
 
+export const runtime = 'edge';
+
 const ingestRequestSchema = z.object({
   brief: z.string().min(12).max(4000),
   organizerName: z.string().min(1).max(80).optional(),

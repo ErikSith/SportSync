@@ -11,6 +11,8 @@ import { emitDomainEvent } from '@/lib/orchestration/emit';
 import { DOMAIN_EVENTS } from '@/lib/orchestration/types';
 import { autoMatchPlayers } from '@/lib/matching/auto-match';
 
+export const runtime = 'edge';
+
 const createTournamentSchema = tournamentIntentSchema.extend({
   status: z.enum(['REGISTRATION_OPEN']).default('REGISTRATION_OPEN'),
   venueId: z.string().uuid().optional(),

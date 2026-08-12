@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { recomputeMemberStats } from '@/lib/data/sport-groups';
 
+export const runtime = 'edge';
+
 const rsvpSchema = z.object({
   status: z.enum(['pending', 'going', 'maybe', 'declined']).optional(),
   paid: z.boolean().optional(),

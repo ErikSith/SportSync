@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { boundingBox, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
 
+export const runtime = 'edge';
+
 /**
  * Public venue discovery endpoint.
  *

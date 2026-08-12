@@ -7,6 +7,8 @@ import { LOBBY_SPORTS } from '@/lib/constants/sports';
 import { findCityByName } from '@/lib/cities';
 import { autoMatchPlayers } from '@/lib/matching/auto-match';
 
+export const runtime = 'edge';
+
 const createLobbySchema = z.object({
   sport: z.enum(LOBBY_SPORTS),
   format: z.enum(LOBBY_FORMATS),

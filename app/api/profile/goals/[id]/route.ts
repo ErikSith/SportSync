@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { updateUserGoal } from '@/lib/data/profile-goals';
 
+export const runtime = 'edge';
+
 const patchSchema = z.object({
   isFeatured: z.boolean().optional(),
   status: z.enum(['active', 'completed', 'archived']).optional(),

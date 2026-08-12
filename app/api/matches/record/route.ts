@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { recordMatchResult } from '@/lib/data/match-results';
 
+export const runtime = 'edge';
+
 const recordSchema = z.object({
   sport: z.string().min(1),
   contextType: z.enum(['lobby', 'tournament', 'group_session', 'lesson']),

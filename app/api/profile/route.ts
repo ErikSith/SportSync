@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { getProfileByAuthId, updateProfile } from '@/lib/data/profile';
 import { EVENT_SPORTS } from '@/lib/constants/sports';
 
+export const runtime = 'edge';
+
 const patchSchema = z.object({
   fullName: z.string().min(1).max(80).nullable().optional(),
   bio: z.string().max(160).nullable().optional(),
