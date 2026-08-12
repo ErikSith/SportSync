@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { getVenuesForHomeFilter } from '@/lib/data/homepage';
-import type { ParticipationMode } from '@/lib/data/events';
-import { ALL_EVENTS_FALLBACK_MESSAGE, getAllActiveEventsFeed } from '@/lib/data/events';
+import type { EventFeedResult, ParticipationMode } from '@/lib/data/events';
+import { ALL_EVENTS_FALLBACK_MESSAGE } from '@/lib/data/events';
+import { getAllActiveEventsFeedSafe } from '@/lib/data/fetch-active-events';
 import { getEventsForArea } from '@/lib/data/area-feed';
 import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import type { EventType } from '@/lib/constants/events';
@@ -92,8 +93,77 @@ function parseMode(raw: string | undefined): ParticipationMode {
   return raw === 'spectator' ? 'spectator' : 'participate';
 }
 
+const EMPTY_FEED: EventFeedResult = {
+  events: [],
+  radiusKm: 0,
+  showExtended: true,
+  usedAllEventsFallback: true,
+  message: ALL_EVENTS_FALLBACK_MESSAGE,
+};
+
+/**
+ * Load events via direct Supabase queries (no HTTP `/api/events`).
+ * Missing GPS or empty 20km scope → all active events (incl. null coords).
+ */
+async function loadEventsFeed(input: {
+  hasGps: boolean;
+  needsGpsPrompt: boolean;
+  location: ReturnType<typeof resolveFeedLocation>;
+  typeFilter: EventType | 'ALL';
+}): Promise<EventFeedResult> {
+  const { hasGps, needsGpsPrompt, location, typeFilter } = input;
+
+  try {
+    if (!hasGps || needsGpsPrompt) {
+      return await getAllActiveEventsFeedSafe({
+        type: typeFilter,
+        lat: location.lat,
+        lng: location.lng,
+      });
+    }
+
+    const scoped = await getEventsForArea({
+      location,
+      type: typeFilter,
+    });
+
+    if (scoped.events.length > 0) return scoped;
+
+    return await getAllActiveEventsFeedSafe({
+      type: typeFilter,
+      lat: location.lat,
+      lng: location.lng,
+    });
+  } catch (error) {
+    console.error('Events page Supabase query error:', error);
+    try {
+      return await getAllActiveEventsFeedSafe({
+        type: typeFilter,
+        lat: location.lat,
+        lng: location.lng,
+      });
+    } catch (fallbackError) {
+      console.error('Events page fallback query error:', fallbackError);
+      return EMPTY_FEED;
+    }
+  }
+}
+
 export default async function EventsPage({ searchParams }: EventsPageProps) {
-  const viewer = await getPageViewer();
+  let viewer;
+  try {
+    viewer = await getPageViewer();
+  } catch (error) {
+    console.error('Events page viewer error:', error);
+    return (
+      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
+        <p className="font-body-md text-body-md text-tertiary-container">
+          Could not load events right now. Please try again shortly.
+        </p>
+      </main>
+    );
+  }
+
   if (viewer.status === 'setup') {
     return (
       <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
@@ -105,6 +175,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   const { profile } = viewer;
 
   const city = profile.city ?? 'Bratislava';
+  const hasGps = profile.latitude !== null && profile.longitude !== null;
   const feedFilters = parseHomeFeedFilters(searchParams);
   const typeFilter = feedFilters.type;
   const mode = parseMode(searchParams.mode);
@@ -119,19 +190,24 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   const needsGpsPrompt =
     requestedArea === 'near_me' && (profile.latitude === null || profile.longitude === null);
 
-  const [filterVenues, rawFeed] = await Promise.all([
-    getVenuesForHomeFilter(city, 40),
-    needsGpsPrompt
-      ? getAllActiveEventsFeed({
-          type: typeFilter,
-          lat: location.lat,
-          lng: location.lng,
-        })
-      : getEventsForArea({
-          location,
-          type: typeFilter,
-        }),
-  ]);
+  let filterVenues: Awaited<ReturnType<typeof getVenuesForHomeFilter>> = [];
+  let rawFeed: EventFeedResult = EMPTY_FEED;
+
+  try {
+    const [venuesResult, feedResult] = await Promise.all([
+      getVenuesForHomeFilter(city, 40),
+      loadEventsFeed({ hasGps, needsGpsPrompt, location, typeFilter }),
+    ]);
+    filterVenues = venuesResult;
+    rawFeed = feedResult;
+  } catch (error) {
+    console.error('Events page data fetch error:', error);
+    rawFeed = await getAllActiveEventsFeedSafe({
+      type: typeFilter,
+      lat: location.lat,
+      lng: location.lng,
+    }).catch(() => EMPTY_FEED);
+  }
 
   // Area from DB → date → text search → hard sport/venue/type (chip filters must stick).
   const areaScoped = rawFeed.events;

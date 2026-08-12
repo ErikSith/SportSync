@@ -1,17 +1,15 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { getPageViewer } from '@/lib/auth/viewer';
-import { createClient } from '@/lib/supabase/server';
 import {
   buildHomepageInspirationFromCards,
   getHomepageEventInspiration,
   getVenuesForHomeFilter,
   homepageInspirationHasEvents,
-  mapRawEventRowsToCards,
   type HomeFilterVenue,
   type HomepageEventInspiration,
 } from '@/lib/data/homepage';
-import { activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { fetchActiveEventsSafe } from '@/lib/data/fetch-active-events';
 import { TopAppBar } from '@/components/home/TopAppBar';
 import { QuickActions } from '@/components/home/QuickActions';
 import { EventsInspirationSection } from '@/components/home/EventsInspirationSection';
@@ -55,35 +53,15 @@ function HomeFallback({ message }: { message?: string }) {
   );
 }
 
-/**
- * Last-resort: query `events` via Supabase directly (no internal HTTP `/api/events`).
- * Used when location-scoped inspiration is empty or the data layer fails on Edge.
- */
-async function fetchAllActiveEventsDirect(
+/** Direct Supabase all-active load — no HTTP `/api/events`. Never throws. */
+async function loadAllActiveInspiration(
   lat: number,
   lng: number,
 ): Promise<HomepageEventInspiration | null> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from('events')
-      .select('*, venues(name)')
-      .in('status', ['open', 'live'])
-      .gte('starts_at', activeFeedSinceIso())
-      .order('starts_at', { ascending: true })
-      .limit(120);
-
-    if (error) {
-      console.error('Homepage Supabase query error:', error);
-      return null;
-    }
-
-    if (!data || data.length === 0) {
-      console.error('Homepage Supabase query returned 0 active events');
-      return null;
-    }
-
-    return buildHomepageInspirationFromCards(mapRawEventRowsToCards(data, lat, lng), {
+    const cards = await fetchActiveEventsSafe({ lat, lng });
+    if (cards.length === 0) return null;
+    return buildHomepageInspirationFromCards(cards, {
       lat,
       lng,
       usedAllEventsFallback: true,
@@ -122,28 +100,24 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const feedLat = profile.latitude ?? 48.1486;
   const feedLng = profile.longitude ?? 17.1077;
   const feedFilters = parseHomeFeedFilters(searchParams);
-  // Always attempt inspiration — GPS / city / all-events fallbacks live in the data layer + direct query.
   let inspiration: HomepageEventInspiration | null = null;
   let filterVenues: HomeFilterVenue[] = [];
 
   try {
-    const [inspirationResult, venuesResult] = await Promise.all([
-      getHomepageEventInspiration(profile, feedFilters),
-      getVenuesForHomeFilter(city),
-    ]);
-    inspiration = inspirationResult;
-    filterVenues = venuesResult;
-
-    // Location scope empty → direct Supabase all-active query (no /api/events HTTP).
-    if (!homepageInspirationHasEvents(inspiration)) {
-      const allActive = await fetchAllActiveEventsDirect(feedLat, feedLng);
-      if (homepageInspirationHasEvents(allActive)) {
-        inspiration = allActive;
+    // Prefer location-aware feed when GPS is present; otherwise go straight to all-active.
+    if (!hasGps) {
+      inspiration = await loadAllActiveInspiration(feedLat, feedLng);
+    } else {
+      inspiration = await getHomepageEventInspiration(profile, feedFilters);
+      if (!homepageInspirationHasEvents(inspiration)) {
+        inspiration = await loadAllActiveInspiration(feedLat, feedLng);
       }
     }
+
+    filterVenues = await getVenuesForHomeFilter(city);
   } catch (error) {
     console.error('Homepage data fetch error:', error);
-    inspiration = await fetchAllActiveEventsDirect(feedLat, feedLng);
+    inspiration = await loadAllActiveInspiration(feedLat, feedLng);
     filterVenues = [];
   }
 

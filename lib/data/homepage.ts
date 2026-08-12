@@ -416,23 +416,14 @@ async function fetchAllActiveEventCandidates(
   /** Location fallback must ignore sport/venue chips so the feed is never empty. */
   filters?: HomeFeedFilters,
 ): Promise<EventCardData[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('events')
-    .select('*, venues(name)')
-    .in('status', ['open', 'live'])
-    .gte('starts_at', activeFeedSinceIso())
-    .order('starts_at', { ascending: true })
-    .limit(120);
-
-  if (error) {
-    console.error('[homepage.fetchAllActiveEventCandidates]', error.message, error);
+  try {
+    const { fetchActiveEventsSafe } = await import('@/lib/data/fetch-active-events');
+    const cards = await fetchActiveEventsSafe({ lat, lng });
+    return filters ? applyFeedFilters(cards, filters) : cards;
+  } catch (error) {
+    console.error('[homepage.fetchAllActiveEventCandidates]', error);
     return [];
   }
-  if (!data) return [];
-
-  const cards = mapRawEventRowsToCards(data, lat, lng);
-  return filters ? applyFeedFilters(cards, filters) : cards;
 }
 
 function mergeHomepageCards(primary: EventCardData[], extra: EventCardData[]): EventCardData[] {
@@ -486,12 +477,56 @@ export function buildHomepageInspirationFromCards(
 ): HomepageEventInspiration {
   const primaryRadius = opts.primaryRadiusKm ?? DEFAULT_RADIUS_KM;
   const usedAllEventsFallback = Boolean(opts.usedAllEventsFallback);
+  const area = opts.area ?? 'bratislava';
+
+  // Fallback / all-events view: put cards into visible rows (featured is not rendered).
+  if (usedAllEventsFallback) {
+    const now = new Date();
+    const startingSoonPool = candidates
+      .filter((event) => isStartingSoon(event.startsAt, now))
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
+      .slice(0, STARTING_SOON_POOL_LIMIT);
+    const startingSoon = flattenAggregatedFeedItems(
+      aggregateEventsForFeed(startingSoonPool).slice(0, STARTING_SOON_ROW_LIMIT),
+    );
+    const usedIds = new Set(startingSoon.map((e) => e.id));
+    const lastSpots = candidates
+      .filter((event) => !usedIds.has(event.id) && isLastSpots(event))
+      .sort((a, b) => lastSpotsFillRatio(b) - lastSpotsFillRatio(a))
+      .slice(0, INSPIRATION_ROW_LIMIT);
+    lastSpots.forEach((event) => usedIds.add(event.id));
+    const nearby = candidates
+      .filter((event) => !usedIds.has(event.id))
+      .slice(0, Math.max(INSPIRATION_ROW_LIMIT, 24));
+
+    return {
+      promoted: [],
+      featured: {
+        events: [],
+        radiusKm: primaryRadius,
+        showExtended: true,
+        usedAllEventsFallback: true,
+        message: ALL_EVENTS_FALLBACK_MESSAGE,
+      },
+      nearby,
+      startingSoon,
+      lastSpots,
+      area,
+      areaLabel: opts.areaLabel ?? 'Bratislava',
+      usedAllEventsFallback: true,
+      fallbackMessage: ALL_EVENTS_FALLBACK_MESSAGE,
+      anchor: {
+        lat: opts.lat,
+        lng: opts.lng,
+        source: area === 'near_me' ? 'gps' : 'city',
+      },
+    };
+  }
+
   let featured = opts.featured ?? {
     events: candidates.filter((e) => e.type === 'official').slice(0, FEATURED_ROW_LIMIT),
     radiusKm: primaryRadius,
-    showExtended: usedAllEventsFallback,
-    usedAllEventsFallback,
-    message: usedAllEventsFallback ? ALL_EVENTS_FALLBACK_MESSAGE : undefined,
+    showExtended: false,
   };
 
   const usedIds = new Set<string>();
@@ -519,8 +554,6 @@ export function buildHomepageInspirationFromCards(
     .sort((a, b) => a.distanceKm - b.distanceKm || a.startsAt.getTime() - b.startsAt.getTime())
     .slice(0, INSPIRATION_ROW_LIMIT);
 
-  const area = opts.area ?? 'bratislava';
-
   return {
     promoted: [],
     featured,
@@ -529,8 +562,8 @@ export function buildHomepageInspirationFromCards(
     lastSpots,
     area,
     areaLabel: opts.areaLabel ?? 'Bratislava',
-    usedAllEventsFallback,
-    fallbackMessage: usedAllEventsFallback ? ALL_EVENTS_FALLBACK_MESSAGE : undefined,
+    usedAllEventsFallback: false,
+    fallbackMessage: undefined,
     anchor: {
       lat: opts.lat,
       lng: opts.lng,

@@ -43,9 +43,7 @@ export async function getVenueIdsForDistrict(districtId: string): Promise<string
     .eq('district', districtId);
 
   if (error) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('[area-feed.getVenueIdsForDistrict]', error.message);
-    }
+    console.error('[area-feed.getVenueIdsForDistrict]', error.message, error);
     return [];
   }
 
@@ -59,76 +57,94 @@ export async function getEventsForArea(input: {
 }): Promise<EventFeedResult> {
   const { location, type = 'ALL', participationMode } = input;
 
-  if (location.area === 'near_me') {
-    return getNearbyEventsFeed({
-      lat: location.lat,
-      lng: location.lng,
-      type,
-      participationMode,
-      radiusKm: location.radiusKm,
-      allowExtended: location.allowExtended,
-    });
-  }
+  try {
+    let feed: EventFeedResult;
 
-  if (location.area === 'bratislava') {
-    return getCityEventsFeed({
-      city: 'Bratislava',
-      type,
-      participationMode,
-      lat: location.lat,
-      lng: location.lng,
-    });
-  }
+    if (location.area === 'near_me') {
+      feed = await getNearbyEventsFeed({
+        lat: location.lat,
+        lng: location.lng,
+        type,
+        participationMode,
+        radiusKm: location.radiusKm,
+        allowExtended: location.allowExtended,
+      });
+    } else if (location.area === 'bratislava') {
+      feed = await getCityEventsFeed({
+        city: 'Bratislava',
+        type,
+        participationMode,
+        lat: location.lat,
+        lng: location.lng,
+      });
+    } else {
+      const venueIds = await getVenueIdsForDistrict(location.area);
+      feed = await getEventsAtVenuesFeed({
+        venueIds,
+        lat: location.lat,
+        lng: location.lng,
+        type,
+        participationMode,
+      });
 
-  const venueIds = await getVenueIdsForDistrict(location.area);
-  const feed = await getEventsAtVenuesFeed({
-    venueIds,
-    lat: location.lat,
-    lng: location.lng,
-    type,
-    participationMode,
-  });
+      // Fallback: geo/keyword match when borough has few tagged venues yet
+      if (feed.events.length === 0) {
+        const cityFeed = await getCityEventsFeed({
+          city: 'Bratislava',
+          type,
+          participationMode,
+          lat: location.lat,
+          lng: location.lng,
+        });
+        const filtered = cityFeed.events.filter((event) =>
+          matchesFeedArea(location, {
+            lat: event.latitude,
+            lng: event.longitude,
+            city: event.city,
+            textParts: [event.venueName, event.title, event.description],
+          }),
+        );
+        if (filtered.length > 0) {
+          feed = {
+            ...cityFeed,
+            events: filtered,
+            message: cityFeed.message,
+          };
+        }
+      }
+    }
 
-  // Fallback: geo/keyword match when borough has few tagged venues yet
-  if (feed.events.length === 0) {
-    const cityFeed = await getCityEventsFeed({
-      city: 'Bratislava',
-      type,
-      participationMode,
-      lat: location.lat,
-      lng: location.lng,
-    });
-    const filtered = cityFeed.events.filter((event) =>
-      matchesFeedArea(location, {
-        lat: event.latitude,
-        lng: event.longitude,
-        city: event.city,
-        textParts: [event.venueName, event.title, event.description],
-      }),
-    );
-    if (filtered.length > 0) {
+    if (feed.events.length > 0) {
       return {
-        ...cityFeed,
-        events: filtered,
-        message: cityFeed.message,
+        ...feed,
+        message:
+          feed.events.length === 0
+            ? `No events in ${location.label} right now.`
+            : feed.message,
       };
     }
-    // Last resort: all active events across cities
+
+    // Last resort: all active events (includes null lat/lng)
     return getAllActiveEventsFeed({
       type,
       participationMode,
       lat: location.lat,
       lng: location.lng,
     });
+  } catch (error) {
+    console.error('[area-feed.getEventsForArea]', error);
+    try {
+      return await getAllActiveEventsFeed({
+        type,
+        participationMode,
+        lat: location.lat,
+        lng: location.lng,
+      });
+    } catch (fallbackError) {
+      console.error('[area-feed.getEventsForArea] fallback failed:', fallbackError);
+      return { events: [], radiusKm: 0, showExtended: true, usedAllEventsFallback: true };
+    }
   }
-
-  return {
-    ...feed,
-    message:
-      feed.events.length === 0
-        ? `No events in ${location.label} right now.`
-        : feed.message,
-  };
 }
 
 export async function getVenuesForArea(input: {

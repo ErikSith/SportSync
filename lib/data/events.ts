@@ -315,27 +315,28 @@ async function findWithinRadius(query: EventFeedQuery, radiusKm: number): Promis
 export async function getAllActiveEventsFeed(
   query: Omit<EventFeedQuery, 'lat' | 'lng'> & { lat?: number; lng?: number } = {},
 ): Promise<EventFeedResult> {
-  const supabase = await createClient();
-  const bounds = dateWindowBounds(query.dateWindow);
-  const lat = query.lat ?? 48.1486;
-  const lng = query.lng ?? 17.1077;
+  try {
+    // Prefer shared Edge-safe path (null coords kept; never throws).
+    const { getAllActiveEventsFeedSafe } = await import('@/lib/data/fetch-active-events');
+    const feed = await getAllActiveEventsFeedSafe({
+      lat: query.lat,
+      lng: query.lng,
+      type: query.type,
+      participationMode: query.participationMode,
+    });
 
-  let request = supabase
-    .from('events')
-    .select('*, venues ( name )')
-    .in('status', ['open', 'live'])
-    .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
-    .order('starts_at', { ascending: true })
-    .limit(120);
+    if (!query.search?.trim()) return feed;
 
-  if (bounds) {
-    request = request.lte('starts_at', bounds.to.toISOString());
-  }
-  request = applyEventQueryFilters(request, query);
-
-  const { data, error } = await request;
-  if (error) {
-    if (process.env.NODE_ENV !== 'production') console.error('[events.getAllActiveEventsFeed]', error.message);
+    const needle = query.search.trim().toLowerCase();
+    return {
+      ...feed,
+      events: feed.events.filter((event) => {
+        const hay = `${event.title} ${event.city} ${event.sport} ${event.venueName ?? ''}`.toLowerCase();
+        return hay.includes(needle);
+      }),
+    };
+  } catch (error) {
+    console.error('[events.getAllActiveEventsFeed]', error);
     return {
       events: [],
       radiusKm: 0,
@@ -344,24 +345,6 @@ export async function getAllActiveEventsFeed(
       message: ALL_EVENTS_FALLBACK_MESSAGE,
     };
   }
-
-  const events = ((data ?? []) as EventRow[])
-    .filter((event) => matchesEventSearch(event, query.search))
-    .map((event) => {
-      const d =
-        event.latitude != null && event.longitude != null
-          ? distanceKm(lat, lng, event.latitude, event.longitude)
-          : 0;
-      return mapEventCard(event, d);
-    });
-
-  return {
-    events,
-    radiusKm: 0,
-    showExtended: true,
-    usedAllEventsFallback: true,
-    message: ALL_EVENTS_FALLBACK_MESSAGE,
-  };
 }
 
 /** City-first Bratislava discover feed (no GPS required). */
