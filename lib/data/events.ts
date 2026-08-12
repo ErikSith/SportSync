@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
 import type { EventType } from '@/lib/constants/events';
-import { activeFeedSince, feedStartsAtFloor } from '@/lib/retention/events';
+import { activeFeedSince, feedStartsAtFloor } from '@/lib/retention/feed-window';
 
 export { EVENT_SPORTS, type EventSport } from '@/lib/constants/sports';
 

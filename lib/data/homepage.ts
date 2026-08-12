@@ -12,7 +12,7 @@ import {
   type AggregatedFeedItem,
 } from '@/lib/feed/aggregate-routine-lessons';
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
-import { activeFeedSinceIso } from '@/lib/retention/events';
+import { activeFeedSinceIso } from '@/lib/retention/feed-window';
 
 export { getProfileByAuthId, type Profile } from '@/lib/data/profile';
 import type { Profile } from '@/lib/data/profile';

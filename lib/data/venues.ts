@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
-import { activeFeedSinceIso } from '@/lib/retention/events';
+import { activeFeedSinceIso } from '@/lib/retention/feed-window';
 
 export interface VenueCardData {
   id: string;

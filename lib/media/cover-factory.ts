@@ -21,7 +21,7 @@ export interface CoverFactoryInput {
  */
 export async function resolveEventCover(input: CoverFactoryInput): Promise<string> {
   const venueId = input.venueId ?? 'no-venue';
-  const coverKey = computeCoverKey(venueId, input.sport, input.title);
+  const coverKey = await computeCoverKey(venueId, input.sport, input.title);
   const path = `${coverKey}.webp`;
   const fallback =
     DEFAULT_COVERS[input.sport.toUpperCase()] ?? DEFAULT_COVERS.OTHER ?? DEFAULT_COVERS.FITNESS!;

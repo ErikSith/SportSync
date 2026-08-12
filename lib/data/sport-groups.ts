@@ -14,7 +14,7 @@ import type {
   SessionRsvpStatus,
 } from '@/lib/data/sport-groups-shared';
 import { buildLeaderboard } from '@/lib/data/sport-groups-shared';
-import { activeFeedSinceIso } from '@/lib/retention/events';
+import { activeFeedSinceIso } from '@/lib/retention/feed-window';
 
 export type {
   GearClaimData,

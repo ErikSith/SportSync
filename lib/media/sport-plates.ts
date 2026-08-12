@@ -1,5 +1,3 @@
-import { createHash } from 'crypto';
-
 /** Brand-safe sport base colors for Cover Factory composit (no purple). */
 export const SPORT_PLATE_COLORS: Record<string, { from: string; to: string; label: string }> = {
   PADEL: { from: '#064e3b', to: '#16a34a', label: 'PADEL' },
@@ -39,7 +37,17 @@ export function normalizeEventTitle(title: string): string {
     .trim();
 }
 
-export function computeCoverKey(venueId: string, sport: string, title: string): string {
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/** SHA-256 cover key via Web Crypto (Edge-compatible). */
+export async function computeCoverKey(
+  venueId: string,
+  sport: string,
+  title: string,
+): Promise<string> {
   const payload = `${venueId}|${sport.toUpperCase()}|${normalizeEventTitle(title)}`;
-  return createHash('sha256').update(payload).digest('hex');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
+  return bytesToHex(new Uint8Array(hashBuffer));
 }
