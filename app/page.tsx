@@ -1,12 +1,17 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { getPageViewer } from '@/lib/auth/viewer';
+import { createClient } from '@/lib/supabase/server';
 import {
+  buildHomepageInspirationFromCards,
   getHomepageEventInspiration,
   getVenuesForHomeFilter,
+  homepageInspirationHasEvents,
+  mapRawEventRowsToCards,
   type HomeFilterVenue,
   type HomepageEventInspiration,
 } from '@/lib/data/homepage';
+import { activeFeedSinceIso } from '@/lib/retention/feed-window';
 import { TopAppBar } from '@/components/home/TopAppBar';
 import { QuickActions } from '@/components/home/QuickActions';
 import { EventsInspirationSection } from '@/components/home/EventsInspirationSection';
@@ -50,6 +55,45 @@ function HomeFallback({ message }: { message?: string }) {
   );
 }
 
+/**
+ * Last-resort: query `events` via Supabase directly (no internal HTTP `/api/events`).
+ * Used when location-scoped inspiration is empty or the data layer fails on Edge.
+ */
+async function fetchAllActiveEventsDirect(
+  lat: number,
+  lng: number,
+): Promise<HomepageEventInspiration | null> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('events')
+      .select('*, venues(name)')
+      .in('status', ['open', 'live'])
+      .gte('starts_at', activeFeedSinceIso())
+      .order('starts_at', { ascending: true })
+      .limit(120);
+
+    if (error) {
+      console.error('Homepage Supabase query error:', error);
+      return null;
+    }
+
+    if (!data || data.length === 0) {
+      console.error('Homepage Supabase query returned 0 active events');
+      return null;
+    }
+
+    return buildHomepageInspirationFromCards(mapRawEventRowsToCards(data, lat, lng), {
+      lat,
+      lng,
+      usedAllEventsFallback: true,
+    });
+  } catch (error) {
+    console.error('Homepage Supabase query error:', error);
+    return null;
+  }
+}
+
 export default async function HomePage({ searchParams }: HomePageProps) {
   let viewer;
   try {
@@ -75,8 +119,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   const hasGps = profile.latitude !== null && profile.longitude !== null;
   const city = profile.city ?? 'Bratislava';
+  const feedLat = profile.latitude ?? 48.1486;
+  const feedLng = profile.longitude ?? 17.1077;
   const feedFilters = parseHomeFeedFilters(searchParams);
-  // Always attempt inspiration — GPS / city / all-events fallbacks live in the data layer.
+  // Always attempt inspiration — GPS / city / all-events fallbacks live in the data layer + direct query.
   let inspiration: HomepageEventInspiration | null = null;
   let filterVenues: HomeFilterVenue[] = [];
 
@@ -87,9 +133,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     ]);
     inspiration = inspirationResult;
     filterVenues = venuesResult;
+
+    // Location scope empty → direct Supabase all-active query (no /api/events HTTP).
+    if (!homepageInspirationHasEvents(inspiration)) {
+      const allActive = await fetchAllActiveEventsDirect(feedLat, feedLng);
+      if (homepageInspirationHasEvents(allActive)) {
+        inspiration = allActive;
+      }
+    }
   } catch (error) {
     console.error('Homepage data fetch error:', error);
-    inspiration = null;
+    inspiration = await fetchAllActiveEventsDirect(feedLat, feedLng);
     filterVenues = [];
   }
 

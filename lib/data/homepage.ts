@@ -280,9 +280,7 @@ export async function getVenuesForHomeFilter(city: string, take = 12): Promise<H
     .limit(take);
 
   if (error || !data) {
-    if (error && process.env.NODE_ENV !== 'production') {
-      console.error('[homepage.getVenuesForHomeFilter]', error.message);
-    }
+    if (error) console.error('[homepage.getVenuesForHomeFilter]', error.message, error);
     return [];
   }
 
@@ -369,9 +367,7 @@ async function fetchEventCandidatePool(
   ]);
 
   if (error) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('[homepage.fetchEventCandidatePool]', error.message);
-    }
+    console.error('[homepage.fetchEventCandidatePool]', error.message, error);
   }
 
   const geoHits = applyFeedFilters(
@@ -404,9 +400,7 @@ async function fetchOfficialEventsMissingCoordsPool(
     .limit(50);
 
   if (error || !data) {
-    if (error && process.env.NODE_ENV !== 'production') {
-      console.error('[homepage.fetchOfficialEventsMissingCoordsPool]', error.message);
-    }
+    if (error) console.error('[homepage.fetchOfficialEventsMissingCoordsPool]', error.message, error);
     return [];
   }
 
@@ -419,6 +413,7 @@ async function fetchOfficialEventsMissingCoordsPool(
 async function fetchAllActiveEventCandidates(
   lat: number,
   lng: number,
+  /** Location fallback must ignore sport/venue chips so the feed is never empty. */
   filters?: HomeFeedFilters,
 ): Promise<EventCardData[]> {
   const supabase = await createClient();
@@ -430,23 +425,14 @@ async function fetchAllActiveEventCandidates(
     .order('starts_at', { ascending: true })
     .limit(120);
 
-  if (error || !data) {
-    if (error && process.env.NODE_ENV !== 'production') {
-      console.error('[homepage.fetchAllActiveEventCandidates]', error.message);
-    }
+  if (error) {
+    console.error('[homepage.fetchAllActiveEventCandidates]', error.message, error);
     return [];
   }
+  if (!data) return [];
 
-  return applyFeedFilters(
-    (data as EventRow[]).map((event) => {
-      const dist =
-        event.latitude != null && event.longitude != null
-          ? distanceKm(lat, lng, event.latitude, event.longitude)
-          : 0;
-      return toEventCard(event, dist);
-    }),
-    filters,
-  );
+  const cards = mapRawEventRowsToCards(data, lat, lng);
+  return filters ? applyFeedFilters(cards, filters) : cards;
 }
 
 function mergeHomepageCards(primary: EventCardData[], extra: EventCardData[]): EventCardData[] {
@@ -460,11 +446,105 @@ function mergeHomepageCards(primary: EventCardData[], extra: EventCardData[]): E
   return merged;
 }
 
+/** Map raw `events` rows (from a direct Supabase select) into feed cards. */
+export function mapRawEventRowsToCards(
+  rows: unknown[],
+  lat: number,
+  lng: number,
+): EventCardData[] {
+  return (rows as EventRow[]).map((event) => {
+    const dist =
+      event.latitude != null && event.longitude != null
+        ? distanceKm(lat, lng, event.latitude, event.longitude)
+        : 0;
+    return toEventCard(event, dist);
+  });
+}
+
+export function homepageInspirationHasEvents(data: HomepageEventInspiration | null): boolean {
+  if (!data) return false;
+  return (
+    data.nearby.length > 0 ||
+    data.startingSoon.length > 0 ||
+    data.lastSpots.length > 0 ||
+    data.featured.events.length > 0
+  );
+}
+
+/** Bucket candidate cards into Featured / Coming up / Last Spots / Near You rows. */
+export function buildHomepageInspirationFromCards(
+  candidates: EventCardData[],
+  opts: {
+    lat: number;
+    lng: number;
+    area?: FeedAreaId;
+    areaLabel?: string;
+    primaryRadiusKm?: number;
+    usedAllEventsFallback?: boolean;
+    featured?: FeaturedEventsResult;
+  },
+): HomepageEventInspiration {
+  const primaryRadius = opts.primaryRadiusKm ?? DEFAULT_RADIUS_KM;
+  const usedAllEventsFallback = Boolean(opts.usedAllEventsFallback);
+  let featured = opts.featured ?? {
+    events: candidates.filter((e) => e.type === 'official').slice(0, FEATURED_ROW_LIMIT),
+    radiusKm: primaryRadius,
+    showExtended: usedAllEventsFallback,
+    usedAllEventsFallback,
+    message: usedAllEventsFallback ? ALL_EVENTS_FALLBACK_MESSAGE : undefined,
+  };
+
+  const usedIds = new Set<string>();
+  featured.events.forEach((event) => usedIds.add(event.id));
+
+  const now = new Date();
+
+  const startingSoonPool = candidates
+    .filter((event) => !usedIds.has(event.id) && isStartingSoon(event.startsAt, now))
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
+    .slice(0, STARTING_SOON_POOL_LIMIT);
+  const startingSoon = flattenAggregatedFeedItems(
+    aggregateEventsForFeed(startingSoonPool).slice(0, STARTING_SOON_ROW_LIMIT),
+  );
+  startingSoon.forEach((event) => usedIds.add(event.id));
+
+  const lastSpots = candidates
+    .filter((event) => !usedIds.has(event.id) && isLastSpots(event))
+    .sort((a, b) => lastSpotsFillRatio(b) - lastSpotsFillRatio(a))
+    .slice(0, INSPIRATION_ROW_LIMIT);
+  lastSpots.forEach((event) => usedIds.add(event.id));
+
+  const nearby = candidates
+    .filter((event) => !usedIds.has(event.id))
+    .sort((a, b) => a.distanceKm - b.distanceKm || a.startsAt.getTime() - b.startsAt.getTime())
+    .slice(0, INSPIRATION_ROW_LIMIT);
+
+  const area = opts.area ?? 'bratislava';
+
+  return {
+    promoted: [],
+    featured,
+    nearby,
+    startingSoon,
+    lastSpots,
+    area,
+    areaLabel: opts.areaLabel ?? 'Bratislava',
+    usedAllEventsFallback,
+    fallbackMessage: usedAllEventsFallback ? ALL_EVENTS_FALLBACK_MESSAGE : undefined,
+    anchor: {
+      lat: opts.lat,
+      lng: opts.lng,
+      source: area === 'near_me' ? 'gps' : 'city',
+    },
+  };
+}
+
 /** Homepage event inspiration: featured + Near You / Starting Soon / Last Spots rows. */
 export async function getHomepageEventInspiration(
   profile: Profile,
   filters?: HomeFeedFilters,
 ): Promise<HomepageEventInspiration | null> {
+  const hasGps = profile.latitude !== null && profile.longitude !== null;
   const location = resolveFeedLocation({
     areaRaw: filters?.area,
     profileCity: profile.city,
@@ -473,12 +553,28 @@ export async function getHomepageEventInspiration(
   });
 
   const primaryRadius = location.radiusKm;
-  const useGpsNearby = location.area === 'near_me';
+  const useGpsNearby = location.area === 'near_me' && hasGps;
 
   const districtVenueIds =
     location.area !== 'near_me' && location.area !== 'bratislava'
       ? new Set(await getVenueIdsForDistrict(location.area))
       : null;
+
+  // No GPS / null location → skip radius queries and load all active events.
+  if (!hasGps && (filters?.area == null || filters.area === 'near_me')) {
+    let allCandidates = await fetchAllActiveEventCandidates(location.lat, location.lng, filters);
+    if (allCandidates.length === 0) {
+      allCandidates = await fetchAllActiveEventCandidates(location.lat, location.lng);
+    }
+    return buildHomepageInspirationFromCards(allCandidates, {
+      lat: location.lat,
+      lng: location.lng,
+      area: location.area,
+      areaLabel: location.label,
+      primaryRadiusKm: primaryRadius,
+      usedAllEventsFallback: true,
+    });
+  }
 
   const [featuredRaw, candidatesRaw] = await Promise.all([
     useGpsNearby
@@ -517,62 +613,28 @@ export async function getHomepageEventInspiration(
   let usedAllEventsFallback = Boolean(featuredRaw.usedAllEventsFallback);
 
   if (candidates.length === 0 && featured.events.length === 0) {
-    const allCandidates = await fetchAllActiveEventCandidates(location.lat, location.lng, filters);
+    // Ignore sport/venue chips — empty location scope must still surface events.
+    const allCandidates = await fetchAllActiveEventCandidates(location.lat, location.lng);
     candidates = allCandidates;
-    if (featured.events.length === 0) {
-      featured = {
-        events: allCandidates.filter((e) => e.type === 'official').slice(0, FEATURED_ROW_LIMIT),
-        radiusKm: primaryRadius,
-        showExtended: true,
-        usedAllEventsFallback: true,
-        message: ALL_EVENTS_FALLBACK_MESSAGE,
-      };
-    }
+    featured = {
+      events: allCandidates.filter((e) => e.type === 'official').slice(0, FEATURED_ROW_LIMIT),
+      radiusKm: primaryRadius,
+      showExtended: true,
+      usedAllEventsFallback: true,
+      message: ALL_EVENTS_FALLBACK_MESSAGE,
+    };
     usedAllEventsFallback = true;
   }
 
-  const usedIds = new Set<string>();
-  featured.events.forEach((event) => usedIds.add(event.id));
-
-  const now = new Date();
-
-  const startingSoonPool = candidates
-    .filter((event) => !usedIds.has(event.id) && isStartingSoon(event.startsAt, now))
-    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
-    .slice(0, STARTING_SOON_POOL_LIMIT);
-  const startingSoon = flattenAggregatedFeedItems(
-    aggregateEventsForFeed(startingSoonPool).slice(0, STARTING_SOON_ROW_LIMIT),
-  );
-  startingSoon.forEach((event) => usedIds.add(event.id));
-
-  const lastSpots = candidates
-    .filter((event) => !usedIds.has(event.id) && isLastSpots(event))
-    .sort((a, b) => lastSpotsFillRatio(b) - lastSpotsFillRatio(a))
-    .slice(0, INSPIRATION_ROW_LIMIT);
-  lastSpots.forEach((event) => usedIds.add(event.id));
-
-  const nearby = candidates
-    .filter((event) => !usedIds.has(event.id))
-    .sort((a, b) => a.distanceKm - b.distanceKm || a.startsAt.getTime() - b.startsAt.getTime())
-    .slice(0, INSPIRATION_ROW_LIMIT);
-
-  return {
-    // Slot parked — re-enable via getActivePromotedBanners() + PromotedBannerSection later.
-    promoted: [],
-    featured,
-    nearby,
-    startingSoon,
-    lastSpots,
+  return buildHomepageInspirationFromCards(candidates, {
+    lat: location.lat,
+    lng: location.lng,
     area: location.area,
     areaLabel: location.label,
+    primaryRadiusKm: primaryRadius,
     usedAllEventsFallback,
-    fallbackMessage: usedAllEventsFallback ? ALL_EVENTS_FALLBACK_MESSAGE : undefined,
-    anchor: {
-      lat: location.lat,
-      lng: location.lng,
-      source: location.area === 'near_me' ? 'gps' : 'city',
-    },
-  };
+    featured,
+  });
 }
 
 /** Official featured row scoped to a whole city (All Bratislava). Same card shape as nearby. */
@@ -595,9 +657,7 @@ async function getFeaturedCityEvents(
     .limit(20);
 
   if (error || !data) {
-    if (error && process.env.NODE_ENV !== 'production') {
-      console.error('[homepage.getFeaturedCityEvents]', error.message);
-    }
+    if (error) console.error('[homepage.getFeaturedCityEvents]', error.message, error);
     return { events: [], radiusKm: 0, showExtended: false };
   }
 
@@ -635,9 +695,7 @@ async function fetchEventCandidatePoolByCity(
   ]);
 
   if (error) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('[homepage.fetchEventCandidatePoolByCity]', error.message);
-    }
+    console.error('[homepage.fetchEventCandidatePoolByCity]', error.message, error);
   }
 
   const cityEvents = applyFeedFilters(
@@ -787,7 +845,7 @@ export async function getTopProfilesByCity(city: string, take = 3): Promise<Lead
     .limit(take);
 
   if (error || !data) {
-    if (error && process.env.NODE_ENV !== 'production') console.error('[homepage.getTopProfilesByCity]', error.message);
+    if (error) console.error('[homepage.getTopProfilesByCity]', error.message, error);
     return [];
   }
 
