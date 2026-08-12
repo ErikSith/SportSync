@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { isAuthBypassEnabled } from '@/lib/auth/demo-mode';
+import { getSupabaseAnonEnv } from '@/lib/supabase/env';
 
 const PUBLIC_PATHS = ['/login', '/auth/callback'];
 
@@ -15,10 +16,13 @@ const PUBLIC_PATHS = ['/login', '/auth/callback'];
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  try {
+    const { url, anonKey, isConfigured } = getSupabaseAnonEnv();
+    if (!isConfigured) {
+      return supabaseResponse;
+    }
+
+    const supabase = createServerClient(url, anonKey, {
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -26,32 +30,37 @@ export async function updateSession(request: NextRequest) {
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options));
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options),
+          );
         },
       },
-    },
-  );
+    });
 
-  const { data } = await supabase.auth.getUser();
-  const isPublicPath = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
-  const bypass = isAuthBypassEnabled();
+    const { data } = await supabase.auth.getUser();
+    const isPublicPath = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
+    const bypass = isAuthBypassEnabled();
 
-  if (bypass && request.nextUrl.pathname.startsWith('/login')) {
-    return NextResponse.redirect(new URL('/', request.url));
+    if (bypass && request.nextUrl.pathname.startsWith('/login')) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+
+    if (!data.user && !isPublicPath && !bypass) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirectTo', request.nextUrl.pathname + request.nextUrl.search);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    if (data.user && request.nextUrl.pathname === '/login') {
+      const redirectTo = request.nextUrl.searchParams.get('redirectTo');
+      const destination =
+        redirectTo && redirectTo.startsWith('/') && !redirectTo.startsWith('//') ? redirectTo : '/';
+      return NextResponse.redirect(new URL(destination, request.url));
+    }
+
+    return supabaseResponse;
+  } catch (error) {
+    console.error('Middleware error:', error);
+    return NextResponse.next({ request });
   }
-
-  if (!data.user && !isPublicPath && !bypass) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirectTo', request.nextUrl.pathname + request.nextUrl.search);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  if (data.user && request.nextUrl.pathname === '/login') {
-    const redirectTo = request.nextUrl.searchParams.get('redirectTo');
-    const destination =
-      redirectTo && redirectTo.startsWith('/') && !redirectTo.startsWith('//') ? redirectTo : '/';
-    return NextResponse.redirect(new URL(destination, request.url));
-  }
-
-  return supabaseResponse;
 }

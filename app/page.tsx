@@ -4,6 +4,8 @@ import { getPageViewer } from '@/lib/auth/viewer';
 import {
   getHomepageEventInspiration,
   getVenuesForHomeFilter,
+  type HomeFilterVenue,
+  type HomepageEventInspiration,
 } from '@/lib/data/homepage';
 import { TopAppBar } from '@/components/home/TopAppBar';
 import { QuickActions } from '@/components/home/QuickActions';
@@ -23,8 +25,41 @@ interface HomePageProps {
   };
 }
 
+function isNextNavigationError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'digest' in error &&
+    typeof (error as { digest?: unknown }).digest === 'string' &&
+    ((error as { digest: string }).digest.startsWith('NEXT_REDIRECT') ||
+      (error as { digest: string }).digest.startsWith('NEXT_NOT_FOUND'))
+  );
+}
+
+function HomeFallback({ message }: { message?: string }) {
+  return (
+    <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center space-y-4">
+      <h2 className="font-headline-md text-headline-md text-on-surface">SportSync</h2>
+      <p className="font-body-md text-body-md text-tertiary-container">
+        {message ?? 'We could not load the homepage feed right now. Please try again in a moment.'}
+      </p>
+      <Link href="/" className="inline-flex font-label-md text-primary underline-offset-4 hover:underline">
+        Refresh
+      </Link>
+    </main>
+  );
+}
+
 export default async function HomePage({ searchParams }: HomePageProps) {
-  const viewer = await getPageViewer();
+  let viewer;
+  try {
+    viewer = await getPageViewer();
+  } catch (error) {
+    if (isNextNavigationError(error)) throw error;
+    console.error('Homepage viewer error:', error);
+    return <HomeFallback message="Authentication is temporarily unavailable. Please try again shortly." />;
+  }
+
   if (viewer.status === 'setup') {
     return (
       <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center space-y-4">
@@ -44,10 +79,21 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const needsGpsForNearMe = feedFilters.area === 'near_me' && !hasGps;
   const canShowInspiration = !needsGpsForNearMe && (hasGps || Boolean(profile.city));
 
-  const [inspiration, filterVenues] = await Promise.all([
-    canShowInspiration ? getHomepageEventInspiration(profile, feedFilters) : null,
-    getVenuesForHomeFilter(city),
-  ]);
+  let inspiration: HomepageEventInspiration | null = null;
+  let filterVenues: HomeFilterVenue[] = [];
+
+  try {
+    const [inspirationResult, venuesResult] = await Promise.all([
+      canShowInspiration ? getHomepageEventInspiration(profile, feedFilters) : Promise.resolve(null),
+      getVenuesForHomeFilter(city),
+    ]);
+    inspiration = inspirationResult;
+    filterVenues = venuesResult;
+  } catch (error) {
+    console.error('Homepage data fetch error:', error);
+    inspiration = null;
+    filterVenues = [];
+  }
 
   const displayName = profile.fullName ?? profile.username;
 
