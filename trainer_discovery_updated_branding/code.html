@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en" style=""><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Apex Elite - Find Trainers</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&amp;family=Montserrat:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error-container": "#ffdad6",
+                        "surface-bright": "#3a3939",
+                        "on-surface-variant": "#e4beb4",
+                        "on-secondary": "#3c2f00",
+                        "primary-fixed": "#ffdbd1",
+                        "surface-tint": "#ffb5a0",
+                        "on-surface": "#e5e2e1",
+                        "inverse-surface": "#e5e2e1",
+                        "error": "#ffb4ab",
+                        "tertiary-container": "#929090",
+                        "primary-container": "#ff5722",
+                        "outline-variant": "#5b4039",
+                        "tertiary-fixed": "#e5e2e1",
+                        "secondary-fixed": "#ffe088",
+                        "surface-container-high": "#2a2a2a",
+                        "surface-container-low": "#1c1b1b",
+                        "inverse-on-surface": "#313030",
+                        "on-primary-container": "#541200",
+                        "primary": "#ffb5a0",
+                        "on-tertiary": "#313030",
+                        "tertiary": "#c8c6c5",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-primary": "#5f1500",
+                        "secondary-container": "#af8d11",
+                        "on-secondary-fixed-variant": "#574500",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "surface-dim": "#131313",
+                        "secondary-fixed-dim": "#e9c349",
+                        "secondary": "#e9c349",
+                        "error-container": "#93000a",
+                        "inverse-primary": "#b02f00",
+                        "primary-fixed-dim": "#ffb5a0",
+                        "on-error": "#690005",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "on-secondary-container": "#342800",
+                        "on-secondary-fixed": "#241a00",
+                        "on-primary-fixed": "#3b0900",
+                        "on-tertiary-container": "#2a2a2a",
+                        "surface-container-highest": "#353534",
+                        "outline": "#ab8980",
+                        "surface": "#131313",
+                        "on-primary-fixed-variant": "#862200",
+                        "surface-container": "#201f1f",
+                        "background": "#131313",
+                        "surface-variant": "#353534",
+                        "on-tertiary-fixed": "#1c1b1b",
+                        "on-background": "#e5e2e1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-margin-desktop": "64px",
+                        "container-margin-mobile": "20px",
+                        "section-gap": "80px",
+                        "base": "8px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Montserrat"],
+                        "display-lg": ["Montserrat"],
+                        "label-caps": ["Inter"],
+                        "display-lg-mobile": ["Montserrat"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                        "display-lg-mobile": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #0A0A0A; } /* Solid Obsidian Base */
+        .glass-panel {
+            background: rgba(26, 26, 26, 0.7); /* Translucent Charcoal */
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .glass-card {
+            background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(14, 14, 14, 0.9) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(233, 195, 73, 0.3); /* Subtle Gold border on hover */
+            box-shadow: 0 15px 40px -10px rgba(0, 0, 0, 0.8), 0 0 20px rgba(233, 195, 73, 0.05); /* Soft gold glow */
+        }
+        .search-glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(233, 195, 73, 0.2); /* Champagne Gold border */
+            transition: all 0.3s ease;
+        }
+        .search-glass:focus-within {
+            border-color: #ff5722; /* Action Orange on focus */
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="text-on-surface font-body-lg antialiased min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl border-b border-outline-variant/30 shadow-2xl shadow-black/50">
+<div class="flex items-center justify-between px-gutter h-16 w-full">
+<button aria-label="Menu" class="text-primary hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">menu</span>
+</button>
+<h1 class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg font-bold tracking-tighter bg-gradient-to-r from-primary-container to-secondary bg-clip-text text-transparent">SPORTSYNC</h1>
+<div class="w-10 h-10 rounded-full bg-surface-container-high border border-outline-variant/50 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant">person</span>
+</div>
+</div>
+<!-- Search Bar Section within Header Area for seamless integration -->
+<div class="px-gutter pb-4 bg-surface/80 backdrop-blur-xl border-b border-outline-variant/10">
+<div class="search-glass rounded-xl flex items-center px-4 py-3 group">
+<span class="material-symbols-outlined text-secondary mr-3 group-focus-within:text-primary-container transition-colors">search</span>
+<input class="bg-transparent border-none outline-none w-full text-body-md text-on-surface placeholder:text-tertiary-container focus:ring-0" placeholder="Search by name or sport..." type="text"/>
+<button aria-label="Filters" class="ml-2 p-1 rounded-full bg-surface-container hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-tertiary-container hover:text-on-surface">tune</span>
+</button>
+</div>
+</div>
+</header>
+<main class="pt-[140px] px-container-mobile md:px-container-desktop max-w-7xl mx-auto">
+<!-- Filtering & Discovery -->
+<section class="mb-8">
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline-md text-headline-md text-on-surface">Find Trainers</h2>
+<div class="flex gap-2">
+<span class="text-label-caps font-label-caps text-tertiary-container uppercase">Sort by:</span>
+<button class="flex items-center gap-1 text-label-caps font-label-caps text-secondary hover:text-secondary-container transition-colors">
+                        Highest Rated
+                        <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+</div>
+</div>
+<!-- Horizontal Scrolling Chips -->
+<div class="flex overflow-x-auto hide-scrollbar gap-3 pb-2">
+<button class="whitespace-nowrap px-6 py-2 rounded-full bg-primary-container text-on-primary-container font-label-caps text-label-caps tracking-wider transition-all shadow-[0_0_15px_rgba(255,87,34,0.3)] border border-primary-container">
+                    All
+                </button>
+<button class="whitespace-nowrap px-6 py-2 rounded-full bg-surface-container-low text-tertiary-container font-label-caps text-label-caps tracking-wider hover:bg-surface-variant hover:text-on-surface transition-all border border-outline-variant/30">
+                    Strength
+                </button>
+<button class="whitespace-nowrap px-6 py-2 rounded-full bg-surface-container-low text-tertiary-container font-label-caps text-label-caps tracking-wider hover:bg-surface-variant hover:text-on-surface transition-all border border-outline-variant/30">
+                    HIIT
+                </button>
+<button class="whitespace-nowrap px-6 py-2 rounded-full bg-surface-container-low text-tertiary-container font-label-caps text-label-caps tracking-wider hover:bg-surface-variant hover:text-on-surface transition-all border border-outline-variant/30">
+                    Pro Prep
+                </button>
+<button class="whitespace-nowrap px-6 py-2 rounded-full bg-surface-container-low text-tertiary-container font-label-caps text-label-caps tracking-wider hover:bg-surface-variant hover:text-on-surface transition-all border border-outline-variant/30">
+                    Tennis
+                </button>
+<button class="whitespace-nowrap px-6 py-2 rounded-full bg-surface-container-low text-tertiary-container font-label-caps text-label-caps tracking-wider hover:bg-surface-variant hover:text-on-surface transition-all border border-outline-variant/30">
+                    Yoga
+                </button>
+</div>
+</section>
+<!-- Trainer List - Staggered Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Trainer Card 1 -->
+<article class="glass-card rounded-2xl overflow-hidden relative group cursor-pointer">
+<!-- Elite Badge -->
+<div class="absolute top-4 right-4 z-10 bg-surface-container-lowest/80 backdrop-blur-md border border-secondary/50 px-3 py-1 rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-secondary" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="font-label-caps text-[10px] text-secondary uppercase tracking-widest">Elite Certified</span>
+</div>
+<div class="aspect-[4/5] relative overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent z-[1] opacity-90"></div>
+<img alt="Trainer portrait" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" data-alt="A striking portrait of a highly muscular, intense professional fitness trainer standing in a dimly lit, luxury private gym. The lighting is dramatic and moody, with warm cinematic orange rim light highlighting his physique against the cool, dark obsidian grey concrete walls and matte black gym equipment. He is wearing premium black and gold athletic wear, exuding an aura of elite prestige, power, and uncompromising high-performance." src="https://lh3.googleusercontent.com/aida/AP1WRLsYRKIaOjjGsaYtIgkr37HlkcCYgb5DB_-1tbGoMbeb8B4ilpz1kp7SFlKbnzHFisfCzsPq5S_tmYYEUOz5JTvTvVHXdTZfCLg3zARPqT5ZTUMQq7_NfuMtZtqw6_8hhpxhke7O6GLWLnwIfZnSSkjD7LPyJ2WBLAkdcvK6cK2zS1CYfrdOx1WVgJNnDymMTW1nyTWsUjHXMhon4ud1_yiCPJym0YqbTYO1mgOAQlMyeEqecpAHPtIW6n8"/>
+<!-- Content Overlay -->
+<div class="absolute bottom-0 left-0 w-full p-6 z-10 flex flex-col gap-2">
+<h3 class="font-headline-md text-headline-md text-white m-0 leading-tight">Marcus Vance</h3>
+<p class="font-label-caps text-label-caps text-secondary uppercase tracking-widest m-0">Master Strength Coach</p>
+<div class="flex items-center gap-4 mt-2 pt-4 border-t border-white/10">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-secondary text-[18px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-body-md text-white font-bold">4.9</span>
+</div>
+<div class="w-1 h-1 rounded-full bg-white/30"></div>
+<span class="font-body-md text-tertiary-container text-sm">12+ yrs exp</span>
+<div class="w-1 h-1 rounded-full bg-white/30"></div>
+<span class="font-body-md text-tertiary-container text-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">location_on</span>
+                                3.2 mi
+                            </span>
+</div>
+</div>
+</div>
+</article>
+<!-- Trainer Card 2 -->
+<article class="glass-card rounded-2xl overflow-hidden relative group cursor-pointer md:translate-y-8">
+<!-- New Badge -->
+<div class="absolute top-4 right-4 z-10 bg-primary-container px-3 py-1 rounded-full flex items-center shadow-[0_0_10px_rgba(255,87,34,0.5)]">
+<span class="font-label-caps text-[10px] text-on-primary-container uppercase tracking-widest font-bold">New</span>
+</div>
+<div class="aspect-[4/5] relative overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent z-[1] opacity-90"></div>
+<img alt="Trainer portrait" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" data-alt="A dynamic action shot of a sleek, athletic female HIIT instructor in mid-movement in a high-end, minimalist fitness studio. The scene uses a sophisticated dark mode aesthetic with deep shadows and sharp, precise lighting. She wears form-fitting dark athletic gear with subtle reflective accents. The atmosphere is intense, focused, and professional, conveying high-stakes achievement." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQS8aFSfkpa-lN2FZ6-dSvVOoZ2iYh-GhPWLDjK3rR9UKypkv_jOxmiT_UIpk5m4KNVeH13ExnBODcUSrj-F3On9vW0VgaO9oJkHdcpaZ-3M_qMuunD1UXOV9GIaxKiK1hr5qq1_kqHZExuNEgdkVywqZF4qapLGFRjJbarBPMleaj-KdeRipJFQKtBW0X5tmT2caBrNm_hFvn8dQQmX5lLOyDjEG806Va-So7C7kwoy0juPR-MeIpOO6fF_FPAzZoHJMwkL2HkJY"/>
+<!-- Content Overlay -->
+<div class="absolute bottom-0 left-0 w-full p-6 z-10 flex flex-col gap-2">
+<h3 class="font-headline-md text-headline-md text-white m-0 leading-tight">Elena Rostova</h3>
+<p class="font-label-caps text-label-caps text-secondary uppercase tracking-widest m-0">HIIT Specialist</p>
+<div class="flex items-center gap-4 mt-2 pt-4 border-t border-white/10">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-secondary text-[18px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-body-md text-white font-bold">4.8</span>
+</div>
+<div class="w-1 h-1 rounded-full bg-white/30"></div>
+<span class="font-body-md text-tertiary-container text-sm">8 yrs exp</span>
+<div class="w-1 h-1 rounded-full bg-white/30"></div>
+<span class="font-body-md text-tertiary-container text-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">location_on</span>
+                                1.5 mi
+                            </span>
+</div>
+</div>
+</div>
+</article>
+<!-- Trainer Card 3 -->
+<article class="glass-card rounded-2xl overflow-hidden relative group cursor-pointer lg:translate-y-16">
+<!-- Elite Badge -->
+<div class="absolute top-4 right-4 z-10 bg-surface-container-lowest/80 backdrop-blur-md border border-secondary/50 px-3 py-1 rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-secondary" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="font-label-caps text-[10px] text-secondary uppercase tracking-widest">Elite Certified</span>
+</div>
+<div class="aspect-[4/5] relative overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent z-[1] opacity-90"></div>
+<img alt="Trainer portrait" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" data-alt="A focused portrait of a distinguished older male performance coach in a luxury locker room setting. The lighting is sophisticated and subdued, with rim lights outlining his strong profile against dark slate walls. He exudes quiet authority and years of elite experience. The visual style is modern, minimalist, and highly premium, fitting a private members club." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCWlFg5rmemTB8z0I2srwQsvrVlphVz6ucwzuVa6fKBYHvMOBKPq0Aoo2kcNL_wbKzWgg8NtRj7YopcBIJOrotKcvNKUh8TkjBntEq8Xg9U04g_pgbkorSmn1YOqpPAi9nyhAypdGNJ7QQszfNYNDuCubXg53qBDSyr24ZIcMrfFnojtRFFcVJKdLkfcWVaqpmNqmpQDAoaUEWxsjRqtOVjDiNqKuspZKizS2a74c_LfeYpFlUMsfSu962vjJE4FGfpUJ25aUyVxe8"/>
+<!-- Content Overlay -->
+<div class="absolute bottom-0 left-0 w-full p-6 z-10 flex flex-col gap-2">
+<h3 class="font-headline-md text-headline-md text-white m-0 leading-tight">David Chen</h3>
+<p class="font-label-caps text-label-caps text-secondary uppercase tracking-widest m-0">Pro Prep Athletics</p>
+<div class="flex items-center gap-4 mt-2 pt-4 border-t border-white/10">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-secondary text-[18px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-body-md text-white font-bold">5.0</span>
+</div>
+<div class="w-1 h-1 rounded-full bg-white/30"></div>
+<span class="font-body-md text-tertiary-container text-sm">20+ yrs exp</span>
+<div class="w-1 h-1 rounded-full bg-white/30"></div>
+<span class="font-body-md text-tertiary-container text-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">location_on</span>
+                                5.0 mi
+                            </span>
+</div>
+</div>
+</div>
+</article>
+</section>
+<!-- Load More Button -->
+<div class="flex justify-center mt-20 md:mt-24">
+<button class="px-8 py-4 rounded-full border border-secondary text-secondary font-label-caps text-label-caps uppercase tracking-widest hover:bg-secondary/10 transition-colors flex items-center gap-2">
+                Load More Trainers
+                <span class="material-symbols-outlined">expand_more</span>
+</button>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-full bg-surface-container-lowest/90 backdrop-blur-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.8)] md:hidden">
+<div class="flex justify-around items-center h-20 px-4 w-full">
+<button class="flex flex-col items-center justify-center text-primary-container scale-110 transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-label-caps text-label-caps mt-1">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-tertiary-container opacity-60 hover:opacity-100 active:scale-90 duration-200 transition-all">
+<span class="material-symbols-outlined text-[24px]">event</span>
+<span class="font-label-caps text-label-caps mt-1">Events</span>
+</button>
+<button class="flex flex-col items-center justify-center text-tertiary-container opacity-60 hover:opacity-100 active:scale-90 duration-200 transition-all">
+<span class="material-symbols-outlined text-[24px]">stadium</span>
+<span class="font-label-caps text-label-caps mt-1">Venues</span>
+</button>
+<button class="flex flex-col items-center justify-center text-tertiary-container opacity-60 hover:opacity-100 active:scale-90 duration-200 transition-all">
+<span class="material-symbols-outlined text-[24px]">person</span>
+<span class="font-label-caps text-label-caps mt-1">Profile</span>
+</button>
+</div>
+</nav>
+</body></html>

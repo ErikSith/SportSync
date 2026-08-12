@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Apex Grand Slam - Tournament Details</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;family=Montserrat:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-container": "#af8d11",
+                        "error-container": "#93000a",
+                        "surface-tint": "#ffb5a0",
+                        "tertiary-fixed": "#e5e2e1",
+                        "surface-container-highest": "#353534",
+                        "tertiary-container": "#929090",
+                        "primary-container": "#ff5722",
+                        "on-tertiary-fixed": "#1c1b1b",
+                        "on-tertiary-container": "#2a2a2a",
+                        "surface-container-high": "#2a2a2a",
+                        "on-surface-variant": "#e4beb4",
+                        "tertiary": "#c8c6c5",
+                        "background": "#131313",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "on-background": "#e5e2e1",
+                        "secondary-fixed-dim": "#e9c349",
+                        "on-secondary-fixed": "#241a00",
+                        "on-primary-fixed-variant": "#862200",
+                        "secondary-fixed": "#ffe088",
+                        "outline-variant": "#5b4039",
+                        "on-primary": "#5f1500",
+                        "on-secondary-fixed-variant": "#574500",
+                        "on-error-container": "#ffdad6",
+                        "surface-dim": "#131313",
+                        "surface-bright": "#3a3939",
+                        "primary": "#ffb5a0",
+                        "surface-container": "#201f1f",
+                        "surface": "#131313",
+                        "on-surface": "#e5e2e1",
+                        "primary-fixed": "#ffdbd1",
+                        "error": "#ffb4ab",
+                        "primary-fixed-dim": "#ffb5a0",
+                        "inverse-surface": "#e5e2e1",
+                        "inverse-primary": "#b02f00",
+                        "on-secondary-container": "#342800",
+                        "secondary": "#e9c349",
+                        "inverse-on-surface": "#313030",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-error": "#690005",
+                        "surface-variant": "#353534",
+                        "outline": "#ab8980",
+                        "on-primary-container": "#541200",
+                        "on-primary-fixed": "#3b0900",
+                        "on-tertiary": "#313030",
+                        "on-secondary": "#3c2f00",
+                        "surface-container-low": "#1c1b1b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-margin-desktop": "64px",
+                        "gutter": "24px",
+                        "section-gap": "80px",
+                        "container-margin-mobile": "20px",
+                        "base": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Montserrat"],
+                        "body-lg": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "display-lg-mobile": ["Montserrat"],
+                        "display-lg": ["Montserrat"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "0.01em", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700" }],
+                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #131313;
+            color: #e5e2e1;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .glass-panel {
+            background: linear-gradient(135deg, rgba(42, 42, 42, 0.7) 0%, rgba(28, 27, 27, 0.4) 100%);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        .glass-well {
+            background: linear-gradient(135deg, rgba(20, 20, 20, 0.9) 0%, rgba(10, 10, 10, 0.95) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 2px 15px rgba(0, 0, 0, 0.8);
+        }
+
+        .glow-hover:hover {
+            box-shadow: 0 0 20px rgba(255, 87, 34, 0.4);
+        }
+
+        /* Custom Scrollbar for Rules */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 87, 34, 0.5);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background min-h-screen flex flex-col font-body-md text-body-md">
+<!-- TopAppBar -->
+<header class="bg-background/80 dark:bg-background/80 backdrop-blur-xl fixed top-0 w-full z-50 border-b border-white/10 shadow-2xl shadow-black/40 flex justify-between items-center px-container-margin-mobile h-16 max-w-screen-xl mx-auto left-0 right-0">
+<button class="hover:opacity-80 transition-opacity active:scale-95 transition-transform text-primary dark:text-primary flex items-center justify-center w-10 h-10 rounded-full bg-surface-container-low/50">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">menu</span>
+</button>
+<h1 class="font-display-lg-mobile text-display-lg-mobile font-bold tracking-tighter uppercase" style="background: linear-gradient(135deg, rgb(176, 47, 0) 0%, rgb(230, 74, 25) 50%, rgb(212, 175, 55) 100%) text; -webkit-text-fill-color: transparent; text-shadow: rgba(0, 0, 0, 0.1) 0px 1px 2px;">SPORTSYNC</h1>
+<button class="hover:opacity-80 transition-opacity active:scale-95 transition-transform text-primary dark:text-primary flex items-center justify-center w-10 h-10 rounded-full bg-surface-container-low/50">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+</button>
+</header>
+<main class="flex-grow pt-16 pb-32 md:pb-40 w-full max-w-screen-xl mx-auto">
+<!-- Hero Section -->
+<section class="relative w-full h-[397px] min-h-[350px] max-h-[500px] overflow-hidden">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="A striking, high-end photography shot of a professional tennis court at night under bright stadium floodlights. The hard court surface is pristine deep blue and green, reflecting the intense overhead lights slightly. The surrounding stands are draped in dark shadows, creating a highly dramatic, exclusive, and moody cinematic atmosphere. Shot with deep blacks and a sense of high-stakes elite competition. No people in the frame." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBKmKn-ehIGpw8kzZ6FcRJ2Qc8lu7DUgSc7CkCLwdDyiFyj-FFgvDRTMYkR6tCJUjlUeq75bisRAzLpHXchb-MmCzD4mEU2J8YY7wwM1qcroFRe7RUMuFgKdJYcwBDvhGbIWCshBArpDC0poWxPlF-Ibw0s9gWjaTqw-G9aZZF_76OmVf_282RIV9_mEfTS_aO8lMjo7BzfXGmFo4Qh8gqrQRWD1SrQY0bhJoGDp0op2Qb88mbXxWU-8UaylG-cYuGwj8UwqDogezI')"></div>
+<!-- Gradient Overlay for contrast -->
+<div class="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent"></div>
+<!-- Hero Content -->
+<div class="absolute bottom-0 w-full p-container-margin-mobile md:px-container-margin-desktop flex flex-col justify-end">
+<div class="glass-panel p-6 rounded-xl border border-white/10 inline-block w-full md:w-auto">
+<span class="inline-flex items-center gap-2 bg-secondary-container/20 border border-secondary-fixed/40 text-secondary-fixed font-label-caps text-label-caps px-3 py-1.5 rounded-full mb-3 uppercase tracking-widest w-max">
+<span class="material-symbols-outlined text-[14px]">star</span>
+                        Elite Tier
+                    </span>
+<h2 class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-on-background m-0 drop-shadow-lg">Apex Grand Slam</h2>
+</div>
+</div>
+</section>
+<!-- Main Content Area -->
+<div class="px-container-margin-mobile md:px-container-margin-desktop py-8 flex flex-col gap-8">
+<!-- Bento Grid - Quick Info -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<!-- Date -->
+<div class="glass-panel rounded-xl p-5 flex flex-col gap-3 relative overflow-hidden group">
+<div class="absolute -right-4 -top-4 w-16 h-16 bg-surface-container/30 rounded-full blur-xl group-hover:bg-primary-container/20 transition-colors"></div>
+<span class="material-symbols-outlined text-primary-container text-opacity-80 text-[28px]">calendar_month</span>
+<div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-1">Date</p>
+<p class="font-headline-md text-[18px] leading-tight text-on-background">Oct 12 - 15<br/><span class="text-tertiary">2024</span></p>
+</div>
+</div>
+<!-- Location -->
+<div class="glass-panel rounded-xl p-5 flex flex-col gap-3 relative overflow-hidden group">
+<div class="absolute -right-4 -top-4 w-16 h-16 bg-surface-container/30 rounded-full blur-xl group-hover:bg-primary-container/20 transition-colors"></div>
+<span class="material-symbols-outlined text-primary-container text-opacity-80 text-[28px]">location_on</span>
+<div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-1">Location</p>
+<p class="font-headline-md text-[18px] leading-tight text-on-background">Monaco Court<br/><span class="text-tertiary">Central</span></p>
+</div>
+</div>
+<!-- Sport Type -->
+<div class="glass-panel rounded-xl p-5 flex flex-col gap-3 relative overflow-hidden group">
+<div class="absolute -right-4 -top-4 w-16 h-16 bg-surface-container/30 rounded-full blur-xl group-hover:bg-primary-container/20 transition-colors"></div>
+<span class="material-symbols-outlined text-primary-container text-opacity-80 text-[28px]">sports_tennis</span>
+<div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-1">Format</p>
+<p class="font-headline-md text-[18px] leading-tight text-on-background">Tennis<br/><span class="text-tertiary">Singles / Dbls</span></p>
+</div>
+</div>
+<!-- Prize Pool -->
+<div class="glass-panel rounded-xl p-5 flex flex-col gap-3 relative overflow-hidden group border border-secondary-fixed/30 bg-secondary-container/5">
+<div class="absolute -right-4 -top-4 w-24 h-24 bg-secondary-fixed/10 rounded-full blur-2xl group-hover:bg-secondary-fixed/20 transition-colors"></div>
+<span class="material-symbols-outlined text-secondary-fixed text-[28px]" style="font-variation-settings: 'FILL' 1;">trophy</span>
+<div>
+<p class="font-label-caps text-label-caps text-secondary-fixed mb-1 opacity-80">Prize Pool</p>
+<p class="font-headline-md text-headline-md text-secondary-fixed drop-shadow-[0_0_8px_rgba(255,224,136,0.3)]">$50,000</p>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+<!-- Left Column (Status & Reg) -->
+<div class="md:col-span-5 flex flex-col gap-8">
+<!-- Participants Status -->
+<div class="glass-panel rounded-xl p-6">
+<div class="flex justify-between items-end mb-4">
+<h3 class="font-headline-md text-headline-md text-on-background">Availability</h3>
+<span class="font-label-caps text-label-caps text-primary-container bg-primary-container/10 px-2 py-1 rounded-md">High Demand</span>
+</div>
+<div class="mb-2 flex justify-between items-center text-sm">
+<span class="text-on-surface-variant">Spots Taken</span>
+<span class="font-bold text-on-background"><span class="text-primary-container">4</span> / 32 Remaining</span>
+</div>
+<div class="w-full h-2 bg-surface-container-highest rounded-full overflow-hidden shadow-inner">
+<div class="h-full bg-primary-container rounded-full relative" style="width: 87.5%;">
+<div class="absolute inset-0 bg-white/20 w-full animate-pulse"></div>
+</div>
+</div>
+</div>
+<!-- Registration Info -->
+<div class="glass-panel rounded-xl p-6 flex flex-col gap-4">
+<div class="flex items-center gap-3 border-b border-white/5 pb-4">
+<span class="material-symbols-outlined text-on-surface-variant">how_to_reg</span>
+<h3 class="font-headline-md text-[20px] text-on-background">Registration</h3>
+</div>
+<div class="text-on-surface-variant font-body-md text-body-md space-y-3">
+<p class="">Access to the Apex Grand Slam is strictly invitation or verified application only. All applicants must pass the <strong class="text-on-background">Elite Performance Verification Protocol</strong>.</p>
+<ul class="space-y-2 mt-2">
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-primary-container text-[16px] mt-1">check_circle</span>
+<span class="">Provide valid Global Tennis Federation ID.</span>
+</li>
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-primary-container text-[16px] mt-1">check_circle</span>
+<span class="">Minimum UTR requirement of 11.0+.</span>
+</li>
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-primary-container text-[16px] mt-1">check_circle</span>
+<span class="">Entry fee of $1,500 due upon approval.</span>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<!-- Right Column (Rules) -->
+<div class="md:col-span-7">
+<div class="glass-panel rounded-xl p-6 h-full flex flex-col">
+<div class="flex items-center gap-3 border-b border-white/5 pb-4 mb-4">
+<span class="material-symbols-outlined text-on-surface-variant">gavel</span>
+<h3 class="font-headline-md text-[20px] text-on-background">Rules &amp; Regulations</h3>
+</div>
+<div class="custom-scrollbar overflow-y-auto pr-4 space-y-5 flex-grow max-h-[400px]">
+<div class="glass-well p-4 rounded-lg">
+<h4 class="font-bold text-on-background mb-1">1. Conduct &amp; Dress Code</h4>
+<p class="text-on-surface-variant text-[14px]">Strict adherence to the Apex Elite dress code is mandatory. Competitors must wear approved performance gear in predominantly monochrome (black, white, or charcoal). No visible oversized sponsor logos permitted outside of designated gear zones. Unsportsmanlike conduct results in immediate expulsion without refund.</p>
+</div>
+<div class="glass-well p-4 rounded-lg">
+<h4 class="font-bold text-on-background mb-1">2. Match Format</h4>
+<p class="text-on-surface-variant text-[14px]">All preliminary rounds are best of three sets, standard tiebreak at 6-6. Semifinals and Finals will utilize the Apex No-Ad scoring system to maintain high intensity and broadcast pacing.</p>
+</div>
+<div class="glass-well p-4 rounded-lg">
+<h4 class="font-bold text-on-background mb-1">3. Equipment &amp; Check-in</h4>
+<p class="text-on-surface-variant text-[14px]">Players must check-in to the Telemetry Desk 60 minutes prior to match start. Rackets will be scanned and verified for compliance. Late arrivals face a 1-game penalty per 5 minutes late.</p>
+</div>
+<div class="glass-well p-4 rounded-lg">
+<h4 class="font-bold text-on-background mb-1">4. Medical Timeouts</h4>
+<p class="text-on-surface-variant text-[14px]">Limited to one 3-minute medical evaluation per match, strictly enforced by the tournament's on-site sports medicine director.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Fixed Bottom Action Bar -->
+<div class="fixed bottom-0 left-0 w-full z-40 bg-surface/80 backdrop-blur-2xl border-t border-white/5 shadow-[0_-20px_40px_rgba(0,0,0,0.6)] pb-safe">
+<div class="max-w-screen-xl mx-auto px-container-margin-mobile md:px-container-margin-desktop py-4 md:py-6 flex justify-between items-center gap-4">
+<div class="hidden md:block">
+<p class="font-label-caps text-label-caps text-on-surface-variant">Next Step</p>
+<p class="font-headline-md text-[18px] text-on-background">Secure Your Position</p>
+</div>
+<button class="w-full md:w-auto flex-1 md:flex-none font-headline-md text-[16px] md:text-[18px] py-4 px-8 rounded-lg uppercase tracking-wider font-bold transition-all duration-300 hover:bg-primary glow-hover active:scale-[0.98] flex items-center justify-center gap-2" style="background: linear-gradient(135deg, rgb(176, 47, 0) 0%, rgb(230, 74, 25) 50%, rgb(212, 175, 55) 100%); border: 1px solid rgba(212, 175, 55, 0.3); color: rgb(255, 255, 255); text-shadow: rgba(0, 0, 0, 0.3) 0px 1px 2px;">
+<span class="">Join Tournament</span>
+<span class="material-symbols-outlined text-[20px] font-bold">arrow_forward</span>
+</button>
+</div>
+</div>
+</body></html>

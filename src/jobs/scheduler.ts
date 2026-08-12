@@ -1,0 +1,103 @@
+import { EventStatus, LobbyRequestStatus, MercenaryStatus } from '@prisma/client';
+import cron from 'node-cron';
+import { prisma } from '../lib/prisma';
+import { scanForMissingPlayers } from '../services/mercenaryService';
+
+/**
+ * Background jobs that keep the system consistent even with zero human input:
+ *  - every 5 min: Mercenary +1 scan (events starting within 60 min that miss players)
+ *  - every 10 min: expire stale lobby requests and mercenary calls, close past events
+ *  - every 12 h: Bratislava venue event scrapers (text-only)
+ */
+export function startScheduler(): void {
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const result = await scanForMissingPlayers('system-cron');
+      if (result.created.length > 0) {
+        console.log(`[mercenary-scan] raised ${result.created.length} emergency call(s)`);
+      }
+    } catch (err) {
+      console.error('[mercenary-scan] failed', err);
+    }
+  });
+
+  cron.schedule('*/10 * * * *', async () => {
+    const now = new Date();
+    try {
+      const expiredRequests = await prisma.lobbyRequest.updateMany({
+        where: {
+          status: { in: [LobbyRequestStatus.PENDING, LobbyRequestStatus.PROCESSING_BY_AI] },
+          preferredTime: { lt: now },
+        },
+        data: { status: LobbyRequestStatus.EXPIRED },
+      });
+
+      const expiredCalls = await prisma.mercenaryNotification.updateMany({
+        where: { status: MercenaryStatus.ACTIVE, expiresAt: { lt: now } },
+        data: { status: MercenaryStatus.EXPIRED },
+      });
+
+      const startedEvents = await prisma.event.updateMany({
+        where: { status: { in: [EventStatus.OPEN, EventStatus.FULL] }, dateTime: { lt: now } },
+        data: { status: EventStatus.IN_PROGRESS },
+      });
+
+      if (expiredRequests.count || expiredCalls.count || startedEvents.count) {
+        console.log(
+          `[housekeeping] expired ${expiredRequests.count} request(s), ${expiredCalls.count} mercenary call(s); moved ${startedEvents.count} event(s) to IN_PROGRESS`,
+        );
+      }
+    } catch (err) {
+      console.error('[housekeeping] failed', err);
+    }
+  });
+
+  cron.schedule('0 */12 * * *', async () => {
+    try {
+      const base =
+        process.env.SPORTSYNC_APP_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        'http://localhost:3000';
+      const secret = process.env.CRON_SECRET;
+      if (!secret) {
+        console.warn('[scrape-events] CRON_SECRET missing — skip');
+        return;
+      }
+      const res = await fetch(`${base.replace(/\/$/, '')}/api/cron/scrape-events`, {
+        method: 'POST',
+        headers: { 'x-agent-key': secret },
+      });
+      const body = await res.text();
+      console.log(`[scrape-events] HTTP ${res.status} ${body.slice(0, 400)}`);
+    } catch (err) {
+      console.error('[scrape-events] failed', err);
+    }
+  });
+
+  // Daily retention: hard-delete scraped events older than 48h (03:00)
+  cron.schedule('0 3 * * *', async () => {
+    try {
+      const base =
+        process.env.SPORTSYNC_APP_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        'http://localhost:3000';
+      const secret = process.env.CRON_SECRET;
+      if (!secret) {
+        console.warn('[purge-events] CRON_SECRET missing — skip');
+        return;
+      }
+      const res = await fetch(`${base.replace(/\/$/, '')}/api/cron/purge-events`, {
+        method: 'POST',
+        headers: { 'x-agent-key': secret },
+      });
+      const body = await res.text();
+      console.log(`[purge-events] HTTP ${res.status} ${body.slice(0, 400)}`);
+    } catch (err) {
+      console.error('[purge-events] failed', err);
+    }
+  });
+
+  console.log(
+    '[scheduler] cron jobs registered (mercenary */5, housekeeping */10, scrape-events */12h, purge-events daily 03:00)',
+  );
+}

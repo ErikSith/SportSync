@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/ai/plans/execute",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/ai/tournaments/agent",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/scrape-events",
+      "schedule": "0 */12 * * *"
+    },
+    {
+      "path": "/api/cron/purge-events",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

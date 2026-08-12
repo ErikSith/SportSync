@@ -1,0 +1,32 @@
+---
+description: Ethical, rate-limited web scraping rules for SportSync event/venue scrapers (12h cadence).
+alwaysApply: true
+---
+
+# Scraping Rules & Guidelines
+
+Apply whenever generating, editing, or refactoring web scraping code (adapters, `scripts/scrape-*`, `/api/cron/scrape-events`, scheduler jobs).
+
+## Cadence
+
+- Production scrapes run on a **12-hour** schedule (`0 */12 * * *` / `/api/cron/scrape-events`). Do not add aggressive polling or sub-hourly full crawls of third-party sites.
+- Between requests within a run: randomized delays (e.g. 1.5–3.5s). Never burst.
+
+## Safety & Ethics
+
+- Never bypass paywalls, auth without explicit credentials, CAPTCHAs, or security controls.
+- No PII (personal emails, phones, private profiles) unless explicitly requested for authorized testing.
+- Prefer official APIs over HTML scraping when available.
+- Respect `robots.txt` for new domains; warn on ToS / legal / IP-ban risk and offer a safer rate-limited alternative.
+
+## Rate Limits & Errors
+
+- Polite identifying `User-Agent` (SportSync bot / contactable identity where appropriate).
+- Timeouts on all HTTP calls; handle 429 / 503 / timeouts with exponential backoff retries.
+- Never mimic DDoS-style parallel hammering.
+
+## Structure
+
+- Separate **fetch** (HTML/API), **parse** (extract fields), and **storage** (DB upsert).
+- Prefer modern stacks already in use (`fetch`/`httpx`-style clients, parsers, typed validation).
+- Defensive try/catch; fail one source without killing the whole cron run.

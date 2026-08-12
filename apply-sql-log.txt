@@ -1,0 +1,19 @@
+﻿[sql] 00.sqlÔÇŽ FAIL
+node.exe : 
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Can't reach database server at `db.jnxpmtaystxywjxxyexh.supabase.co:5432`
+
+Please make sure your database server is running at `db.jnxpmtaystxywjxxyexh.supabase.co:5432`.
+npm notice
+npm notice New major version of npm available! 10.9.8 -> 12.0.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+npm notice To update run: npm install -g npm@12.0.2
+npm notice

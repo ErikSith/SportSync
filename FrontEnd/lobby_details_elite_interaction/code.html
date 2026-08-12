@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lobby Details - SportSync</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: linear-gradient(135deg, rgba(26, 26, 26, 0.8) 0%, rgba(26, 26, 26, 0.4) 100%);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .text-gradient {
+            background: linear-gradient(to right, #ffb5a0, #e9c349);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .action-gradient {
+            background: linear-gradient(135deg, #ff5722 0%, #af8d11 100%);
+        }
+        
+        /* Ambient Glow Effect */
+        .ambient-glow::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 150%;
+            height: 150%;
+            background: radial-gradient(circle, rgba(255, 87, 34, 0.05) 0%, rgba(0,0,0,0) 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary-fixed": "#ffe088",
+                        "surface-variant": "#353534",
+                        "on-secondary": "#3c2f00",
+                        "inverse-primary": "#b02f00",
+                        "on-primary-container": "#541200",
+                        "primary-container": "#ff5722",
+                        "error-container": "#93000a",
+                        "on-primary-fixed": "#3b0900",
+                        "background": "#131313",
+                        "surface-bright": "#3a3939",
+                        "surface-tint": "#ffb5a0",
+                        "surface-container-lowest": "#0e0e0e",
+                        "surface-container-low": "#1c1b1b",
+                        "on-secondary-fixed-variant": "#574500",
+                        "on-tertiary": "#313030",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "surface-container-high": "#2a2a2a",
+                        "error": "#ffb4ab",
+                        "on-surface": "#e5e2e1",
+                        "on-primary-fixed-variant": "#862200",
+                        "outline-variant": "#5b4039",
+                        "on-secondary-container": "#342800",
+                        "surface-container-highest": "#353534",
+                        "secondary-container": "#af8d11",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "tertiary": "#c8c6c5",
+                        "primary-fixed-dim": "#ffb5a0",
+                        "primary-fixed": "#ffdbd1",
+                        "tertiary-container": "#929090",
+                        "outline": "#ab8980",
+                        "inverse-on-surface": "#313030",
+                        "on-error": "#690005",
+                        "tertiary-fixed": "#e5e2e1",
+                        "on-secondary-fixed": "#241a00",
+                        "on-primary": "#5f1500",
+                        "secondary": "#e9c349",
+                        "surface-dim": "#131313",
+                        "surface-container": "#201f1f",
+                        "inverse-surface": "#e5e2e1",
+                        "primary": "#ffb5a0",
+                        "on-tertiary-fixed": "#1c1b1b",
+                        "on-tertiary-container": "#2a2a2a",
+                        "on-surface-variant": "#e4beb4",
+                        "surface": "#131313",
+                        "on-error-container": "#ffdad6",
+                        "on-background": "#e5e2e1",
+                        "secondary-fixed-dim": "#e9c349"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    spacing: {
+                        "gutter": "24px",
+                        "container-margin-desktop": "64px",
+                        "base": "8px",
+                        "container-margin-mobile": "20px",
+                        "section-gap": "80px"
+                    },
+                    fontFamily: {
+                        "display-lg": ["Montserrat"],
+                        "display-lg-mobile": ["Montserrat"],
+                        "label-caps": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Montserrat"]
+                    },
+                    fontSize: {
+                        "display-lg": ["48px", { lineHeight: "56px", letterSpacing: "-0.02em", fontWeight: "700" }],
+                        "display-lg-mobile": ["32px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700" }],
+                        "label-caps": ["12px", { lineHeight: "16px", letterSpacing: "0.1em", fontWeight: "700" }],
+                        "body-md": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+                        "body-lg": ["18px", { lineHeight: "28px", fontWeight: "400" }],
+                        "headline-md": ["24px", { lineHeight: "32px", letterSpacing: "0.01em", fontWeight: "600" }]
+                    }
+                }
+            }
+        };
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden selection:bg-primary-container selection:text-white">
+<!-- Header (Transactional - No Navigation Shell) -->
+<header class="fixed top-0 w-full bg-background/90 backdrop-blur-xl border-b border-white/5 z-50 shadow-2xl shadow-black/40 px-container-margin-mobile md:px-container-margin-desktop h-16 flex items-center justify-between">
+<button class="text-on-surface-variant hover:text-primary transition-colors flex items-center group">
+<span class="material-symbols-outlined mr-2 group-hover:-translate-x-1 transition-transform" data-icon="arrow_back">arrow_back</span>
+<span class="font-label-caps text-label-caps uppercase hidden md:inline">Back</span>
+</button>
+<h1 class="font-headline-md text-headline-md text-on-surface font-bold">Lobby Details</h1>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-24 pb-32 px-container-margin-mobile md:px-container-margin-desktop max-w-7xl mx-auto min-h-screen ambient-glow relative">
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column: Hero & Details -->
+<div class="lg:col-span-8 flex flex-col gap-gutter">
+<!-- Hero Section -->
+<section class="glass-panel rounded-xl p-6 md:p-10 relative overflow-hidden group">
+<div class="absolute inset-0 bg-[url('placeholder')] bg-cover bg-center opacity-20 group-hover:opacity-30 transition-opacity duration-700 mix-blend-overlay" data-alt="A high-contrast, moody close-up of a premium carbon-fiber tennis racket resting on an impeccably manicured clay court. Dramatic spotlighting emphasizes the texture of the strings and the rich, earthy red of the court against a deep, shadow-filled background. The aesthetic is luxurious, intense, and athletic, designed for a dark-mode elite sports app."></div>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low to-transparent"></div>
+<div class="relative z-10">
+<div class="flex items-center gap-3 mb-4">
+<span class="px-3 py-1 bg-primary-container/20 text-primary-container border border-primary-container/30 rounded-full font-label-caps text-label-caps uppercase tracking-wider backdrop-blur-sm">Tennis</span>
+<span class="px-3 py-1 bg-secondary-container/20 text-secondary border border-secondary/30 rounded-full font-label-caps text-label-caps uppercase tracking-wider backdrop-blur-sm flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+                                Live
+                            </span>
+</div>
+<h2 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg mb-2 text-on-surface">Advanced Sparring <br/><span class="text-on-surface-variant">Monaco Courts</span></h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mt-4">High-intensity practice session focused on baseline rallies and unforced error reduction. Elite players only.</p>
+</div>
+</section>
+<!-- Status & Progress -->
+<section class="glass-panel rounded-xl p-6">
+<div class="flex justify-between items-end mb-4">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-1">Roster Status</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Looking for 1 more player</p>
+</div>
+<div class="text-right">
+<span class="font-display-lg-mobile text-display-lg-mobile text-primary-container">3</span>
+<span class="font-headline-md text-headline-md text-on-surface-variant">/4</span>
+</div>
+</div>
+<!-- Progress Bar -->
+<div class="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden mt-4 relative">
+<div class="absolute top-0 left-0 h-full w-3/4 action-gradient rounded-full shadow-[0_0_15px_rgba(255,87,34,0.5)]"></div>
+</div>
+</section>
+<!-- Key Details Bento Box -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<!-- Date/Time -->
+<div class="glass-panel rounded-xl p-5 flex flex-col justify-center items-start">
+<span class="material-symbols-outlined text-primary mb-3" data-icon="calendar_month">calendar_month</span>
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-1">Schedule</p>
+<p class="font-body-lg text-body-lg text-on-surface font-semibold">Today, 18:00</p>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">2 Hours</p>
+</div>
+<!-- Location -->
+<div class="glass-panel rounded-xl p-5 flex flex-col justify-center items-start relative overflow-hidden">
+<div class="absolute right-[-20%] bottom-[-20%] w-32 h-32 opacity-10">
+<span class="material-symbols-outlined text-9xl text-white" data-icon="location_on">location_on</span>
+</div>
+<span class="material-symbols-outlined text-primary mb-3 relative z-10" data-icon="location_on">location_on</span>
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-1 relative z-10">Location</p>
+<p class="font-body-lg text-body-lg text-on-surface font-semibold relative z-10 truncate w-full">Court Court 4</p>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm relative z-10">Monte Carlo</p>
+</div>
+<!-- Requirements -->
+<div class="glass-panel rounded-xl p-5 flex flex-col justify-center items-start border border-secondary/20 bg-gradient-to-br from-surface-container-low to-secondary-container/5">
+<span class="material-symbols-outlined text-secondary mb-3" data-icon="military_tech">military_tech</span>
+<p class="font-label-caps text-label-caps text-secondary uppercase mb-1">Requirement</p>
+<p class="font-body-lg text-body-lg text-on-surface font-semibold">UTR 11.0+</p>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Strict verification</p>
+</div>
+</section>
+</div>
+<!-- Right Column: Participants & Interaction -->
+<div class="lg:col-span-4 flex flex-col gap-gutter">
+<!-- Interaction Hub -->
+<section class="glass-panel rounded-xl p-6 flex flex-col gap-4">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-2">Comms</h3>
+<button class="w-full flex items-center justify-between p-4 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors border border-white/5 group">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-primary group-hover:bg-primary-container/20 transition-colors">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+</div>
+<div class="text-left">
+<p class="font-body-md text-body-md text-on-surface font-medium">Lobby Chat</p>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">2 new messages</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</button>
+<div class="w-full flex items-center justify-between p-4 rounded-lg bg-surface-container border border-white/5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="mic">mic</span>
+</div>
+<div class="text-left">
+<p class="font-body-md text-body-md text-on-surface font-medium">Voice Channel</p>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm text-secondary">2 active</p>
+</div>
+</div>
+<!-- Toggle -->
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
+</label>
+</div>
+</section>
+<!-- Participants List -->
+<section class="glass-panel rounded-xl p-6 flex-1">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-6 flex justify-between items-center">
+                        Athletes
+                        <span class="font-label-caps text-label-caps text-on-surface-variant uppercase font-normal">3 Joined</span>
+</h3>
+<ul class="flex flex-col gap-4">
+<!-- Host/Pro -->
+<li class="flex items-center justify-between p-3 rounded-lg bg-surface-container-highest/50 border border-secondary/20">
+<div class="flex items-center gap-4">
+<div class="relative">
+<img class="w-12 h-12 rounded-full object-cover border-2 border-secondary" data-alt="A striking profile portrait of a confident male athlete in high-end dark athletic wear. Dramatic studio lighting highlights his intense focus, set against a pure black background. Subtle warm rim lighting adds depth to the image, fitting a premium, high-stakes sports app aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVr-6rArtcmg89C-gWwUOQ-MGVfRMmhUzvf8Lu4c_uPEWl9wOusu0IkkimPCwryKQKcVT6Td-9NveNGCBkw3XdLh0_tRWdKvAvO453V7LOWOx_SmnUlWjUMUbk1cSwW5QhNAv6LYCiGMj2lmZ6gduPtwhMnoCCgBmkkvmaJrJKlkfyISnv-OfevUPPlMIObj5gn-2Y_BSY6N-oUK-JrHioHGwfFGrk5dbJBpsl9one3B6bRxd4kQc3fxXy7Bgc9PbaezAHJVvEab4"/>
+<div class="absolute -bottom-1 -right-1 w-5 h-5 bg-secondary rounded-full flex items-center justify-center border-2 border-surface-container">
+<span class="material-symbols-outlined text-[10px] text-on-secondary" data-icon="star">star</span>
+</div>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface font-semibold flex items-center gap-2">
+                                        Alex Sterling
+                                        <span class="px-2 py-0.5 bg-secondary/20 text-secondary rounded text-[10px] uppercase font-bold tracking-wider">Host</span>
+</p>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Pro Tier • UTR 12.1</p>
+</div>
+</div>
+</li>
+<!-- Participant 2 -->
+<li class="flex items-center justify-between p-3 rounded-lg hover:bg-surface-container/50 transition-colors cursor-pointer group">
+<div class="flex items-center gap-4">
+<img class="w-12 h-12 rounded-full object-cover border border-surface-variant group-hover:border-primary-container transition-colors" data-alt="A moody, high-contrast portrait of a female athlete with an intense expression. She is wearing minimalist dark training gear. The background is completely black, with a sharp white rim light defining her silhouette. The image conveys focus and elite performance, aligning perfectly with a luxury dark-mode design system." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZXv01bOGWvASB97K0GVQSjwP5xUSMdCVCM-5qa6ATy0wxyCpOOcEUbr8JVyScKFac1cSgHnpu5tWLHNPsELldg9Mib5tLnS_F7JUisYy8-T4jHKY_JWyLfNjdHPA--ZAWqR20pbypZPDzgWyGOhcoFDD8XKpBtey3v1TtoHRUKtIqna3q-NGewoKUrlt8k99pTyMYanHNCz3eHLPyNFeh6yUbGdrScnFdEUjhfM3EYeE3eQsA0lKpf-mIC2rtL6uJsRq6Uph2e6M"/>
+<div>
+<p class="font-body-md text-body-md text-on-surface font-semibold">Sarah Jenkins</p>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Elite Tier • UTR 11.5</p>
+</div>
+</div>
+</li>
+<!-- Participant 3 -->
+<li class="flex items-center justify-between p-3 rounded-lg hover:bg-surface-container/50 transition-colors cursor-pointer group">
+<div class="flex items-center gap-4">
+<img class="w-12 h-12 rounded-full object-cover border border-surface-variant group-hover:border-primary-container transition-colors" data-alt="A dramatic profile shot of a male tennis player looking off-camera. Strong directional lighting reveals sweat on his brow, emphasizing physical exertion. The color palette is strictly desaturated with deep blacks and slight warm undertones to match a premium, high-intensity athletic brand identity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBkIF7ptlrBLOpCI3-S77gfrKNvxkeM7vcWcLz7H5vIC2fdxwt-W_EBNgAO_BD6p_7xZaKFgDwb0sNBzQG9Bd9h6xar91RZqnSoc3Y2AFtIxPk1U0j9jsknLMBLnErM5Pxk9CuiRD7vafQennbl3fpakeJIO5HrYG1t7AbH3tljtAuN91i6PUNydQZlNDIEN-P142hEV6KqN_K8Hc0Zuq6GVEYFUN-gd1s00S1Dcf0i6itkHKs8KJbJmyI6QksuOmKGhpwRSxEjvOQ"/>
+<div>
+<p class="font-body-md text-body-md text-on-surface font-semibold">Marcus Vance</p>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Elite Tier • UTR 11.2</p>
+</div>
+</div>
+</li>
+<!-- Empty Slot -->
+<li class="flex items-center justify-between p-3 rounded-lg border border-dashed border-surface-variant/50 opacity-60">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="person_add">person_add</span>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface-variant italic">Waiting for player...</p>
+</div>
+</div>
+</li>
+</ul>
+</section>
+</div>
+</div>
+</main>
+<!-- Fixed Bottom Action Area -->
+<div class="fixed bottom-0 left-0 w-full bg-surface-container-lowest/90 backdrop-blur-2xl border-t border-white/5 p-4 z-50 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] pb-8 md:pb-4">
+<div class="max-w-7xl mx-auto px-container-margin-mobile md:px-container-margin-desktop flex items-center justify-between">
+<div class="hidden md:block">
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase">Lobby Fee</p>
+<p class="font-headline-md text-headline-md text-on-surface font-bold">25 <span class="text-secondary text-sm align-middle">Tokens</span></p>
+</div>
+<button class="w-full md:w-auto flex-1 md:flex-none action-gradient text-white font-headline-md text-headline-md font-bold py-4 px-12 rounded-lg hover:shadow-[0_0_20px_rgba(255,87,34,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+<span>Enter Lobby</span>
+<span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</div>
+</body></html>

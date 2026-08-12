@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Event Details - Apex Elite</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Montserrat:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-fixed": "#241a00",
+                      "surface-tint": "#ffb5a0",
+                      "tertiary": "#c8c6c5",
+                      "surface-container-low": "#1c1b1b",
+                      "on-surface": "#e5e2e1",
+                      "error": "#ffb4ab",
+                      "secondary": "#e9c349",
+                      "primary-fixed-dim": "#ffb5a0",
+                      "on-surface-variant": "#e4beb4",
+                      "background": "#131313",
+                      "surface-container-highest": "#353534",
+                      "tertiary-container": "#929090",
+                      "on-primary-container": "#541200",
+                      "error-container": "#93000a",
+                      "surface-bright": "#3a3939",
+                      "surface-container-high": "#2a2a2a",
+                      "on-primary-fixed": "#3b0900",
+                      "surface-container-lowest": "#0e0e0e",
+                      "outline": "#ab8980",
+                      "surface-container": "#201f1f",
+                      "secondary-container": "#af8d11",
+                      "outline-variant": "#5b4039",
+                      "tertiary-fixed": "#e5e2e1",
+                      "inverse-surface": "#e5e2e1",
+                      "primary": "#ffb5a0",
+                      "on-tertiary-container": "#2a2a2a",
+                      "secondary-fixed": "#ffe088",
+                      "on-background": "#e5e2e1",
+                      "secondary-fixed-dim": "#e9c349",
+                      "on-tertiary-fixed-variant": "#474746",
+                      "inverse-on-surface": "#313030",
+                      "primary-container": "#ff5722",
+                      "on-tertiary": "#313030",
+                      "surface-variant": "#353534",
+                      "primary-fixed": "#ffdbd1",
+                      "on-tertiary-fixed": "#1c1b1b",
+                      "on-secondary": "#3c2f00",
+                      "on-error": "#690005",
+                      "on-error-container": "#ffdad6",
+                      "surface-dim": "#131313",
+                      "on-secondary-fixed-variant": "#574500",
+                      "inverse-primary": "#b02f00",
+                      "on-primary-fixed-variant": "#862200",
+                      "on-secondary-container": "#342800",
+                      "on-primary": "#5f1500",
+                      "tertiary-fixed-dim": "#c8c6c5",
+                      "surface": "#131313"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "section-gap": "80px",
+                      "container-margin-mobile": "20px",
+                      "container-margin-desktop": "64px",
+                      "gutter": "24px",
+                      "base": "8px"
+              },
+              "fontFamily": {
+                      "label-caps": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Montserrat"
+                      ],
+                      "headline-md": [
+                              "Montserrat"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "display-lg-mobile": [
+                              "Montserrat"
+                      ]
+              },
+              "fontSize": {
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.1em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display-lg-mobile": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .glass-panel {
+            background: rgba(26, 26, 26, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .glass-card {
+            background: linear-gradient(135deg, rgba(26, 26, 26, 0.8) 0%, rgba(26, 26, 26, 0.4) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border: 1px solid transparent;
+            border-radius: inherit;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%) border-box;
+            -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+        }
+
+        .hover-glow:hover {
+            box-shadow: 0 0 20px rgba(255, 87, 34, 0.15);
+            border-color: rgba(255, 87, 34, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .hero-gradient {
+            background: linear-gradient(to bottom, rgba(10, 10, 10, 0.1) 0%, rgba(10, 10, 10, 1) 100%);
+        }
+
+        .text-gradient-gold {
+            background: linear-gradient(to right, #ffe088, #af8d11);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased pb-32">
+<!-- Top Navigation (Contextual departure from main flow, showing back button) -->
+<nav class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl border-b border-outline-variant/30 shadow-2xl shadow-black/50 flex items-center justify-between px-gutter h-16 w-full">
+<button class="hover:text-primary-fixed-dim transition-colors active:scale-95 flex items-center justify-center p-2 -ml-2 rounded-full hover:bg-white/5 text-secondary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">arrow_back</span>
+</button>
+<div class="font-display-lg text-display-lg-mobile tracking-tighter text-gradient-gold font-bold absolute left-1/2 transform -translate-x-1/2">SPORTSYNC</div>
+<div class="w-10 h-10 rounded-full bg-surface-container-high border border-outline-variant/20 overflow-hidden relative">
+<img class="object-cover w-full h-full" data-alt="Close-up portrait of a highly focused athlete looking slightly off-camera. Dramatic rim lighting against a pitch black background. Modern cinematic color grading emphasizing deep shadows and intense highlights. Shot on 85mm lens. High-end athletic aesthetic suitable for a premium dark mode UI." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPn7xM9my5WaU9IX2V-HayKuKn8sH9UVHyDQTIQXNu6V6_OVHJOHINukou41Yh9rSWmwKuOlUaWx3C46YHRQxweFL48XqL0ea7MHaBu6Ecr0d_QkQDILUW83DNJmJNUAExZpLf63deUQ9BMcJ569Q0KTvYk8kYfq_tWTxXrjoBEFqRuXox1eBbdrl84DPIDPK8wnxSff_xBRW0bEUNCEu-pIth0WXe9p6YpTctKV_Z9URBAOkVxPngt8PuPPzpSR_UeFj2S48mzpo"/>
+</div>
+</nav>
+<!-- Hero Section -->
+<header class="relative w-full h-[486px] md:h-[574px] overflow-hidden bg-black">
+<img class="absolute inset-0 w-full h-full object-cover opacity-70" data-alt="High-speed panning shot of an elite cyclist navigating a sharp mountain pass corner. The subject is perfectly sharp while the background is a smooth motion blur. Dynamic cinematic lighting, emphasizing the raw speed and intensity. Dark, moody color grading with rich obsidian tones and subtle warm highlights. Minimalist, premium athletic aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDiv9jSz4QX2vtHj5V2aILgzphtIW07BzeFutiheX-ZFSMihIspiM4RRSBVwt0-HgFJ7_PeMclvKzB98-qOzJ8YKRXzkgQbUBXEVxbyuzHZLQezwB1cJ_GZSkiYIdLSDf4Ri482NT4O8WY9PRKU7VWi9xf7gl9IqP-DSDLjTLj8xtBdiSBctQ08i9FgE6wsep06aUL7-zsXPJi1CQvf6ALkHqtwMLfoRurUCSBZ86DM3ydXCOx8K8p7wxoZHpnPbmBvfx8TNBSu8Do"/>
+<div class="absolute inset-0 hero-gradient"></div>
+<div class="absolute bottom-0 left-0 w-full p-container-margin-mobile md:p-container-margin-desktop z-10 flex flex-col justify-end">
+<div class="flex items-center gap-3 mb-4">
+<span class="px-3 py-1 bg-inverse-primary text-white font-label-caps text-label-caps rounded-full uppercase tracking-widest shadow-lg border border-secondary/30">Active</span>
+<span class="px-3 py-1 bg-transparent border border-secondary text-secondary font-label-caps text-label-caps rounded-full uppercase tracking-widest text-gradient-gold">Elite Tier</span>
+</div>
+<h1 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-white mb-2 max-w-3xl leading-tight">Pro Circuit: Alpine Route</h1>
+<p class="font-body-lg text-body-lg text-tertiary flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+                Mont Blanc Massif, French Alps
+            </p>
+</div>
+</header>
+<main class="w-full max-w-7xl mx-auto px-container-margin-mobile md:px-container-margin-desktop mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Left Column: Primary Details -->
+<div class="lg:col-span-2 space-y-8">
+<!-- Info Grid (Bento Style) -->
+<section class="grid grid-cols-2 gap-4">
+<div class="glass-card rounded-xl p-6 flex items-start gap-4 hover-glow group">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary-container/20 transition-colors">
+<span class="material-symbols-outlined">calendar_today</span>
+</div>
+<div>
+<p class="font-label-caps text-label-caps text-tertiary uppercase mb-1">Date</p>
+<p class="font-headline-md text-headline-md text-white">Oct 12</p>
+<p class="font-body-md text-body-md text-on-surface-variant">2024</p>
+</div>
+</div>
+<div class="glass-card rounded-xl p-6 flex items-start gap-4 hover-glow group">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary-container/20 transition-colors">
+<span class="material-symbols-outlined">schedule</span>
+</div>
+<div>
+<p class="font-label-caps text-label-caps text-tertiary uppercase mb-1">Time</p>
+<p class="font-headline-md text-headline-md text-white">15:00</p>
+<p class="font-body-md text-body-md text-on-surface-variant">GMT+1</p>
+</div>
+</div>
+<div class="glass-card rounded-xl p-6 flex items-start gap-4 hover-glow group">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary-container/20 transition-colors">
+<span class="material-symbols-outlined">route</span>
+</div>
+<div>
+<p class="font-label-caps text-label-caps text-tertiary uppercase mb-1">Distance</p>
+<p class="font-headline-md text-headline-md text-white">145km</p>
+<p class="font-body-md text-body-md text-on-surface-variant">4,200m Elev</p>
+</div>
+</div>
+<div class="glass-card rounded-xl p-6 flex items-start gap-4 hover-glow group">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary-container/20 transition-colors">
+<span class="material-symbols-outlined">directions_bike</span>
+</div>
+<div>
+<p class="font-label-caps text-label-caps text-tertiary uppercase mb-1">Sport</p>
+<p class="font-headline-md text-headline-md text-white">Cycling</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Road/Climb</p>
+</div>
+</div>
+</section>
+<!-- Description -->
+<section class="glass-card rounded-xl p-8">
+<h2 class="font-headline-md text-headline-md text-white mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">info</span>
+                    Event Overview
+                </h2>
+<div class="space-y-4 font-body-md text-body-md text-on-surface leading-relaxed">
+<p class="">The Alpine Route Pro Circuit is an uncompromising test of endurance and tactical acumen. Spanning 145 kilometers of punishing gradients and high-altitude switchbacks, this event separates elite competitors from the rest.</p>
+<p class="">Competitors will face three Hors Catégorie (HC) climbs, unpredictable mountain weather systems, and technically demanding descents that require absolute precision. This is a self-supported stage; riders are expected to carry necessary nutrition and emergency maintenance gear.</p>
+</div>
+</section>
+</div>
+<!-- Right Column: Sidebar -->
+<div class="space-y-6">
+<!-- Organizer -->
+<section class="glass-card rounded-xl p-6 flex flex-col items-center text-center">
+<div class="relative mb-4">
+<div class="w-20 h-20 rounded-full bg-surface-container overflow-hidden border-2 border-secondary p-1">
+<img class="w-full h-full object-cover rounded-full" data-alt="Abstract, high-end minimalist logo for a sports association. Metallic silver geometric shape against a pure black background. Studio lighting creating a sleek, premium reflection on the logo surface. Dark mode aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9loHCM7Wo6iPaX4XejnKLHo2pYaxGkZ5gu3HWNMYmWmeYOPFwiBL86VurluryAPHHCQPRl9GCNzIoQwpnJe7u_1j1TMi6KztMi9fC_Dnjngowy7Xx_JV9y4XsVo0nZtJclG3ZYtLtBRHv1OtObnsY8NxzgYFuqp3iyD1pXA1SSvG4eQydNGovT-oUf9ThgwjK1iaDTfl6yTsAXHUvAJ3_EcpCGE23kmuInvuNYp7Yr6DX4_x4bv53F_GoJbrSvFF7hThM98oPSqc"/>
+</div>
+<div class="absolute -bottom-2 -right-2 bg-secondary text-on-secondary w-8 h-8 rounded-full flex items-center justify-center shadow-lg shadow-black/50 border-2 border-surface-container">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+</div>
+<h3 class="font-headline-md text-headline-md text-white text-[20px] mb-1">Apex Sports Assoc.</h3>
+<p class="font-label-caps text-label-caps text-secondary uppercase mb-4 text-gradient-gold">Verified Organizer</p>
+<div class="w-full flex justify-between pt-4 border-t border-white/5 font-body-md text-body-md text-tertiary">
+<span class="flex flex-col"><strong class="text-white">42</strong> Events</span>
+<span class="flex flex-col"><strong class="text-white">4.9</strong> Rating</span>
+<span class="flex flex-col"><strong class="text-white">8k+</strong> Athletes</span>
+</div>
+</section>
+<!-- Requirements -->
+<section class="glass-card rounded-xl p-6">
+<h3 class="font-headline-md text-headline-md text-white text-[20px] mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">rule</span>
+                    Requirements
+                </h3>
+<ul class="space-y-3 font-body-md text-body-md text-on-surface-variant">
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary mt-0.5 text-[20px]">check_circle</span>
+                        Bring your own calibrated telemetry gear.
+                    </li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary mt-0.5 text-[20px]">check_circle</span>
+                        Mandatory check-in 60 mins prior to start.
+                    </li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary mt-0.5 text-[20px]">check_circle</span>
+                        Proof of valid Elite Tier racing license.
+                    </li>
+</ul>
+</section>
+</div>
+</main>
+<!-- Fixed Bottom Action Bar -->
+<div class="fixed bottom-0 left-0 w-full glass-panel border-t-0 border-b-0 border-x-0 border-t-[1px] border-white/10 p-4 md:p-6 z-40">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+<div class="hidden md:block">
+<p class="font-label-caps text-label-caps text-tertiary uppercase">Registration Fee</p>
+<p class="font-headline-md text-headline-md text-white">$250.00 <span class="font-body-md text-body-md text-on-surface-variant">USD</span></p>
+</div>
+<button class="w-full md:w-auto bg-inverse-primary text-white font-headline-md text-headline-md py-4 px-12 rounded-lg hover:bg-primary-container transition-all shadow-2xl border border-secondary/40 active:scale-[0.98] flex items-center justify-center gap-2 font-bold tracking-wide">
+                REGISTER FOR EVENT
+                <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+</body></html>

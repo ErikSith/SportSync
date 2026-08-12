@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en" style=""><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>APEX ELITE - Tournaments</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&amp;family=Montserrat:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-fixed-dim": "#ffb5a0",
+                    "on-surface-variant": "#e4beb4",
+                    "tertiary-container": "#929090",
+                    "surface-variant": "#353534",
+                    "on-secondary": "#3c2f00",
+                    "on-error": "#690005",
+                    "tertiary-fixed": "#e5e2e1",
+                    "surface-bright": "#3a3939",
+                    "on-secondary-fixed-variant": "#574500",
+                    "on-secondary-container": "#342800",
+                    "surface-container-high": "#2a2a2a",
+                    "inverse-surface": "#e5e2e1",
+                    "inverse-on-surface": "#313030",
+                    "surface-container-highest": "#353534",
+                    "secondary": "#e9c349",
+                    "primary-fixed": "#ffdbd1",
+                    "on-error-container": "#ffdad6",
+                    "primary": "#ffb5a0",
+                    "on-secondary-fixed": "#241a00",
+                    "on-surface": "#e5e2e1",
+                    "on-primary-fixed": "#3b0900",
+                    "on-primary-fixed-variant": "#862200",
+                    "surface-container-low": "#1c1b1b",
+                    "surface-dim": "#131313",
+                    "on-tertiary-container": "#2a2a2a",
+                    "on-tertiary-fixed": "#1c1b1b",
+                    "on-primary-container": "#541200",
+                    "error": "#ffb4ab",
+                    "on-tertiary-fixed-variant": "#474746",
+                    "on-primary": "#5f1500",
+                    "surface-container-lowest": "#0e0e0e",
+                    "primary-container": "#ff5722",
+                    "on-background": "#e5e2e1",
+                    "surface": "#131313",
+                    "on-tertiary": "#313030",
+                    "secondary-container": "#af8d11",
+                    "surface-tint": "#ffb5a0",
+                    "inverse-primary": "#b02f00",
+                    "outline-variant": "#5b4039",
+                    "background": "#131313",
+                    "secondary-fixed-dim": "#e9c349",
+                    "outline": "#ab8980",
+                    "error-container": "#93000a",
+                    "surface-container": "#201f1f",
+                    "tertiary": "#c8c6c5",
+                    "tertiary-fixed-dim": "#c8c6c5",
+                    "secondary-fixed": "#ffe088"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "gutter": "24px",
+                    "section-gap": "80px",
+                    "container-margin-desktop": "64px",
+                    "base": "8px",
+                    "container-margin-mobile": "20px"
+            },
+            "fontFamily": {
+                    "display-lg-mobile": [
+                            "Montserrat"
+                    ],
+                    "display-lg": [
+                            "Montserrat"
+                    ],
+                    "body-md": [
+                            "Inter"
+                    ],
+                    "headline-md": [
+                            "Montserrat"
+                    ],
+                    "body-lg": [
+                            "Inter"
+                    ],
+                    "label-caps": [
+                            "Inter"
+                    ]
+            },
+            "fontSize": {
+                    "display-lg-mobile": [
+                            "32px",
+                            {
+                                    "lineHeight": "40px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "display-lg": [
+                            "48px",
+                            {
+                                    "lineHeight": "56px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "headline-md": [
+                            "24px",
+                            {
+                                    "lineHeight": "32px",
+                                    "letterSpacing": "0.01em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "label-caps": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "letterSpacing": "0.1em",
+                                    "fontWeight": "700"
+                            }
+                    ]
+            }
+    },
+        },
+      }
+    </script>
+<style>
+        /* Custom Glassmorphism Utility */
+        .glass-well {
+            background: linear-gradient(135deg, rgba(26, 26, 26, 0.8) 0%, rgba(19, 19, 19, 0.95) 100%);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 20px 40px -10px rgba(0,0,0,0.5);
+        }
+        
+        .hover-glow:hover {
+            box-shadow: 0 0 20px rgba(255, 87, 34, 0.2);
+        }
+
+        /* Ambient background glow */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at center, rgba(255,87,34,0.03) 0%, transparent 60%);
+            z-index: -1;
+            pointer-events: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface antialiased min-h-screen flex flex-col pt-16 pb-20 md:pb-0">
+<!-- TopAppBar -->
+<header class="bg-surface/80 backdrop-blur-xl border-b border-outline-variant/30 shadow-2xl shadow-black/50 fixed top-0 w-full z-50 flex items-center justify-between px-gutter h-16 w-full hidden md:flex">
+<div class="flex items-center gap-4">
+<button class="text-primary hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl" data-icon="menu">menu</span>
+</button>
+<h1 class="font-display-lg text-display-lg-mobile tracking-tighter text-primary-container" style="font-family: Montserrat, sans-serif; font-weight: 700; background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(233, 195, 73) 100%) text; -webkit-text-fill-color: transparent;">SPORTSYNC</h1>
+</div>
+<div class="flex items-center gap-6 text-on-surface-variant font-label-caps text-label-caps">
+<a class="hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform" href="#">Home</a>
+<a class="text-primary hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform" href="#">Events</a>
+<a class="hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform" href="#">Venues</a>
+<button class="text-primary hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform flex items-center justify-center">
+<div class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant/50 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A close up portrait of an intense elite athlete with dramatic studio lighting against a dark background, evoking high performance and luxury sports aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAfaSR5DSAnMHi-othwIdyQIvsxLevmYUWzt60RkRJlSSBskAZFFx_PEYW-pdHrcyVN1Mn3WI1Vw8gTPQygErJa0Jp95O44WLKihICSHg7XzHA88_eBW1sytfL814Czil6XWKzx51tg_IEssS8DpZAXuGwqtBxa8rTSFgyGJP1cpQGHfRmeVmxQHWp7QqLYUDwaiCBXwD3aav0o108I3Jbs6B46qW7NU7Se4MR67sdpi6cN3TVIsQMApKWv5ua_zVZts0h6q7HQEDw"/>
+</div>
+</button>
+</div>
+</header>
+<!-- Mobile Top Header (No Top Links, just Brand and Menu/Avatar) -->
+<header class="bg-surface/80 backdrop-blur-xl shadow-2xl shadow-black/50 fixed top-0 w-full z-50 flex items-center justify-between px-gutter h-16 w-full md:hidden">
+<button class="text-primary active:scale-95 transition-transform flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl" data-icon="menu">menu</span>
+</button>
+<h1 class="font-display-lg-mobile text-display-lg-mobile tracking-tighter text-primary-container" style="font-family: Montserrat, sans-serif; font-weight: 700; background: linear-gradient(135deg, rgb(255, 87, 34) 0%, rgb(233, 195, 73) 100%) text; -webkit-text-fill-color: transparent;">SPORTSYNC</h1>
+<button class="text-primary active:scale-95 transition-transform flex items-center justify-center">
+<div class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant/50 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A close up portrait of an intense elite athlete with dramatic studio lighting against a dark background, evoking high performance and luxury sports aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBk-eD-uk-KtrLDJvu0rxtomi7r9cIEldvtqxa2vikzk-JXRdl14qyLPcxFBp-L3XLUuWOTDTUjGdXBC_UkFYSxixdWBJTCJnHzUphaRxbTy3dECltYwg6cLNili59lMFoEB4IkEM3VIR4uYMUIr5Wx89j4Sn18-3J0_6LGMRTVe_y925Xw0RnfI7vYUKBJmZDYdxIPPlcgDMmY-zLlpLbdAZ8vu_2RUI1zBk3ECLigAXqD5vbi189D_c4ZO66WmQmuTLtWOH2r4c0"/>
+</div>
+</button>
+</header>
+<!-- Main Content Area -->
+<main class="flex-grow container mx-auto px-container-margin-mobile md:px-container-margin-desktop py-8 max-w-7xl relative z-10">
+<!-- Page Header & Actions -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
+<div>
+<h2 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-on-surface mb-2">Tournaments</h2>
+<p class="font-body-md text-body-md text-tertiary-container max-w-2xl">Compete against the best. Secure your legacy in the Apex Elite global circuit.</p>
+</div>
+<button class="bg-primary-container text-white font-label-caps text-label-caps py-3 px-6 rounded-lg uppercase tracking-widest hover-glow active:scale-95 transition-all duration-200 flex items-center gap-2 shadow-lg shadow-primary-container/20 whitespace-nowrap self-stretch md:self-auto justify-center" style="background: linear-gradient(135deg, rgb(176, 47, 0) 0%, rgb(95, 21, 0) 100%); border: 1px solid rgb(233, 195, 73);">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                Create Tournament
+            </button>
+</div>
+<!-- Segmented Control -->
+<div class="flex border-b border-surface-container-highest mb-8 overflow-x-auto no-scrollbar">
+<button class="pb-3 px-4 font-headline-md text-headline-md text-primary border-b-2 border-primary whitespace-nowrap transition-colors">Upcoming</button>
+<button class="pb-3 px-4 font-headline-md text-headline-md text-tertiary-container hover:text-on-surface whitespace-nowrap transition-colors">My Tournaments</button>
+<button class="pb-3 px-4 font-headline-md text-headline-md text-tertiary-container hover:text-on-surface whitespace-nowrap transition-colors">Past</button>
+</div>
+<!-- Tournament Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Card 1 -->
+<article class="glass-well rounded-xl overflow-hidden flex flex-col group transition-transform duration-300 hover:-translate-y-1">
+<div class="relative h-48 w-full overflow-hidden">
+<img class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500 group-hover:scale-105" data-alt="High-contrast, dramatic shot of an empty, floodlit elite tennis court at night. Dark moody atmosphere with intense stark white lighting highlighting the court lines. Luxury sports aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBFkObPyyyi1W45aV89Es589gescCkgJWFwExRLkSJIxt5COGkE6jgFHLkZOMhCxgbJUVB2glVxiOv1WBDvu4VfZtd0GsJxP66S2B-hWSvQXOtZkcmH0m2CJKCVSRCmsCNcJCAsjCyQaEzelTN8q5riLC1N0toJMBPTOIEjsOAWqiGheqJy-lNVIDvjQpMmF2VyWFLbp0zC01cweACOvVpTzvswhSqcBjosDrV6jNgaXAVQuE_OAojELPCHC_Lyg5plsNhdp-UYK7o"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-dim to-transparent opacity-90"></div>
+<div class="absolute top-4 left-4 flex gap-2">
+<span class="bg-primary-container text-white px-2 py-1 rounded font-label-caps text-[10px] uppercase tracking-widest font-bold">Live</span>
+<span class="bg-secondary/10 text-secondary border border-secondary/30 px-2 py-1 rounded font-label-caps text-[10px] uppercase tracking-widest font-bold backdrop-blur-md">Elite Tier</span>
+</div>
+</div>
+<div class="p-6 flex-grow flex flex-col">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-1">Apex Grand Slam</h3>
+<p class="font-body-md text-body-md text-tertiary-container mb-4 flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
+                        Monaco Court Central
+                    </p>
+<div class="grid grid-cols-2 gap-4 mb-6 pt-4 border-t border-surface-container-highest">
+<div>
+<p class="font-label-caps text-[10px] text-tertiary-container uppercase tracking-widest mb-1">Date</p>
+<p class="font-body-md text-body-md text-on-surface">Oct 12 - 15</p>
+</div>
+<div>
+<p class="font-label-caps text-[10px] text-tertiary-container uppercase tracking-widest mb-1">Prize Pool</p>
+<p class="font-body-md text-body-md text-secondary font-bold">$50,000</p>
+</div>
+</div>
+<div class="mt-auto">
+<div class="flex justify-between items-center mb-2">
+<span class="font-label-caps text-[10px] text-tertiary-container uppercase tracking-widest">Spots Remaining</span>
+<span class="font-body-md text-body-md text-on-surface font-bold">4 / 32</span>
+</div>
+<div class="w-full bg-surface-container-highest h-1 rounded-full mb-4 overflow-hidden">
+<div class="bg-primary-container h-full rounded-full" style="width: 88%"></div>
+</div>
+<button class="w-full bg-surface-container-highest hover:bg-primary-container hover:text-white text-primary border border-primary-container/30 font-label-caps text-label-caps py-3 rounded-lg uppercase tracking-widest transition-all duration-200 active:scale-95 text-center block" style="background: linear-gradient(135deg, rgb(176, 47, 0) 0%, rgb(95, 21, 0) 100%); border: 1px solid rgb(233, 195, 73); color: white;">
+                            Join Tournament
+                        </button>
+</div>
+</div>
+</article>
+<!-- Card 2 -->
+<article class="glass-well rounded-xl overflow-hidden flex flex-col group transition-transform duration-300 hover:-translate-y-1">
+<div class="relative h-48 w-full overflow-hidden">
+<img class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500 group-hover:scale-105" data-alt="Intense close-up of a high-end carbon fiber padel racket resting on a dark, textured surface next to a neon yellow ball. Cinematic lighting with deep shadows and high contrast, exuding exclusivity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbqya5EATNmd982Y2G7L9gc7D-IIDsZV-KPn_vNa_6xxZ53dyGVgi4uKPFY3BTkygqVm3B4W-9t8oJzSL0LMNtXUi2IuMLk1uDx3GUAZNpgaSJk-HaE-NXqn67k3ljqKQbvKOzCtoFE1yf7kuA7tyo4cJcKrMVM0nuQzKj7k41O2NGOUWfsaWviHtdks8c4JHHuJqH0It8DaDsrAAyNTdQN63nyjfvDxIxcc8JsEt_VZAcPUSIoho6W1r9VppL8d75qyMEoe78ObA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-dim to-transparent opacity-90"></div>
+<div class="absolute top-4 left-4 flex gap-2">
+<span class="bg-secondary/10 text-secondary border border-secondary/30 px-2 py-1 rounded font-label-caps text-[10px] uppercase tracking-widest font-bold backdrop-blur-md">Pro Tier</span>
+</div>
+</div>
+<div class="p-6 flex-grow flex flex-col">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-1">Dubai Padel Masters</h3>
+<p class="font-body-md text-body-md text-tertiary-container mb-4 flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
+                        Emirates Arena
+                    </p>
+<div class="grid grid-cols-2 gap-4 mb-6 pt-4 border-t border-surface-container-highest">
+<div>
+<p class="font-label-caps text-[10px] text-tertiary-container uppercase tracking-widest mb-1">Date</p>
+<p class="font-body-md text-body-md text-on-surface">Nov 02 - 05</p>
+</div>
+<div>
+<p class="font-label-caps text-[10px] text-tertiary-container uppercase tracking-widest mb-1">Prize Pool</p>
+<p class="font-body-md text-body-md text-secondary font-bold">$100,000</p>
+</div>
+</div>
+<div class="mt-auto">
+<div class="flex justify-between items-center mb-2">
+<span class="font-label-caps text-[10px] text-tertiary-container uppercase tracking-widest">Spots Remaining</span>
+<span class="font-body-md text-body-md text-on-surface font-bold">12 / 64</span>
+</div>
+<div class="w-full bg-surface-container-highest h-1 rounded-full mb-4 overflow-hidden">
+<div class="bg-primary-container h-full rounded-full" style="width: 81%"></div>
+</div>
+<button class="w-full bg-surface-container-highest hover:bg-primary-container hover:text-white text-primary border border-primary-container/30 font-label-caps text-label-caps py-3 rounded-lg uppercase tracking-widest transition-all duration-200 active:scale-95 text-center block" style="background: linear-gradient(135deg, rgb(176, 47, 0) 0%, rgb(95, 21, 0) 100%); border: 1px solid rgb(233, 195, 73); color: white;">
+                            Join Tournament
+                        </button>
+</div>
+</div>
+</article>
+<!-- Card 3 -->
+<article class="glass-well rounded-xl overflow-hidden flex flex-col group transition-transform duration-300 hover:-translate-y-1">
+<div class="relative h-48 w-full overflow-hidden">
+<img class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500 group-hover:scale-105" data-alt="A sleek, dimly lit indoor running track with polished dark lanes. Orange glowing neon accents run along the curves. The mood is highly focused, futuristic, and intense." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAI4fFaCguXcFCk7YhJTMjF7turSmabirwwMhnQf23vWTxIYSiUD9Z0dnZlO_Fjq_qPL3004gWua7j-w0XMW48SbcsoU_-KRBQ3a8Z1dvHpCCr2X-MPQ23gAZID8RzZeEQMPp4pjbojUdXWXJZbT35fzPDdROHpO42-QAoyf3ie-sJGatAK5-kPpAZ1hsrh0mQa7KbHFN71MlQqNbDlnVATfMaf4fMCRkqXpzDYgwWT42dfnHj5P1PMR4x6UNBPLIVzEuI3EQsOU48"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-dim to-transparent opacity-90"></div>
+<div class="absolute top-4 left-4 flex gap-2">
+<span class="bg-surface-container-highest/80 text-on-surface border border-outline-variant/50 px-2 py-1 rounded font-label-caps text-[10px] uppercase tracking-widest font-bold backdrop-blur-md">Open Tier</span>
+</div>
+</div>
+<div class="p-6 flex-grow flex flex-col">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-1">Midnight Sprint Series</h3>
+<p class="font-body-md text-body-md text-tertiary-container mb-4 flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
+                        London Underground Track
+                    </p>
+<div class="grid grid-cols-2 gap-4 mb-6 pt-4 border-t border-surface-container-highest">
+<div>
+<p class="font-label-caps text-[10px] text-tertiary-container uppercase tracking-widest mb-1">Date</p>
+<p class="font-body-md text-body-md text-on-surface">Nov 18</p>
+</div>
+<div>
+<p class="font-label-caps text-[10px] text-tertiary-container uppercase tracking-widest mb-1">Prize Pool</p>
+<p class="font-body-md text-body-md text-secondary font-bold">$10,000</p>
+</div>
+</div>
+<div class="mt-auto">
+<div class="flex justify-between items-center mb-2">
+<span class="font-label-caps text-[10px] text-tertiary-container uppercase tracking-widest">Spots Remaining</span>
+<span class="font-body-md text-body-md text-on-surface font-bold">28 / 100</span>
+</div>
+<div class="w-full bg-surface-container-highest h-1 rounded-full mb-4 overflow-hidden">
+<div class="bg-primary-container h-full rounded-full" style="width: 72%"></div>
+</div>
+<button class="w-full bg-surface-container-highest hover:bg-primary-container hover:text-white text-primary border border-primary-container/30 font-label-caps text-label-caps py-3 rounded-lg uppercase tracking-widest transition-all duration-200 active:scale-95 text-center block" style="background: linear-gradient(135deg, rgb(176, 47, 0) 0%, rgb(95, 21, 0) 100%); border: 1px solid rgb(233, 195, 73); color: white;">
+                            Join Tournament
+                        </button>
+</div>
+</div>
+</article>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="bg-surface-container-lowest/90 backdrop-blur-2xl rounded-t-full shadow-[0_-10px_40px_rgba(0,0,0,0.8)] fixed bottom-0 w-full z-50 flex justify-around items-center h-20 px-4 w-full md:hidden">
+<a class="flex flex-col items-center justify-center text-tertiary-container opacity-60 hover:opacity-100 active:scale-90 duration-200 w-1/4" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="dashboard">dashboard</span>
+<span class="font-label-caps text-[10px]">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary-container scale-110 transition-all hover:opacity-100 active:scale-90 duration-200 w-1/4" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="event" style="font-variation-settings: 'FILL' 1;">event</span>
+<span class="font-label-caps text-[10px] text-primary font-bold">Events</span>
+</a>
+<a class="flex flex-col items-center justify-center text-tertiary-container opacity-60 hover:opacity-100 active:scale-90 duration-200 w-1/4" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="stadium">stadium</span>
+<span class="font-label-caps text-[10px]">Venues</span>
+</a>
+<a class="flex flex-col items-center justify-center text-tertiary-container opacity-60 hover:opacity-100 active:scale-90 duration-200 w-1/4" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="person">person</span>
+<span class="font-label-caps text-[10px]">Profile</span>
+</a>
+</nav>
+</body></html>

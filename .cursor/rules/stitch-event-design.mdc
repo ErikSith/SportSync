@@ -1,0 +1,15 @@
+---
+description: When designing or building new event/tournament UI, generate the visual proposal via Google Stitch MCP using real organizer/schedule data first.
+globs: app/events/**/*,app/tournaments/**/*,components/events/**/*,components/tournaments/**/*,lib/ai/event-*.ts,lib/ai/tournament-*.ts
+alwaysApply: false
+---
+
+# Stitch-first Event & Tournament Design
+
+Before inventing new event or tournament UI in code, follow `.cursor/skills/stitch-event-factory/SKILL.md`.
+
+1. Collect real facts: organizer, venue, city, start/end, sport, price, capacity, sponsors, promo copy.
+2. Call **Google Stitch MCP** (`stitch` / `user-stitch`) to generate a design proposal from those facts.
+3. Only then port into Next.js with existing Apex Elite Tailwind tokens.
+
+If Stitch MCP is disconnected, tell the user to enable it in Cursor Settings → MCP — do not skip to a freehand redesign.

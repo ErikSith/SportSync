@@ -1,0 +1,947 @@
+// SportSync database schema.
+//
+// IMPORTANT: this file mirrors a LIVE Supabase Postgres database (project
+// jnxpmtaystxywjxxyexh) that already has RLS policies, an `auth.users` ->
+// `profiles` sync trigger (`handle_new_user`) and karma/lobby triggers applied
+// via `supabase migrations` (see prisma/MIGRATIONS.md). Table/column names are
+// therefore snake_case and mapped with @@map/@map instead of being Prisma's
+// usual PascalCase — do NOT rename them without a matching SQL migration.
+//
+// Auth model: `profiles.id` IS `auth.users.id` (same uuid). Prisma does not
+// manage `auth.users` (it belongs to the Supabase Auth schema), so there is no
+// Prisma relation for it — the id is populated by the `handle_new_user`
+// trigger the moment someone signs up via Supabase Auth.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums (already created in Postgres — names must match exactly)
+// ---------------------------------------------------------------------------
+
+enum Role {
+  PLAYER
+  VENUE_OWNER
+  COACH
+  ADMIN
+}
+
+enum TournamentFormat {
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+  ROUND_ROBIN
+  GROUP_STAGE
+}
+
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  WAITLISTED
+  CANCELLED
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  ALL_LEVELS
+}
+
+enum LessonStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum BookingStatus {
+  PENDING
+  BOOKED
+  ATTENDED
+  NO_SHOW
+  CANCELLED
+}
+
+/// High-level sport category for the AI-Driven Event Factory. Drives the
+/// dynamic, sport-specific UI (tab layout, accent colors, copy) on event
+/// detail/list pages. Broader than `Event.sport` (which keeps the long-tail
+/// EVENT_SPORTS list for discovery) — this is the visual "family" of the event.
+enum SportType {
+  PADEL
+  TENNIS
+  FOOTBALL
+  BASKETBALL
+  ATLETIKA
+  OTHER
+}
+
+// ---------------------------------------------------------------------------
+// Core models
+// ---------------------------------------------------------------------------
+
+/// Mirrors `public.profiles`, 1:1 with `auth.users`. Created automatically by
+/// the `handle_new_user` DB trigger on signup (role comes from signup metadata).
+model Profile {
+  id        String  @id @db.Uuid
+  email     String  @unique
+  username  String  @unique
+  fullName  String? @map("full_name")
+  avatarUrl String? @map("avatar_url")
+  role      Role    @default(PLAYER)
+  city      String?
+
+  /// Resolved from GPS on first login, or from the manually-picked city
+  /// (see lib/cities.ts) — powers the 20km / 50km nearby-matches feed.
+  latitude  Float?
+  longitude Float?
+
+  /// Kept in sync by the `sync_karma_score` trigger whenever a KarmaEvent is inserted.
+  /// Never write to this column directly from the app — insert a KarmaEvent instead.
+  karmaScore Decimal @default(0) @map("karma_score") @db.Decimal
+  seasonPts  Int     @default(0) @map("season_pts")
+
+  bio             String?
+  coverUrl        String?  @map("cover_url")
+  preferredSports String[] @default([]) @map("preferred_sports")
+
+  /// Sports this player is willing to act as a "mercenary" for — i.e. be
+  /// auto-suggested to lobbies/crews that are missing a player. Powers the
+  /// Intelligent Mercenary Flow (VISION.md). Empty = not a mercenary.
+  mercenarySports String[] @default([]) @map("mercenary_sports")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  friendshipsSent     Friendship[] @relation("FriendshipRequester")
+  friendshipsReceived Friendship[] @relation("FriendshipAddressee")
+
+  ownedVenues            Venue[]                 @relation("VenueOwner")
+  organizedEvents        Event[]                 @relation("EventOrganizer")
+  eventRegistrations     EventRegistration[]
+  hostedLobbies          Lobby[]                 @relation("LobbyHost")
+  lobbyParticipations    LobbyParticipant[]
+  karmaEventsReceived    KarmaEvent[]            @relation("KarmaSubject")
+  karmaEventsCaused      KarmaEvent[]            @relation("KarmaActor")
+  organizedTournaments   Tournament[]            @relation("TournamentOrganizer")
+  tournamentRegistrations TournamentRegistration[]
+  coachedLessons         TrainingLesson[]        @relation("LessonCoach")
+  lessonBookings         TrainingLessonBooking[]
+  ownedGroups            SportGroup[]            @relation("GroupOwner")
+  groupMemberships       SportGroupMember[]      @relation("GroupMemberships")
+  groupActivitiesCreated SportGroupActivity[]    @relation("GroupActivitiesCreated")
+  groupActivityRsvps     SportGroupActivityRsvp[] @relation("GroupActivityRsvps")
+  groupWalletTransactions SportGroupWalletTransaction[] @relation("GroupWalletTransactionUser")
+  groupMemberStats       SportGroupMemberStat[]  @relation("GroupMemberStatUser")
+  groupGearClaims        SportGroupActivityGearClaim[] @relation("GroupGearClaimUser")
+  groupRecurringSchedulesCreated SportGroupRecurringSchedule[] @relation("GroupRecurringScheduleCreatedBy")
+  goals                  UserGoal[]
+  eventResults           EventResult[]
+  eventReports           EventReport[]
+  matchSuggestions       MatchSuggestion[]
+
+  @@map("profiles")
+}
+
+/// Mirrors `public.venues`.
+model Venue {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId       String?  @map("owner_id") @db.Uuid
+  owner         Profile? @relation("VenueOwner", fields: [ownerId], references: [id])
+  name          String
+  description   String?
+  address       String?
+  city          String
+  /// Bratislava borough slug (e.g. ruzinov, nove-mesto) — used by area feed filters.
+  district      String?
+  sports        String[] @default([])
+  amenities     Json     @default("{}")
+  openingHours  Json     @default("{}") @map("opening_hours")
+  latitude      Float?
+  longitude     Float?
+  verified      Boolean  @default(false)
+  websiteUrl    String?  @map("website_url")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  events    Event[]
+  lobbies   Lobby[]
+  tournaments      Tournament[]
+  trainingLessons  TrainingLesson[]
+  groupActivities  SportGroupActivity[]
+
+  @@index([city])
+  @@index([district])
+  @@map("venues")
+}
+
+/// Official venue/club event ("Venue events" in the SportSync business rules).
+/// Community matches use Lobby instead — see Lobby doc comment.
+model Event {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizerId    String?  @map("organizer_id") @db.Uuid
+  organizer      Profile? @relation("EventOrganizer", fields: [organizerId], references: [id])
+  venueId        String?  @map("venue_id") @db.Uuid
+  venue          Venue?   @relation(fields: [venueId], references: [id])
+
+  /// 'community' | 'official' — RLS only allows VENUE_OWNER/ADMIN to write 'official'.
+  type           String
+  /// 'draft' | 'open' | 'full' | 'live' | 'completed' | 'cancelled'
+  status         String   @default("draft")
+  sport          String
+  /// Visual sport family (AI-Driven Event Factory). Drives dynamic tabs/accents.
+  sportType      SportType @default(OTHER) @map("sport_type")
+  title          String
+  description    String?
+  coverUrl       String?  @map("cover_url")
+  city           String
+
+  /// Structured pricing (AI parser extracts cents + ISO currency). Mirrors
+  /// `price` (Decimal) for backward compatibility with existing feed code.
+  priceCents     Int      @default(0) @map("price_cents")
+  currency       String   @default("EUR")
+
+  /// Structured timing (AI parser extracts date + from/to). `eventDate` is the
+  /// calendar day, `startTime`/`endTime` the wall-clock window. `startsAt`
+  /// remains the canonical sort/feed timestamp.
+  eventDate      DateTime? @map("event_date") @db.Timestamp(6)
+  startTime      DateTime? @map("start_time") @db.Timestamp(6)
+  endTime        DateTime? @map("end_time") @db.Timestamp(6)
+
+  price          Decimal  @default(0) @db.Decimal
+  capacity       Int?
+  /// Structured cap (AI parser). Mirrors `capacity` for backward compat.
+  maxParticipants Int?    @map("max_participants")
+  /// Free-text entry rules / eligibility extracted by the AI parser.
+  entryRequirements String? @map("entry_requirements")
+  registeredCount Int     @default(0) @map("registered_count")
+  startsAt       DateTime @map("starts_at") @db.Timestamp(6)
+
+  /// Dynamic visual theme generated by the AI parser: accent colors, gradient,
+  /// and sport-specific tab labels. Consumed by the event detail + list UI.
+  themeConfig    Json     @default("{}") @map("theme_config")
+
+  /// Self-contained sponsor payload (logos/names/links) as JSON, in addition
+  /// to the normalized `event_sponsors` rows. Lets the AI parser attach
+  /// sponsors without a second write round-trip.
+  sponsorsJson   Json     @default("[]") @map("sponsors_json")
+
+  /// Falls back to venue.latitude/longitude when venueId is set; required for
+  /// venue-less official announcements so the 20km/50km feed still works.
+  latitude  Float?
+  longitude Float?
+
+  /// Original raw intent (text/images/notes) the organizer submitted to the
+  /// AI-Driven Event Factory. Kept for audit + re-generation (VISION.md pillar 3).
+  rawBrief String? @map("raw_brief")
+
+  /// Photo URLs attached to the event page (venue photos, posters, etc.).
+  photos   String[] @default([]) @map("photos")
+
+  /// True once the AI enrichment pass has structured/published the page.
+  aiEnriched Boolean @default(false) @map("ai_enriched")
+
+  /// Scraper adapter id (e.g. sk-slovan, form-factory) or 'factory' for AI Event Factory.
+  source             String?   @map("source")
+  /// Stable external id for upsert dedupe within a source.
+  externalId         String?   @map("external_id")
+  sourceUrl          String?   @map("source_url")
+  /// Human-readable source label (e.g. "Oficiálny web športoviska", "Instagram").
+  sourceName         String?   @map("source_name")
+  ticketUrl          String?   @map("ticket_url")
+  scrapedAt          DateTime? @map("scraped_at") @db.Timestamp(6)
+  /// True when scraped/aggregated — app is redirector only (no in-app registration).
+  isAggregated       Boolean   @default(false) @map("is_aggregated")
+  /// spectator = watch only; participate = join/book/register
+  participationMode  String    @default("participate") @map("participation_mode")
+  /// Kids-oriented activity (e.g. CityLife Kidstown / "pre deti").
+  forKids            Boolean   @default(false) @map("for_kids")
+
+  /// Paid homepage promoted / sponsored banner slot.
+  isPromoted     Boolean   @default(false) @map("is_promoted")
+  promotedUntil  DateTime? @map("promoted_until") @db.Timestamp(6)
+  sponsorLogoUrl String?   @map("sponsor_logo_url")
+  sponsorName    String?   @map("sponsor_name")
+  /// e.g. PROMOTED | SPONSORED | FEATURED | OFFICIAL
+  badgeText      String?   @map("badge_text")
+  /// HEX accent for banner glow (falls back to sport color).
+  accentColor    String?   @map("accent_color")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  registrations EventRegistration[]
+  results       EventResult[]
+  sponsors      EventSponsor[]
+  groupActivities SportGroupActivity[]
+  reports       EventReport[]
+
+  @@unique([source, externalId])
+  @@index([organizerId])
+  @@index([venueId])
+  @@index([type, status])
+  @@index([latitude, longitude])
+  @@index([city, startsAt])
+  @@index([participationMode])
+  @@index([isAggregated])
+  @@index([isPromoted, promotedUntil])
+  @@map("events")
+}
+
+/// User-submitted correction reports for event data (esp. aggregated listings).
+model EventReport {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId   String   @map("event_id") @db.Uuid
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String?  @map("user_id") @db.Uuid
+  user      Profile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// 'changed_datetime' | 'cancelled' | 'wrong_price' | 'other'
+  reason    String
+  details   String?
+  /// 'open' | 'resolved' | 'dismissed'
+  status    String   @default("open")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([eventId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("event_reports")
+}
+
+/// Sponsors shown on an AI-generated event page (VISION.md "AI-Driven Event
+/// Factory" — venues can attach brand sponsors to official events).
+model EventSponsor {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId   String  @map("event_id") @db.Uuid
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  logoUrl   String? @map("logo_url")
+  websiteUrl String? @map("website_url")
+  /// 'gold' | 'silver' | 'bronze' | 'partner'
+  tier      String  @default("partner")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([eventId])
+  @@map("event_sponsors")
+}
+
+/// Per-user event registration — replaces counter-only MVP registration.
+model EventRegistration {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId      String   @map("event_id") @db.Uuid
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId       String   @map("user_id") @db.Uuid
+  user         Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'confirmed' | 'waitlisted' | 'cancelled'
+  status       String   @default("confirmed")
+  registeredAt DateTime @default(now()) @map("registered_at") @db.Timestamp(6)
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@map("event_registrations")
+}
+
+/// Community match ("People/Group" events in the SportSync business rules) —
+/// what the Stitch "Player Lobby / Matchmaking" screens call a lobby. Carries
+/// the Split-Pay (`splitPay` + `costPerPlayer`) and Mercenary +1
+/// (`mercenaryMode`) flags directly, and `LobbyParticipant.paymentStatus`
+/// tracks each player's share.
+model Lobby {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hostId    String   @map("host_id") @db.Uuid
+  host      Profile  @relation("LobbyHost", fields: [hostId], references: [id])
+  venueId   String?  @map("venue_id") @db.Uuid
+  venue     Venue?   @relation(fields: [venueId], references: [id])
+
+  sport        String
+  format       String
+  /// Optional display title for stack cards (falls back to sport + format in UI).
+  title        String?
+  /// 'NEED_PLAYER' | 'TEAM_CHALLENGE' | 'RECURRING' — nullable; UI can infer from mercenaryMode/format.
+  lobbyType    String?  @map("lobby_type")
+  skillLevel   Int?     @map("skill_level")
+  spotsTotal   Int      @map("spots_total")
+  spotsFilled  Int      @default(1) @map("spots_filled")
+  costPerPlayer Decimal @default(0) @map("cost_per_player") @db.Decimal
+  splitPay     Boolean  @default(false) @map("split_pay")
+
+  /// "Mercenary +1": when true this lobby is broadcastable to nearby players
+  /// as an emergency call for a missing player.
+  mercenaryMode Boolean @default(false) @map("mercenary_mode")
+
+  /// Hero image for the lobby stack card.
+  coverUrl     String?  @map("cover_url")
+  /// When true, stack card hero may overflow card bounds (3D mockup effect).
+  has3dEffect  Boolean  @default(true) @map("has_3d_effect")
+
+  /// 'open' | 'full' | 'live' | 'completed' | 'cancelled' — kept in sync by the
+  /// `update_lobby_spots` DB trigger whenever LobbyParticipant rows change.
+  status      String   @default("open")
+  city        String
+  scheduledAt DateTime @map("scheduled_at") @db.Timestamp(6)
+
+  /// Falls back to venue.latitude/longitude when venueId is set.
+  latitude  Float?
+  longitude Float?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  participants LobbyParticipant[]
+  /// Reverse side of SportGroupActivity.mercenaryLobbyId — the crew session(s)
+  /// that broadcast an "Open to Mercenaries" SOS by linking to this public lobby.
+  mercenaryForActivities SportGroupActivity[] @relation("ActivityMercenaryLobby")
+
+  @@index([hostId])
+  @@index([venueId])
+  @@index([status, sport])
+  @@index([latitude, longitude])
+  @@map("lobbies")
+}
+
+/// Join table for Lobby membership. `update_lobby_spots` trigger recomputes
+/// `Lobby.spotsFilled`/`status` on every insert/delete of this table.
+model LobbyParticipant {
+  lobbyId       String   @map("lobby_id") @db.Uuid
+  lobby         Lobby    @relation(fields: [lobbyId], references: [id], onDelete: Cascade)
+  userId        String   @map("user_id") @db.Uuid
+  user          Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// 'mock' | 'pending' | 'paid' — Split-Pay settlement state for this player's share.
+  paymentStatus String   @default("mock") @map("payment_status")
+  checkedIn     Boolean  @default(false) @map("checked_in")
+  joinedAt      DateTime @default(now()) @map("joined_at") @db.Timestamp(6)
+
+  @@id([lobbyId, userId])
+  @@index([userId])
+  @@map("lobby_participants")
+}
+
+/// Append-only karma ledger ("Smart Social Proof"). `sync_karma_score` trigger
+/// re-sums this table into `Profile.karmaScore` after every insert — never
+/// write to Profile.karmaScore directly, insert a row here instead.
+model KarmaEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subjectId  String   @map("subject_id") @db.Uuid
+  subject    Profile  @relation("KarmaSubject", fields: [subjectId], references: [id])
+  actorId    String?  @map("actor_id") @db.Uuid
+  actor      Profile? @relation("KarmaActor", fields: [actorId], references: [id])
+  type       String
+  delta      Decimal  @db.Decimal
+  contextRef String?  @map("context_ref") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([subjectId])
+  @@index([actorId])
+  @@map("karma_events")
+}
+
+/// Official tournament ("Season Box" ladder events live here; season points
+/// accrue on Profile.seasonPts).
+model Tournament {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizerId String?            @map("organizer_id") @db.Uuid
+  organizer   Profile?           @relation("TournamentOrganizer", fields: [organizerId], references: [id])
+  venueId     String?            @map("venue_id") @db.Uuid
+  venue       Venue?             @relation(fields: [venueId], references: [id])
+
+  name        String
+  description String?
+  sport       String
+  format      TournamentFormat   @default(SINGLE_ELIMINATION)
+  status      TournamentStatus   @default(DRAFT)
+  skillLevelMin Int?             @map("skill_level_min")
+  skillLevelMax Int?             @map("skill_level_max")
+  entryFee    Decimal            @default(0) @map("entry_fee") @db.Decimal
+  maxParticipants     Int        @map("max_participants")
+  currentParticipants Int        @default(0) @map("current_participants")
+  coverUrl    String?            @map("cover_url")
+
+  /// Locality fields — falls back to venue.city/venue.latitude/venue.longitude
+  /// when venueId is set; required for venue-less tournaments so the 20km
+  /// feed and find_nearby_candidates orchestration still work.
+  city      String    @default("")
+  latitude  Float?
+  longitude Float?
+
+  registrationDeadline DateTime? @map("registration_deadline") @db.Timestamp(6)
+  startsAt    DateTime           @map("starts_at") @db.Timestamp(6)
+  endsAt      DateTime?          @map("ends_at") @db.Timestamp(6)
+
+  /// Scraper adapter id (e.g. arena-padel) for upsert dedupe of external tournaments.
+  source             String?   @map("source")
+  externalId         String?   @map("external_id")
+  sourceUrl          String?   @map("source_url")
+  ticketUrl          String?   @map("ticket_url")
+  scrapedAt          DateTime? @map("scraped_at") @db.Timestamp(6)
+
+  /// Paid homepage promoted / sponsored banner slot.
+  isPromoted     Boolean   @default(false) @map("is_promoted")
+  promotedUntil  DateTime? @map("promoted_until") @db.Timestamp(6)
+  sponsorLogoUrl String?   @map("sponsor_logo_url")
+  sponsorName    String?   @map("sponsor_name")
+  badgeText      String?   @map("badge_text")
+  accentColor    String?   @map("accent_color")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  registrations TournamentRegistration[]
+  matches       TournamentMatch[]
+
+  @@unique([source, externalId])
+  @@index([organizerId])
+  @@index([venueId])
+  @@index([sport, status])
+  @@index([startsAt])
+  @@index([latitude, longitude])
+  @@index([source])
+  @@index([isPromoted, promotedUntil])
+  @@map("tournaments")
+}
+
+/// Bracket node in the tournament "web" — one match slot per round.
+model TournamentMatch {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tournamentId    String     @map("tournament_id") @db.Uuid
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  round           Int
+  slot            Int
+  participant1Id  String?    @map("participant1_id") @db.Uuid
+  participant2Id  String?    @map("participant2_id") @db.Uuid
+  winnerId        String?    @map("winner_id") @db.Uuid
+  /// 'pending' | 'scheduled' | 'completed' | 'walkover'
+  status          String     @default("pending")
+  score           String?
+  scheduledAt     DateTime?  @map("scheduled_at") @db.Timestamp(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@unique([tournamentId, round, slot])
+  @@index([tournamentId])
+  @@map("tournament_matches")
+}
+
+model TournamentRegistration {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tournamentId String              @map("tournament_id") @db.Uuid
+  tournament   Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId       String              @map("user_id") @db.Uuid
+  user         Profile             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       RegistrationStatus  @default(PENDING)
+  seed         Int?
+  registeredAt DateTime            @default(now()) @map("registered_at") @db.Timestamp(6)
+
+  @@unique([tournamentId, userId])
+  @@index([userId])
+  @@map("tournament_registrations")
+}
+
+/// Coach-published training session ("trainer discovery / profile" screens).
+model TrainingLesson {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId         String       @map("coach_id") @db.Uuid
+  coach           Profile      @relation("LessonCoach", fields: [coachId], references: [id])
+  venueId         String?      @map("venue_id") @db.Uuid
+  venue           Venue?       @relation(fields: [venueId], references: [id])
+
+  title           String
+  description     String?
+  sport           String
+  level           SkillLevel   @default(ALL_LEVELS)
+  pricePerPerson  Decimal      @default(0) @map("price_per_person") @db.Decimal
+  capacity        Int          @default(1)
+  bookedCount     Int          @default(0) @map("booked_count")
+  durationMinutes Int          @map("duration_minutes")
+  startsAt        DateTime     @map("starts_at") @db.Timestamp(6)
+  status          LessonStatus @default(SCHEDULED)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  bookings TrainingLessonBooking[]
+
+  @@index([coachId])
+  @@index([venueId])
+  @@index([sport, status])
+  @@index([startsAt])
+  @@map("training_lessons")
+}
+
+model TrainingLessonBooking {
+  id       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lessonId String        @map("lesson_id") @db.Uuid
+  lesson   TrainingLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  userId   String        @map("user_id") @db.Uuid
+  user     Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status   BookingStatus @default(BOOKED)
+  bookedAt DateTime      @default(now()) @map("booked_at") @db.Timestamp(6)
+
+  @@unique([lessonId, userId])
+  @@index([userId])
+  @@map("training_lesson_bookings")
+}
+
+/// Private friend crew for planning shared sports activities ("My Crew" on Lobby).
+model SportGroup {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId     String   @map("owner_id") @db.Uuid
+  owner       Profile  @relation("GroupOwner", fields: [ownerId], references: [id])
+  name        String
+  description String?
+  sport       String
+  inviteCode  String   @unique @map("invite_code")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  members    SportGroupMember[]
+  activities SportGroupActivity[]
+
+  wallet              SportGroupWallet?
+  walletTransactions  SportGroupWalletTransaction[]
+  memberStats         SportGroupMemberStat[]
+  recurringSchedules  SportGroupRecurringSchedule[]
+
+  @@index([ownerId])
+  @@map("sport_groups")
+}
+
+model SportGroupMember {
+  groupId  String     @map("group_id") @db.Uuid
+  group    SportGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId   String     @map("user_id") @db.Uuid
+  user     Profile    @relation("GroupMemberships", fields: [userId], references: [id], onDelete: Cascade)
+  role     String     @default("member")
+  joinedAt DateTime   @default(now()) @map("joined_at") @db.Timestamp(6)
+
+  @@id([groupId, userId])
+  @@index([userId])
+  @@map("sport_group_members")
+}
+
+model SportGroupActivity {
+  id                 String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId            String     @map("group_id") @db.Uuid
+  group              SportGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdById        String     @map("created_by_id") @db.Uuid
+  createdBy          Profile    @relation("GroupActivitiesCreated", fields: [createdById], references: [id])
+  title              String
+  sport              String
+  scheduledAt        DateTime   @map("scheduled_at") @db.Timestamp(6)
+  locationNote       String?    @map("location_note")
+  lobbyId            String?    @map("lobby_id") @db.Uuid
+  destinationName    String?    @map("destination_name")
+  destinationAddress String?    @map("destination_address")
+  parkingNote        String?    @map("parking_note")
+  totalCostCents     Int?       @map("total_cost_cents")
+  costCurrency       String     @default("EUR") @map("cost_currency")
+  venueId            String?    @map("venue_id") @db.Uuid
+  venue              Venue?     @relation(fields: [venueId], references: [id])
+  eventId            String?    @map("event_id") @db.Uuid
+  event              Event?     @relation(fields: [eventId], references: [id])
+
+  /// "Open to Mercenaries" SOS — when true and going-count < spotsNeeded, the
+  /// crew can broadcast a public mercenary_mode lobby (see app/api/lobbies).
+  openToMercenaries  Boolean    @default(false) @map("open_to_mercenaries")
+  spotsNeeded        Int?       @map("spots_needed")
+  mercenaryLobbyId   String?    @map("mercenary_lobby_id") @db.Uuid
+  mercenaryLobby     Lobby?     @relation("ActivityMercenaryLobby", fields: [mercenaryLobbyId], references: [id])
+
+  rsvps       SportGroupActivityRsvp[]
+  walletTransactions SportGroupWalletTransaction[]
+  gearClaims  SportGroupActivityGearClaim[]
+
+  @@index([groupId])
+  @@index([createdById])
+  @@map("sport_group_activities")
+}
+
+/// Per-member RSVP and payment status for a planned crew session.
+model SportGroupActivityRsvp {
+  activityId String             @map("activity_id") @db.Uuid
+  activity   SportGroupActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  userId     String             @map("user_id") @db.Uuid
+  user       Profile            @relation("GroupActivityRsvps", fields: [userId], references: [id], onDelete: Cascade)
+  status     String             @default("pending")
+  paid       Boolean            @default(false)
+  updatedAt  DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@id([activityId, userId])
+  @@index([userId])
+  @@map("sport_group_activity_rsvps")
+}
+
+// ---------------------------------------------------------------------------
+// Closed crew group extensions: wallet/split-pay, stats/leaderboard, gear
+// check, recurring auto-planning, and mercenary SOS (mercenary columns live
+// on SportGroupActivity above).
+// ---------------------------------------------------------------------------
+
+/// One shared pooled wallet per crew. `balanceCents` is only ever mutated by
+/// the `sync_sport_group_wallet_balance` DB trigger on insert of a
+/// SportGroupWalletTransaction — never write to it directly from the app.
+model SportGroupWallet {
+  groupId     String     @id @map("group_id") @db.Uuid
+  group       SportGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  balanceCents Int       @default(0) @map("balance_cents")
+  currency    String     @default("EUR")
+  updatedAt   DateTime   @default(now()) @map("updated_at") @db.Timestamp(6)
+
+  @@map("sport_group_wallets")
+}
+
+/// Append-only ledger for the crew wallet ("Pay from wallet" / top-ups).
+/// Positive amountCents credits the wallet (topup), negative debits it
+/// (session_payment covering a member's split-pay share).
+model SportGroupWalletTransaction {
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId     String              @map("group_id") @db.Uuid
+  group       SportGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId      String              @map("user_id") @db.Uuid
+  user        Profile             @relation("GroupWalletTransactionUser", fields: [userId], references: [id])
+  amountCents Int                 @map("amount_cents")
+  /// 'topup' | 'session_payment' | 'adjustment'
+  type        String
+  sessionId   String?             @map("session_id") @db.Uuid
+  session     SportGroupActivity? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  description String?
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([groupId])
+  @@index([sessionId])
+  @@map("sport_group_wallet_transactions")
+}
+
+/// Fun crew leaderboard, recomputed from RSVP history whenever a member's
+/// RSVP status changes (see /api/groups/[id]/sessions/[sessionId]/rsvp).
+model SportGroupMemberStat {
+  groupId          String     @map("group_id") @db.Uuid
+  group            SportGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId           String     @map("user_id") @db.Uuid
+  user             Profile    @relation("GroupMemberStatUser", fields: [userId], references: [id], onDelete: Cascade)
+  points           Int        @default(0)
+  sessionsAttended Int        @default(0) @map("sessions_attended")
+  sessionsDeclined Int        @default(0) @map("sessions_declined")
+  wins             Int        @default(0)
+  updatedAt        DateTime   @default(now()) @map("updated_at") @db.Timestamp(6)
+
+  @@id([groupId, userId])
+  @@map("sport_group_member_stats")
+}
+
+/// "Who's bringing the ball?" — one claim per (activity, item); claiming the
+/// same item twice is rejected by the unique composite primary key.
+model SportGroupActivityGearClaim {
+  activityId String             @map("activity_id") @db.Uuid
+  activity   SportGroupActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  /// 'ball' | 'bibs' | 'pump'
+  item       String
+  userId     String             @map("user_id") @db.Uuid
+  user       Profile            @relation("GroupGearClaimUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime           @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@id([activityId, item])
+  @@map("sport_group_activity_gear_claims")
+}
+
+/// "Every Wednesday 18:00" style recurring plan. The generate endpoint
+/// creates a SportGroupActivity for schedules not yet generated this week —
+/// simulates a Monday-morning cron without needing real cron infra.
+model SportGroupRecurringSchedule {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId         String     @map("group_id") @db.Uuid
+  group           SportGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdById     String     @map("created_by_id") @db.Uuid
+  createdBy       Profile    @relation("GroupRecurringScheduleCreatedBy", fields: [createdById], references: [id])
+  title           String
+  sport           String
+  /// 0 = Sunday … 6 = Saturday (JS Date#getDay convention)
+  dayOfWeek       Int        @map("day_of_week")
+  /// "HH:MM" 24h local time
+  timeOfDay       String     @map("time_of_day")
+  locationNote    String?    @map("location_note")
+  isActive        Boolean    @default(true) @map("is_active")
+  lastGeneratedAt DateTime?  @map("last_generated_at") @db.Timestamp(6)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([groupId])
+  @@map("sport_group_recurring_schedules")
+}
+
+// ---------------------------------------------------------------------------
+// AI-readiness extensions: match results, platform signals, AI task queue
+// ---------------------------------------------------------------------------
+
+/// Canonical match/session outcome ledger — ground truth for the Ranking Agent.
+model MatchResult {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sport          String
+  /// 'lobby' | 'tournament' | 'group_session' | 'lesson'
+  contextType    String   @map("context_type")
+  contextId      String   @map("context_id") @db.Uuid
+  participantIds String[] @default([]) @map("participant_ids") @db.Uuid
+  winnerId       String?  @map("winner_id") @db.Uuid
+  score          Json     @default("{}")
+  recordedById   String?  @map("recorded_by_id") @db.Uuid
+  /// 'pending' | 'confirmed' | 'disputed'
+  status         String   @default("confirmed")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([contextType, contextId])
+  @@index([sport])
+  @@map("match_results")
+}
+
+/// Append-only platform telemetry for AI demand/perception agents.
+model PlatformSignal {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  eventName String   @map("event_name")
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([eventName])
+  @@index([createdAt])
+  @@map("platform_signals")
+}
+
+/// Persisted AI management plan tasks — executed by the plan worker.
+model AiManagementTask {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// 'event' | 'tournament'
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id") @db.Uuid
+  tasks      Json     @default("[]")
+  /// 'pending' | 'running' | 'completed' | 'failed'
+  status     String   @default("pending")
+  lastRunAt  DateTime? @map("last_run_at") @db.Timestamp(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([entityType, entityId])
+  @@index([status])
+  @@map("ai_management_tasks")
+}
+
+// ---------------------------------------------------------------------------
+// Profile social: friendships
+// ---------------------------------------------------------------------------
+
+model Friendship {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requesterId String   @map("requester_id") @db.Uuid
+  requester   Profile  @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String   @map("addressee_id") @db.Uuid
+  addressee   Profile  @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  /// 'pending' | 'accepted' | 'declined'
+  status      String   @default("pending")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@unique([requesterId, addresseeId])
+  @@index([requesterId])
+  @@index([addresseeId])
+  @@index([status])
+  @@map("friendships")
+}
+
+// ---------------------------------------------------------------------------
+// Profile sports success: goals & event results
+// ---------------------------------------------------------------------------
+
+/// Personal show-off targets (gym streaks, PRs, SportSync auto-tracked goals).
+model UserGoal {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  user         Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateKey  String    @map("template_key")
+  title        String
+  sport        String?
+  metricType   String    @map("metric_type")
+  targetValue  Decimal   @map("target_value") @db.Decimal
+  targetMeta   Json      @default("{}") @map("target_meta")
+  currentValue Decimal   @default(0) @map("current_value") @db.Decimal
+  trackingMode String    @default("manual") @map("tracking_mode")
+  deadline     DateTime? @db.Timestamp(6)
+  isFeatured   Boolean   @default(false) @map("is_featured")
+  /// 'active' | 'completed' | 'archived'
+  status       String    @default("active")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  logs UserGoalLog[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("user_goals")
+}
+
+/// Manual check-ins for fitness goals SportSync cannot auto-detect.
+model UserGoalLog {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  goalId   String   @map("goal_id") @db.Uuid
+  goal     UserGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  value    Decimal  @default(1) @map("value")
+  note     String?
+  loggedAt DateTime @default(now()) @map("logged_at") @db.Timestamp(6)
+
+  @@index([goalId])
+  @@map("user_goal_logs")
+}
+
+/// Auto-generated suggestion linking a player to an event/tournament/lobby
+/// they might want to join — created by the auto-match engine after any
+/// domain event insert. Cleared / marked as "seen" when the user views them.
+model MatchSuggestion {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  user         Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'event' | 'tournament' | 'lobby'
+  contextType  String   @map("context_type")
+  contextId    String   @map("context_id") @db.Uuid
+  title        String
+  sport        String
+  city         String
+  distanceKm   Float?   @map("distance_km")
+  reason       String   @default("nearby")
+  /// 'pending' | 'seen' | 'joined' | 'dismissed'
+  status       String   @default("pending")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@unique([userId, contextType, contextId])
+  @@index([userId, status])
+  @@index([createdAt])
+  @@map("match_suggestions")
+}
+
+/// Post-event stats for achievement cards (marathon placement, etc.).
+model EventResult {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId           String   @map("event_id") @db.Uuid
+  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId            String   @map("user_id") @db.Uuid
+  user              Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'registered' | 'finished' | 'dnf'
+  status            String   @default("registered")
+  placement         Int?
+  totalParticipants Int?     @map("total_participants")
+  finishTime        String?  @map("finish_time")
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@map("event_results")
+}

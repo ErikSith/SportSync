@@ -1,0 +1,580 @@
+import { createClient } from '@/lib/supabase/server';
+import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
+import type { EventType } from '@/lib/constants/events';
+import { activeFeedSince, feedStartsAtFloor } from '@/lib/retention/events';
+
+export { EVENT_SPORTS, type EventSport } from '@/lib/constants/sports';
+
+export type ParticipationMode = 'spectator' | 'participate';
+
+export type EventDiscoveryReason = 'new' | 'filling_fast' | 'popular';
+
+export interface EventCardData {
+  id: string;
+  title: string;
+  description: string | null;
+  sport: string;
+  sportType: string;
+  type: EventType;
+  city: string;
+  startsAt: Date;
+  price: number;
+  priceCents: number;
+  currency: string;
+  coverUrl: string | null;
+  status: string;
+  capacity: number | null;
+  maxParticipants: number | null;
+  registeredCount: number;
+  distanceKm: number;
+  latitude: number | null;
+  longitude: number | null;
+  venueId: string | null;
+  venueName: string | null;
+  themeConfig: Record<string, unknown>;
+  participationMode: ParticipationMode;
+  ticketUrl: string | null;
+  sourceUrl: string | null;
+  sourceName: string | null;
+  source: string | null;
+  /** Scrape adapter external id — e.g. `class-…` for FitCamp lessons, `event-…` for one-offs. */
+  externalId: string | null;
+  isAggregated: boolean;
+  /** Kids-oriented activity (Kidstown / pre deti). */
+  forKids: boolean;
+  /** Present when Mixed Feed Engine injected this card outside sport/venue prefs. */
+  isDiscovery?: boolean;
+  discoveryReason?: EventDiscoveryReason;
+}
+
+export interface EventFeedResult {
+  events: EventCardData[];
+  radiusKm: number;
+  showExtended: boolean;
+  message?: string;
+}
+
+export interface EventFeedQuery {
+  lat: number;
+  lng: number;
+  sport?: string;
+  search?: string;
+  type?: EventType | 'ALL';
+  participationMode?: ParticipationMode | 'all';
+  dateWindow?: 'today' | 'tomorrow' | 'weekend' | 'all';
+  city?: string;
+  /** Override default 20km nearby radius (e.g. borough ~4km). */
+  radiusKm?: number;
+  /** When false, do not fall back to the 50km extended radius. */
+  allowExtended?: boolean;
+}
+
+interface EventRow {
+  id: string;
+  title: string;
+  description: string | null;
+  sport: string;
+  sport_type: string;
+  type: string;
+  city: string;
+  starts_at: string;
+  price: number | string;
+  price_cents: number | null;
+  currency: string | null;
+  cover_url: string | null;
+  status: string;
+  capacity: number | null;
+  max_participants: number | null;
+  registered_count: number;
+  latitude: number | null;
+  longitude: number | null;
+  venue_id: string | null;
+  theme_config: Record<string, unknown> | null;
+  participation_mode?: string | null;
+  ticket_url?: string | null;
+  source_url?: string | null;
+  source_name?: string | null;
+  source?: string | null;
+  external_id?: string | null;
+  is_aggregated?: boolean | null;
+  for_kids?: boolean | null;
+  venues?: { name: string } | { name: string }[] | null;
+}
+
+function normalizeParticipationMode(mode: string | null | undefined): ParticipationMode {
+  return mode === 'spectator' ? 'spectator' : 'participate';
+}
+
+function resolveVenueName(venues: EventRow['venues']): string | null {
+  if (!venues) return null;
+  return Array.isArray(venues) ? (venues[0]?.name ?? null) : venues.name;
+}
+
+function dateWindowBounds(window: EventFeedQuery['dateWindow']): { from: Date; to: Date } | null {
+  if (!window || window === 'all') return null;
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+
+  if (window === 'today') {
+    end.setHours(23, 59, 59, 999);
+    // Grace floor keeps events that started within the last ~2h visible.
+    return { from: activeFeedSince(now), to: end };
+  }
+  if (window === 'tomorrow') {
+    start.setDate(start.getDate() + 1);
+    end.setDate(start.getDate());
+    end.setHours(23, 59, 59, 999);
+    return { from: start, to: end };
+  }
+  // weekend: upcoming Sat–Sun (or remaining weekend if already Sat/Sun)
+  const day = now.getDay();
+  const toSat = day === 6 ? 0 : day === 0 ? -1 : 6 - day;
+  const sat = new Date(start);
+  sat.setDate(start.getDate() + toSat);
+  const sun = new Date(sat);
+  sun.setDate(sat.getDate() + 1);
+  sun.setHours(23, 59, 59, 999);
+  const from = sat < now ? now : sat;
+  return { from, to: sun };
+}
+
+function mapEventCard(event: EventRow, d: number): EventCardData {
+  return {
+    id: event.id,
+    title: event.title,
+    description: event.description,
+    sport: event.sport,
+    sportType: event.sport_type ?? 'OTHER',
+    type: normalizeEventType(event.type),
+    city: event.city,
+    startsAt: new Date(event.starts_at),
+    price: Number(event.price),
+    priceCents: event.price_cents ?? Math.round(Number(event.price) * 100),
+    currency: event.currency ?? 'EUR',
+    coverUrl: event.cover_url,
+    status: event.status,
+    capacity: event.capacity,
+    maxParticipants: event.max_participants ?? null,
+    registeredCount: event.registered_count,
+    distanceKm: Math.round(d * 10) / 10,
+    latitude: event.latitude,
+    longitude: event.longitude,
+    venueId: event.venue_id,
+    venueName: resolveVenueName(event.venues),
+    themeConfig: (event.theme_config as Record<string, unknown>) ?? {},
+    participationMode: normalizeParticipationMode(event.participation_mode),
+    ticketUrl: event.ticket_url ?? null,
+    sourceUrl: event.source_url ?? null,
+    sourceName: event.source_name ?? null,
+    source: event.source ?? null,
+    externalId: event.external_id ?? null,
+    isAggregated: Boolean(event.is_aggregated),
+    forKids: Boolean(event.for_kids),
+  };
+}
+
+function normalizeEventType(type: string): EventType {
+  return type === 'community' ? 'community' : 'official';
+}
+
+async function findWithinRadius(query: EventFeedQuery, radiusKm: number): Promise<EventCardData[]> {
+  const box = boundingBox(query.lat, query.lng, radiusKm);
+  const supabase = await createClient();
+  const bounds = dateWindowBounds(query.dateWindow);
+
+  let request = supabase
+    .from('events')
+    .select('*, venues ( name )')
+    .in('status', ['open', 'live'])
+    .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
+    .gte('latitude', box.minLat)
+    .lte('latitude', box.maxLat)
+    .gte('longitude', box.minLng)
+    .lte('longitude', box.maxLng)
+    .order('starts_at', { ascending: true })
+    .limit(80);
+
+  if (bounds) {
+    request = request.lte('starts_at', bounds.to.toISOString());
+  }
+
+  if (query.type && query.type !== 'ALL') {
+    request = request.eq('type', query.type);
+  }
+
+  if (query.sport && query.sport !== 'ALL') {
+    request = request.ilike('sport', query.sport);
+  }
+
+  if (query.participationMode && query.participationMode !== 'all') {
+    request = request.eq('participation_mode', query.participationMode);
+  }
+
+  const { data, error } = await request;
+  if (error) {
+    if (process.env.NODE_ENV !== 'production') console.error('[events.findWithinRadius]', error.message);
+    return [];
+  }
+  if (!data) return [];
+
+  const search = query.search?.trim().toLowerCase();
+
+  return (data as EventRow[])
+    .filter((event) => event.latitude !== null && event.longitude !== null)
+    .map((event) => ({
+      event,
+      distanceKm: distanceKm(query.lat, query.lng, event.latitude as number, event.longitude as number),
+    }))
+    .filter(({ distanceKm: d }) => d <= radiusKm)
+    .filter(({ event }) => {
+      if (!search) return true;
+      const venueName = resolveVenueName(event.venues)?.toLowerCase() ?? '';
+      return (
+        event.title.toLowerCase().includes(search) ||
+        event.city.toLowerCase().includes(search) ||
+        event.sport.toLowerCase().includes(search) ||
+        venueName.includes(search)
+      );
+    })
+    .sort((a, b) => a.distanceKm - b.distanceKm || a.event.starts_at.localeCompare(b.event.starts_at))
+    .map(({ event, distanceKm: d }) => mapEventCard(event, d));
+}
+
+/** City-first Bratislava discover feed (no GPS required). */
+export async function getCityEventsFeed(
+  query: Omit<EventFeedQuery, 'lat' | 'lng'> & { city?: string; lat?: number; lng?: number },
+): Promise<EventFeedResult> {
+  const city = query.city ?? 'Bratislava';
+  const supabase = await createClient();
+  const bounds = dateWindowBounds(query.dateWindow);
+
+  let request = supabase
+    .from('events')
+    .select('*, venues ( name )')
+    .in('status', ['open', 'live'])
+    .ilike('city', city)
+    .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
+    .order('starts_at', { ascending: true })
+    .limit(80);
+
+  if (bounds) {
+    request = request.lte('starts_at', bounds.to.toISOString());
+  }
+  if (query.type && query.type !== 'ALL') {
+    request = request.eq('type', query.type);
+  }
+  if (query.sport && query.sport !== 'ALL') {
+    request = request.ilike('sport', query.sport);
+  }
+  if (query.participationMode && query.participationMode !== 'all') {
+    request = request.eq('participation_mode', query.participationMode);
+  }
+
+  const { data, error } = await request;
+  if (error) {
+    if (process.env.NODE_ENV !== 'production') console.error('[events.getCityEventsFeed]', error.message);
+    return { events: [], radiusKm: 0, showExtended: false, message: error.message };
+  }
+
+  const search = query.search?.trim().toLowerCase();
+  const lat = query.lat ?? 48.1486;
+  const lng = query.lng ?? 17.1077;
+
+  const events = ((data ?? []) as EventRow[])
+    .filter((event) => {
+      if (!search) return true;
+      const venueName = resolveVenueName(event.venues)?.toLowerCase() ?? '';
+      return (
+        event.title.toLowerCase().includes(search) ||
+        event.city.toLowerCase().includes(search) ||
+        event.sport.toLowerCase().includes(search) ||
+        venueName.includes(search)
+      );
+    })
+    .map((event) => {
+      const d =
+        event.latitude != null && event.longitude != null
+          ? distanceKm(lat, lng, event.latitude, event.longitude)
+          : 0;
+      return mapEventCard(event, d);
+    });
+
+  return { events, radiusKm: 0, showExtended: false };
+}
+
+/** Events hosted at specific venues (district / borough scope via venues.district). */
+export async function getEventsAtVenuesFeed(query: {
+  venueIds: string[];
+  lat?: number;
+  lng?: number;
+  type?: EventType | 'ALL';
+  participationMode?: ParticipationMode | 'all';
+  sport?: string;
+  dateWindow?: EventFeedQuery['dateWindow'];
+}): Promise<EventFeedResult> {
+  if (query.venueIds.length === 0) {
+    return { events: [], radiusKm: 0, showExtended: false };
+  }
+
+  const supabase = await createClient();
+  const bounds = dateWindowBounds(query.dateWindow);
+  const lat = query.lat ?? 48.1486;
+  const lng = query.lng ?? 17.1077;
+
+  let request = supabase
+    .from('events')
+    .select('*, venues ( name )')
+    .in('status', ['open', 'live'])
+    .in('venue_id', query.venueIds)
+    .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
+    .order('starts_at', { ascending: true })
+    .limit(80);
+
+  if (bounds) {
+    request = request.lte('starts_at', bounds.to.toISOString());
+  }
+  if (query.type && query.type !== 'ALL') {
+    request = request.eq('type', query.type);
+  }
+  if (query.sport && query.sport !== 'ALL') {
+    request = request.ilike('sport', query.sport);
+  }
+  if (query.participationMode && query.participationMode !== 'all') {
+    request = request.eq('participation_mode', query.participationMode);
+  }
+
+  const { data, error } = await request;
+  if (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[events.getEventsAtVenuesFeed]', error.message);
+    }
+    return { events: [], radiusKm: 0, showExtended: false, message: error.message };
+  }
+
+  const events = ((data ?? []) as EventRow[]).map((event) => {
+    const d =
+      event.latitude != null && event.longitude != null
+        ? distanceKm(lat, lng, event.latitude, event.longitude)
+        : 0;
+    return mapEventCard(event, d);
+  });
+
+  return { events, radiusKm: 0, showExtended: false };
+}
+
+/** Nearby event feed with 20km → 50km fallback (unless radius overridden). */
+export async function getNearbyEventsFeed(query: EventFeedQuery): Promise<EventFeedResult> {
+  const primaryRadius = query.radiusKm ?? DEFAULT_RADIUS_KM;
+  const nearby = await findWithinRadius(query, primaryRadius);
+  if (nearby.length > 0) {
+    return { events: nearby, radiusKm: primaryRadius, showExtended: false };
+  }
+
+  if (query.allowExtended === false) {
+    return {
+      events: [],
+      radiusKm: primaryRadius,
+      showExtended: false,
+      message: 'Nothing in this area right now.',
+    };
+  }
+
+  const extended = await findWithinRadius(query, EXTENDED_RADIUS_KM);
+  return {
+    events: extended,
+    radiusKm: EXTENDED_RADIUS_KM,
+    showExtended: true,
+    message: `Nothing nearby? Check out matches ${EXTENDED_RADIUS_KM}km away.`,
+  };
+}
+
+/** Official venue event feed with 20km → 50km fallback. Uses Supabase REST + RLS. */
+export async function getNearbyOfficialEventsFeed(query: EventFeedQuery): Promise<EventFeedResult> {
+  return getNearbyEventsFeed({ ...query, type: 'official' });
+}
+
+export interface EventSponsorData {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  websiteUrl: string | null;
+  tier: string;
+}
+
+export interface EventDetailData {
+  id: string;
+  title: string;
+  description: string | null;
+  sport: string;
+  sportType: string;
+  type: EventType;
+  status: string;
+  city: string;
+  price: number;
+  priceCents: number;
+  currency: string;
+  coverUrl: string | null;
+  capacity: number | null;
+  maxParticipants: number | null;
+  registeredCount: number;
+  startsAt: Date;
+  eventDate: Date | null;
+  startTime: Date | null;
+  endTime: Date | null;
+  entryRequirements: string | null;
+  venueName: string | null;
+  venueAddress: string | null;
+  venueCity: string | null;
+  organizerId: string;
+  organizerName: string;
+  photos: string[];
+  sponsors: EventSponsorData[];
+  themeConfig: Record<string, unknown>;
+  sponsorsJson: SponsorExtracted[];
+  participationMode: ParticipationMode;
+  ticketUrl: string | null;
+  sourceUrl: string | null;
+  sourceName: string | null;
+  source: string | null;
+  isAggregated: boolean;
+}
+
+export interface SponsorExtracted {
+  name: string;
+  logoUrl?: string | null;
+  websiteUrl?: string | null;
+  tier?: string;
+}
+
+interface VenueDetailSnippet {
+  name: string;
+  address: string | null;
+  city: string;
+}
+
+interface OrganizerSnippet {
+  full_name: string | null;
+  username: string;
+}
+
+interface EventDetailRow {
+  id: string;
+  organizer_id: string;
+  title: string;
+  description: string | null;
+  sport: string;
+  sport_type: string;
+  type: string;
+  status: string;
+  city: string;
+  price: number | string;
+  price_cents: number | null;
+  currency: string | null;
+  cover_url: string | null;
+  capacity: number | null;
+  max_participants: number | null;
+  registered_count: number;
+  starts_at: string;
+  event_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  entry_requirements: string | null;
+  theme_config: Record<string, unknown> | null;
+  sponsors_json: SponsorExtracted[] | null;
+  venues: VenueDetailSnippet | VenueDetailSnippet[] | null;
+  profiles: OrganizerSnippet | OrganizerSnippet[] | null;
+}
+
+function resolveVenue(venues: EventDetailRow['venues']): VenueDetailSnippet | null {
+  if (!venues) return null;
+  return Array.isArray(venues) ? (venues[0] ?? null) : venues;
+}
+
+function resolveOrganizer(profiles: EventDetailRow['profiles']): OrganizerSnippet | null {
+  if (!profiles) return null;
+  return Array.isArray(profiles) ? (profiles[0] ?? null) : profiles;
+}
+
+/** Single official/community event with venue and organizer details. */
+export async function getEventById(id: string): Promise<EventDetailData | null> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('events')
+    .select(
+      `
+      *,
+      venues ( name, address, city ),
+      profiles!events_organizer_id_fkey ( full_name, username ),
+      event_sponsors ( id, name, logo_url, website_url, tier )
+    `,
+    )
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error || !data) {
+    if (error && process.env.NODE_ENV !== 'production') console.error('[events.getEventById]', error.message);
+    return null;
+  }
+
+  const row = data as EventDetailRow & {
+  photos?: string[] | null;
+  participation_mode?: string | null;
+  ticket_url?: string | null;
+  source_url?: string | null;
+  source_name?: string | null;
+  source?: string | null;
+  is_aggregated?: boolean | null;
+  event_sponsors?: Array<{ id: string; name: string; logo_url: string | null; website_url: string | null; tier: string }> | null;
+};
+  const venue = resolveVenue(row.venues);
+  const organizer = resolveOrganizer(row.profiles);
+
+  const sponsors: EventSponsorData[] = (row.event_sponsors ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    logoUrl: s.logo_url,
+    websiteUrl: s.website_url,
+    tier: s.tier,
+  }));
+
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    sport: row.sport,
+    sportType: row.sport_type ?? 'OTHER',
+    type: normalizeEventType(row.type),
+    status: row.status,
+    city: row.city,
+    price: Number(row.price),
+    priceCents: row.price_cents ?? Math.round(Number(row.price) * 100),
+    currency: row.currency ?? 'EUR',
+    coverUrl: row.cover_url,
+    capacity: row.capacity,
+    maxParticipants: row.max_participants ?? null,
+    registeredCount: row.registered_count,
+    startsAt: new Date(row.starts_at),
+    eventDate: row.event_date ? new Date(row.event_date) : null,
+    startTime: row.start_time ? new Date(row.start_time) : null,
+    endTime: row.end_time ? new Date(row.end_time) : null,
+    entryRequirements: row.entry_requirements ?? null,
+    venueName: venue?.name ?? null,
+    venueAddress: venue?.address ?? null,
+    venueCity: venue?.city ?? null,
+    organizerId: row.organizer_id as string,
+    organizerName: organizer?.full_name ?? organizer?.username ?? 'Unknown',
+    photos: row.photos ?? [],
+    sponsors,
+    themeConfig: (row.theme_config as Record<string, unknown>) ?? {},
+    sponsorsJson: (row.sponsors_json as SponsorExtracted[]) ?? [],
+    participationMode: normalizeParticipationMode(row.participation_mode),
+    ticketUrl: row.ticket_url ?? null,
+    sourceUrl: row.source_url ?? null,
+    sourceName: row.source_name ?? null,
+    source: row.source ?? null,
+    isAggregated: Boolean(row.is_aggregated),
+  };
+}
