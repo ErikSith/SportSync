@@ -10,7 +10,11 @@ export type PageViewer =
 
 /** Bratislava guest used when AUTH_BYPASS is on and nobody is signed in. */
 export function guestProfile(): Profile {
-  const city = SUPPORTED_CITIES[0];
+  const city = SUPPORTED_CITIES[0] ?? {
+    name: 'Bratislava',
+    latitude: 48.1486,
+    longitude: 17.1077,
+  };
   return {
     id: '00000000-0000-4000-a000-000000000001',
     email: 'guest@sportsync.demo',

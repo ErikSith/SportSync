@@ -21,7 +21,9 @@ function parseDatabaseUrl(raw: string): { user: string; password: string; host: 
   const m = cleaned.match(
     /^postgres(?:ql)?:\/\/([^:\/?#]+):(.+)@([^:\/?#]+)(?::(\d+))?\/([^?]+)/i,
   );
-  if (!m) throw new Error('DATABASE_URL could not be parsed');
+  if (!m?.[1] || m[2] === undefined || !m[3] || !m[5]) {
+    throw new Error('DATABASE_URL could not be parsed');
+  }
   let password = decodeURIComponent(m[2]);
   if (password.startsWith('[') && password.endsWith(']') && password.length > 2) {
     password = password.slice(1, -1);
