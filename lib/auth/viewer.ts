@@ -8,7 +8,7 @@ export type PageViewer =
   | { status: 'ready'; profile: Profile; userId: string | null; isGuest: boolean }
   | { status: 'setup' };
 
-/** Bratislava guest used when AUTH_BYPASS is on and nobody is signed in. */
+/** Bratislava guest used when auth bypass is on and nobody is signed in. */
 export function guestProfile(): Profile {
   const city = SUPPORTED_CITIES[0] ?? {
     name: 'Bratislava',

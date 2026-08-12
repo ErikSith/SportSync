@@ -11,7 +11,8 @@ const PUBLIC_PATHS = ['/login', '/auth/callback'];
  * client-side redirect — satisfies "Supabase Auth server-side sessions,
  * middleware ochrana API ciest").
  *
- * When AUTH_BYPASS=true (demo / trial), browsing is open without login.
+ * Auth bypass is ON by default (early access): browsing is open without login.
+ * Set AUTH_BYPASS=false when real email auth ships.
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
