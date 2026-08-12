@@ -2,3 +2,11 @@ name = "sportsync"
 pages_build_output_dir = ".vercel/output/static"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
+
+# Public anon key (same as NEXT_PUBLIC_*). Must be the FULL JWT — a truncated
+# key causes 0 events on Cloudflare while localhost (.env) still works.
+[vars]
+NEXT_PUBLIC_SUPABASE_URL = "https://jnxpmtaystxywjxxyexh.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpueHBtdGF5c3R4eXdqeHh5ZXhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5OTkxNDQsImV4cCI6MjA5OTU3NTE0NH0.S80JllFSdiex961xJHkZR8u7QxiPU6Uzl24MtVKfXuA"
+SUPABASE_URL = "https://jnxpmtaystxywjxxyexh.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpueHBtdGF5c3R4eXdqeHh5ZXhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5OTkxNDQsImV4cCI6MjA5OTU3NTE0NH0.S80JllFSdiex961xJHkZR8u7QxiPU6Uzl24MtVKfXuA"

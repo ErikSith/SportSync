@@ -454,12 +454,8 @@ export function mapRawEventRowsToCards(
 
 export function homepageInspirationHasEvents(data: HomepageEventInspiration | null): boolean {
   if (!data) return false;
-  return (
-    data.nearby.length > 0 ||
-    data.startingSoon.length > 0 ||
-    data.lastSpots.length > 0 ||
-    data.featured.events.length > 0
-  );
+  // Featured is not rendered on the homepage — only count visible rows.
+  return data.nearby.length > 0 || data.startingSoon.length > 0 || data.lastSpots.length > 0;
 }
 
 /** Bucket candidate cards into Featured / Coming up / Last Spots / Near You rows. */

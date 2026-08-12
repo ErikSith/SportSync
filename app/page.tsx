@@ -1,15 +1,17 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { getPageViewer } from '@/lib/auth/viewer';
+import { createClient } from '@/lib/supabase/server';
 import {
   buildHomepageInspirationFromCards,
   getHomepageEventInspiration,
   getVenuesForHomeFilter,
   homepageInspirationHasEvents,
+  mapRawEventRowsToCards,
   type HomeFilterVenue,
   type HomepageEventInspiration,
 } from '@/lib/data/homepage';
-import { fetchActiveEventsSafe } from '@/lib/data/fetch-active-events';
+import { activeFeedSinceIso } from '@/lib/retention/feed-window';
 import { TopAppBar } from '@/components/home/TopAppBar';
 import { QuickActions } from '@/components/home/QuickActions';
 import { EventsInspirationSection } from '@/components/home/EventsInspirationSection';
@@ -53,15 +55,60 @@ function HomeFallback({ message }: { message?: string }) {
   );
 }
 
-/** Direct Supabase all-active load — no HTTP `/api/events`. Never throws. */
-async function loadAllActiveInspiration(
+/**
+ * Direct Supabase query via createClient() — never fetch('/api/events').
+ * Returns all active open/live events across cities (null lat/lng included).
+ * On error: logs and returns null (empty fallback).
+ */
+async function queryAllActiveEvents(
   lat: number,
   lng: number,
 ): Promise<HomepageEventInspiration | null> {
   try {
-    const cards = await fetchActiveEventsSafe({ lat, lng });
-    if (cards.length === 0) return null;
-    return buildHomepageInspirationFromCards(cards, {
+    const supabase = await createClient();
+
+    // Prefer venue names; if the embed fails under RLS, retry bare select.
+    let { data, error } = await supabase
+      .from('events')
+      .select('*, venues(name)')
+      .in('status', ['open', 'live'])
+      .gte('starts_at', activeFeedSinceIso())
+      .order('starts_at', { ascending: true })
+      .limit(120);
+
+    if (error) {
+      console.error('Homepage Supabase query error (with venues):', error);
+      ({ data, error } = await supabase
+        .from('events')
+        .select('*')
+        .in('status', ['open', 'live'])
+        .gte('starts_at', activeFeedSinceIso())
+        .order('starts_at', { ascending: true })
+        .limit(120));
+    }
+
+    // Date floor emptied the feed — load all open/live regardless of starts_at.
+    if (!error && (!data || data.length === 0)) {
+      console.error('Homepage Supabase: 0 rows with date floor — retrying without starts_at filter');
+      ({ data, error } = await supabase
+        .from('events')
+        .select('*')
+        .in('status', ['open', 'live'])
+        .order('starts_at', { ascending: true })
+        .limit(120));
+    }
+
+    if (error) {
+      console.error('Homepage Supabase query error:', error);
+      return null;
+    }
+
+    if (!data || data.length === 0) {
+      console.error('Homepage Supabase query returned 0 active events');
+      return null;
+    }
+
+    return buildHomepageInspirationFromCards(mapRawEventRowsToCards(data, lat, lng), {
       lat,
       lng,
       usedAllEventsFallback: true,
@@ -104,20 +151,25 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   let filterVenues: HomeFilterVenue[] = [];
 
   try {
-    // Prefer location-aware feed when GPS is present; otherwise go straight to all-active.
-    if (!hasGps) {
-      inspiration = await loadAllActiveInspiration(feedLat, feedLng);
-    } else {
-      inspiration = await getHomepageEventInspiration(profile, feedFilters);
-      if (!homepageInspirationHasEvents(inspiration)) {
-        inspiration = await loadAllActiveInspiration(feedLat, feedLng);
+    // 1) Try location-aware inspiration when GPS exists (no HTTP — data layer uses createClient).
+    if (hasGps) {
+      try {
+        inspiration = await getHomepageEventInspiration(profile, feedFilters);
+      } catch (locationError) {
+        console.error('Homepage location feed error:', locationError);
+        inspiration = null;
       }
+    }
+
+    // 2) No GPS, or 20km / city filter returned nothing → all active events via createClient().
+    if (!homepageInspirationHasEvents(inspiration)) {
+      inspiration = await queryAllActiveEvents(feedLat, feedLng);
     }
 
     filterVenues = await getVenuesForHomeFilter(city);
   } catch (error) {
     console.error('Homepage data fetch error:', error);
-    inspiration = await loadAllActiveInspiration(feedLat, feedLng);
+    inspiration = await queryAllActiveEvents(feedLat, feedLng);
     filterVenues = [];
   }
 
