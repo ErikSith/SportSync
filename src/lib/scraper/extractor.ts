@@ -71,28 +71,51 @@ function getApiKey(): string {
   return key;
 }
 
-function buildPrompt(pageUrl: string, cleanText: string): string {
+/** Human-readable Bratislava calendar anchor for relative-date resolution. */
+function formatBratislavaAnchorDate(now = new Date()): string {
+  return now.toLocaleDateString('sk-SK', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'Europe/Bratislava',
+  });
+}
+
+/**
+ * System prompt: rules + live Bratislava date/weekday so Gemini resolves
+ * "zajtra" / weekday schedules against a fixed kotva, not a guessed "today".
+ */
+function buildSystemInstruction(pageUrl: string): string {
+  const now = new Date();
+  const todayFormatted = formatBratislavaAnchorDate(now);
+
   return `Si extraktor športových podujatí pre Bratislavu (SportSync).
-Z čistého textu webovej stránky vyber športové udalosti, turnaje, otvorené tréningy a lekcie.
+Z čistého textu webovej stránky (iba hlavný obsah) vyber športové udalosti, turnaje, otvorené tréningy a lekcie.
+
+KOTVA DÁTUMU: Dnes je ${todayFormatted} (Europe/Bratislava).
+Pri relatívnych dátumoch („zajtra“, „budúci utorok“, „tento piatok“, názvy dní v týždennom rozvrhu) VŽDY vychádzaj z tejto kotvy. Nehádej iný „dnes“.
 
 Pravidlá:
 - Ignoruj marketing, navigáciu, cookies, footer, opakujúce sa menu, cenníky bez času.
 - Ak stránka obsahuje TÝŽDENNÝ ROZVRH (Pondelok/Utorok/... alebo Po/Ut/... + čas + názov aktivity),
-  vygeneruj konkrétne lekcie na najbližších 7 dní od dneška. Každý slot = 1 event so startTime v ISO 8601.
+  vygeneruj konkrétne lekcie na najbližších 7 dní od kotevného dátumu vyššie. Každý slot = 1 event so startTime v ISO 8601.
   Tieto sloty sú SKUPINOVÉ CVIČENIA na športovisku (nie unikátne eventy) — isTournament = false.
 - Unikátny EVENT/turnaj = jednorazové podujatie s vlastným názvom (cup, open, marathon, workshop, zápas).
 - Bežný názov lekcie (Pilates, HIIT, Box, Yoga, Kickbox…) = skupinová lekcia, nie unikátny event.
 - Ak sú uvedené konkrétne dátumy (deň.mesiac.rok / ISO), použi ich.
 - startTime (a endTime) musia byť ISO 8601 s offsetom Bratislavy (+02:00 alebo +01:00).
+- locationName ber len z hlavného obsahu (adresa / názov športoviska pri udalosti), nie z menu ani footera.
 - originalUrl nastav na: ${pageUrl}
 - description max 2 krátke vety; priceText len ak je cena uvedená.
 - isTournament = true len pre turnaje/súťaže/championshipy.
-- Ak na stránke naozaj nie sú žiadne časy ani dátumy aktivít, vráť prázdne pole events.
+- Ak na stránke naozaj nie sú žiadne časy ani dátumy aktivít, vráť prázdne pole events.`;
+}
 
-URL zdroja: ${pageUrl}
-Dnešný dátum (Europe/Bratislava): ${new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Bratislava' })}
+function buildUserPrompt(pageUrl: string, cleanText: string): string {
+  return `URL zdroja: ${pageUrl}
 
-TEXT STRÁNKY:
+TEXT STRÁNKY (iba hlavný obsah):
 ---
 ${cleanText}
 ---`;
@@ -126,9 +149,14 @@ function resolveModelCandidates(): string[] {
   return [...new Set(ordered.filter(Boolean))];
 }
 
-function getModel(genAI: GoogleGenerativeAI, modelName: string): GenerativeModel {
+function getModel(
+  genAI: GoogleGenerativeAI,
+  modelName: string,
+  systemInstruction: string,
+): GenerativeModel {
   return genAI.getGenerativeModel({
     model: modelName,
+    systemInstruction,
     generationConfig: {
       temperature: 0.1,
       responseMimeType: 'application/json',
@@ -139,15 +167,16 @@ function getModel(genAI: GoogleGenerativeAI, modelName: string): GenerativeModel
 
 async function generateWithFallback(
   genAI: GoogleGenerativeAI,
-  prompt: string,
+  systemInstruction: string,
+  userPrompt: string,
 ): Promise<{ raw: string; model: string }> {
   const candidates = resolveModelCandidates();
   let lastError: unknown;
 
   for (const modelName of candidates) {
     try {
-      const model = getModel(genAI, modelName);
-      const result = await model.generateContent(prompt);
+      const model = getModel(genAI, modelName, systemInstruction);
+      const result = await model.generateContent(userPrompt);
       const raw = result.response.text();
       if (modelName !== candidates[0]) {
         console.warn(`[scraper.extractor] fell back to model ${modelName}`);
@@ -181,7 +210,8 @@ export async function extractEventsFromText(
   const genAI = new GoogleGenerativeAI(getApiKey());
   const { raw } = await generateWithFallback(
     genAI,
-    buildPrompt(pageUrl, cleanText),
+    buildSystemInstruction(pageUrl),
+    buildUserPrompt(pageUrl, cleanText),
   );
 
   let parsedJson: unknown;

@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['react-leaflet', 'leaflet'],
+  transpilePackages: ['react-leaflet', 'leaflet', 'leaflet.markercluster'],
   // Cloudflare quick tunnel (trycloudflare.com) — JS/CSS z /_next/* na mobile
   allowedDevOrigins: ['*.trycloudflare.com'],
   images: {

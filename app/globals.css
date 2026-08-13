@@ -125,3 +125,145 @@ body {
     transform: scale(1.12);
   }
 }
+
+/* Venue discovery map — custom DivIcon badges + marker clusters */
+.leaflet-div-icon.ss-venue-badge,
+.leaflet-div-icon.ss-cluster-badge {
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+.ss-venue-badge__inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: 148px;
+  background: #1f1f1f;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  border: 1px solid #404040;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.ss-venue-badge__inner:hover,
+.ss-venue-badge__inner.is-selected {
+  border-color: #ff5722;
+  transform: scale(1.05);
+  box-shadow:
+    0 0 0 2px rgba(255, 87, 34, 0.25),
+    0 14px 32px rgba(0, 0, 0, 0.6);
+}
+
+.ss-venue-badge__emoji {
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.ss-venue-badge__name {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ss-venue-badge__count {
+  flex-shrink: 0;
+  margin-left: 0.125rem;
+  background: #ff5722;
+  color: #fff;
+  border-radius: 9999px;
+  padding: 0.05rem 0.375rem;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.ss-cluster-badge__inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  border: 1px solid #ff5722;
+  background: #1f1f1f;
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  box-shadow:
+    0 0 0 3px rgba(255, 87, 34, 0.18),
+    0 10px 24px rgba(0, 0, 0, 0.55);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.ss-cluster-badge:hover .ss-cluster-badge__inner {
+  transform: scale(1.08);
+  box-shadow:
+    0 0 0 4px rgba(255, 87, 34, 0.28),
+    0 12px 28px rgba(0, 0, 0, 0.6);
+}
+
+.marker-cluster {
+  background-color: transparent !important;
+}
+
+/* Venue discovery map — dark Leaflet popup */
+.leaflet-popup.ss-venue-popup .leaflet-popup-content-wrapper,
+.leaflet-popup.ss-venue-popup .leaflet-popup-tip {
+  background: #1f1f1f !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  border-radius: 16px !important;
+}
+
+.leaflet-popup.ss-venue-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  overflow: hidden;
+}
+
+.leaflet-popup.ss-venue-popup .leaflet-popup-content {
+  margin: 14px 16px 16px;
+  min-width: 0;
+  width: auto !important;
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.leaflet-popup.ss-venue-popup .leaflet-popup-tip-container {
+  margin-top: -1px;
+}
+
+.leaflet-popup.ss-venue-popup .leaflet-popup-close-button {
+  top: 8px !important;
+  right: 8px !important;
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  color: #9ca3af !important;
+  font: 18px/24px sans-serif !important;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.06);
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.leaflet-popup.ss-venue-popup .leaflet-popup-close-button:hover {
+  color: #ffffff !important;
+  background: rgba(255, 87, 34, 0.25);
+}

@@ -6,16 +6,21 @@ import {
   MapContainer,
   TileLayer,
   Marker,
+  Popup,
   useMap,
 } from 'react-leaflet';
 import L from 'leaflet';
 import type { VenueCardData } from '@/lib/data/venues';
 import { sportDisplayLabel } from '@/lib/constants/sports';
+import { sportEmoji } from '@/lib/constants/badge-emojis';
+import MarkerClusterGroup from '@/components/venues/MarkerClusterGroup';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
 
 const BRATISLAVA: [number, number] = [48.1486, 17.1077];
-const ACCENT = '#FF5722';
 const SURFACE = '#121212';
+/** Approximate pill size — must be non-zero or Leaflet clips the DivIcon. */
+const BADGE_SIZE: [number, number] = [148, 34];
 
 export interface VenueMapPin {
   id: string;
@@ -57,17 +62,48 @@ function toPins(venues: VenueCardData[]): VenueMapPin[] {
     }));
 }
 
-function pinIcon(active: boolean) {
-  const size = active ? 36 : 28;
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function activeEventCount(pin: VenueMapPin): number {
+  return pin.eventCount + pin.tournamentCount;
+}
+
+function venueBadgeIcon(pin: VenueMapPin, selected: boolean): L.DivIcon {
+  const emoji = sportEmoji(pin.sports[0] ?? 'OTHER');
+  const name = escapeHtml(pin.name);
+  const active = activeEventCount(pin);
+  const eventBadge =
+    active > 0
+      ? `<span class="ss-venue-badge__count">+${active}</span>`
+      : '';
+  const selectedClass = selected ? ' is-selected' : '';
+
   return L.divIcon({
-    className: 'sportsync-venue-pin',
-    html: `<span style="
-      display:block;width:${size}px;height:${size}px;border-radius:9999px;
-      background:${ACCENT};border:2px solid #fff;box-shadow:0 0 0 3px rgba(255,87,34,0.35),0 8px 20px rgba(0,0,0,0.55);
-      transform:translate(-50%,-50%);
-    "></span>`,
-    iconSize: [size, size],
-    iconAnchor: [0, 0],
+    className: 'ss-venue-badge',
+    html: `<div class="ss-venue-badge__inner${selectedClass}" title="${name}">
+      <span class="ss-venue-badge__emoji">${emoji}</span>
+      <span class="ss-venue-badge__name">${name}</span>
+      ${eventBadge}
+    </div>`,
+    iconSize: BADGE_SIZE,
+    iconAnchor: [BADGE_SIZE[0] / 2, BADGE_SIZE[1]],
+  });
+}
+
+function createClusterIcon(cluster: L.MarkerCluster): L.DivIcon {
+  const count = cluster.getChildCount();
+  return L.divIcon({
+    className: 'ss-cluster-badge',
+    html: `<div class="ss-cluster-badge__inner">${count}</div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   });
 }
 
@@ -94,148 +130,59 @@ function FlyToSelection({ pin }: { pin: VenueMapPin | null }) {
   const map = useMap();
   useEffect(() => {
     if (!pin) return;
-    map.flyTo([pin.latitude, pin.longitude], Math.max(map.getZoom(), 14), {
+    map.flyTo([pin.latitude, pin.longitude], Math.max(map.getZoom(), 15), {
       duration: 0.55,
     });
   }, [map, pin]);
   return null;
 }
 
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString('sk-SK', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function VenueBottomSheet({
-  pin,
-  onClose,
-}: {
-  pin: VenueMapPin | null;
-  onClose: () => void;
-}) {
-  const open = Boolean(pin);
+function VenuePinPopup({ pin }: { pin: VenueMapPin }) {
+  const active = activeEventCount(pin);
 
   return (
-    <div
-      className={`pointer-events-none absolute inset-x-0 bottom-0 z-[500] flex justify-center px-3 pb-3 transition-transform duration-300 ease-out md:px-6 md:pb-5 ${
-        open ? 'translate-y-0' : 'translate-y-[110%]'
-      }`}
-      aria-hidden={!open}
-    >
-      <div
-        className="pointer-events-auto w-full max-w-lg overflow-hidden rounded-t-2xl border border-white/10 shadow-[0_-12px_40px_rgba(0,0,0,0.55)]"
-        style={{ background: SURFACE }}
-        role="dialog"
-        aria-modal="true"
-        aria-label={pin?.name ?? 'Venue details'}
-      >
-        <div className="flex justify-center pt-2.5">
-          <span className="h-1 w-10 rounded-full bg-white/20" />
-        </div>
-
-        {pin ? (
-          <div className="space-y-4 px-4 pb-5 pt-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#FF5722]">
-                  {pin.verified ? 'Verified venue' : 'Venue'}
-                  {pin.distanceKm > 0 ? ` · ${pin.distanceKm.toFixed(1)} km` : ''}
-                </p>
-                <h2 className="mt-1 truncate text-xl font-semibold tracking-tight text-white">
-                  {pin.name}
-                </h2>
-                {pin.address ? (
-                  <p className="mt-1 text-sm text-white/55">{pin.address}</p>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="shrink-0 rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
-                aria-label="Close"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            {pin.sports.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {pin.sports.slice(0, 6).map((sport) => (
-                  <span
-                    key={sport}
-                    className="rounded-md border border-[#FF5722]/35 bg-[#FF5722]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#FF5722]"
-                  >
-                    {sportDisplayLabel(sport)}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
-                <p className="text-[10px] uppercase tracking-wider text-white/40">Events</p>
-                <p className="text-lg font-semibold text-white">{pin.eventCount}</p>
-              </div>
-              <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
-                <p className="text-[10px] uppercase tracking-wider text-white/40">Cups</p>
-                <p className="text-lg font-semibold text-white">{pin.tournamentCount}</p>
-              </div>
-            </div>
-
-            {pin.activities.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
-                  Upcoming
-                </p>
-                <ul className="space-y-1.5">
-                  {pin.activities.slice(0, 3).map((activity) => (
-                    <li
-                      key={`${activity.kind}-${activity.id}`}
-                      className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2"
-                    >
-                      <p className="truncate text-sm text-white">{activity.title}</p>
-                      <p className="mt-0.5 text-[11px] text-white/45">
-                        {formatWhen(activity.startsAt)}
-                        {activity.kind === 'tournament' ? ' · Cup' : ''}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <p className="text-sm text-white/45">
-                Zatiaľ žiadne nadchádzajúce termíny — skús oficiálny web alebo detail venues.
-              </p>
-            )}
-
-            <div className="flex gap-2 pt-1">
-              <Link
-                href={`/venues/${pin.id}`}
-                className="flex-1 rounded-xl bg-[#FF5722] px-4 py-3 text-center text-sm font-semibold text-white transition hover:brightness-110"
-              >
-                Open venue
-              </Link>
-              {pin.websiteUrl ? (
-                <a
-                  href={pin.websiteUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/10"
-                >
-                  Web
-                </a>
-              ) : null}
-            </div>
-          </div>
+    <div className="ss-venue-popup-body w-[220px] space-y-3">
+      <div className="min-w-0 pr-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#FF5722]">
+          {pin.verified ? 'Verified' : 'Venue'}
+          {pin.distanceKm > 0 ? ` · ${pin.distanceKm.toFixed(1)} km` : ''}
+        </p>
+        <h3 className="mt-1 truncate text-sm font-bold leading-snug text-white">
+          {pin.name}
+        </h3>
+        {pin.address ? (
+          <p className="mt-1 line-clamp-2 text-xs text-gray-400">{pin.address}</p>
         ) : null}
       </div>
+
+      {pin.sports.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {pin.sports.slice(0, 3).map((sport) => (
+            <span
+              key={sport}
+              className="rounded-full border border-[#FF5722]/40 bg-[#FF5722]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#FF5722]"
+            >
+              {sportDisplayLabel(sport)}
+            </span>
+          ))}
+          {active > 0 ? (
+            <span className="rounded-full bg-[#FF5722] px-2 py-0.5 text-[10px] font-bold text-white">
+              +{active}
+            </span>
+          ) : null}
+        </div>
+      ) : active > 0 ? (
+        <span className="inline-flex rounded-full bg-[#FF5722] px-2 py-0.5 text-[10px] font-bold text-white">
+          +{active} events
+        </span>
+      ) : null}
+
+      <Link
+        href={`/venues/${pin.id}`}
+        className="block w-full rounded-xl bg-[#FF5722] px-3 py-2.5 text-center text-xs font-semibold text-white transition hover:brightness-110"
+      >
+        Open venue
+      </Link>
     </div>
   );
 }
@@ -263,16 +210,38 @@ export function VenueDiscoveryMap({ venues }: { venues: VenueCardData[] }) {
         />
         <FitBounds pins={pins} />
         <FlyToSelection pin={selected} />
-        {pins.map((pin) => (
-          <Marker
-            key={pin.id}
-            position={[pin.latitude, pin.longitude]}
-            icon={pinIcon(pin.id === selectedId)}
-            eventHandlers={{
-              click: () => setSelectedId(pin.id),
-            }}
-          />
-        ))}
+        <MarkerClusterGroup
+          chunkedLoading
+          showCoverageOnHover={false}
+          maxClusterRadius={56}
+          spiderfyOnMaxZoom
+          zoomToBoundsOnClick
+          animate
+          iconCreateFunction={createClusterIcon}
+        >
+          {pins.map((pin) => (
+            <Marker
+              key={pin.id}
+              position={[pin.latitude, pin.longitude]}
+              icon={venueBadgeIcon(pin, pin.id === selectedId)}
+              eventHandlers={{
+                popupopen: () => setSelectedId(pin.id),
+                popupclose: () =>
+                  setSelectedId((current) => (current === pin.id ? null : current)),
+              }}
+            >
+              <Popup
+                className="ss-venue-popup"
+                closeButton
+                offset={[0, -8]}
+                maxWidth={260}
+                minWidth={220}
+              >
+                <VenuePinPopup pin={pin} />
+              </Popup>
+            </Marker>
+          ))}
+        </MarkerClusterGroup>
       </MapContainer>
 
       <div className="pointer-events-none absolute left-3 top-3 z-[400] rounded-lg border border-white/10 bg-[#121212]/85 px-3 py-2 backdrop-blur-md">
@@ -283,8 +252,6 @@ export function VenueDiscoveryMap({ venues }: { venues: VenueCardData[] }) {
           {pins.length} pin{pins.length === 1 ? '' : 's'} with GPS
         </p>
       </div>
-
-      <VenueBottomSheet pin={selected} onClose={() => setSelectedId(null)} />
     </div>
   );
 }

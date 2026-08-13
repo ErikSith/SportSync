@@ -36,19 +36,71 @@ async function waitForHostSlot(host: string): Promise<void> {
   hostLastRequestAt.set(host, Date.now());
 }
 
+/** Prefer these regions so Gemini never sees nav/footer chrome as location/time. */
+const MAIN_CONTENT_SELECTORS = [
+  'main',
+  '[role="main"]',
+  'article',
+  '#content',
+  '#main',
+  '#main-content',
+  '.main-content',
+  '.entry-content',
+  '.post-content',
+  '.page-content',
+] as const;
+
+const MIN_MAIN_TEXT_CHARS = 40;
+
 /**
- * Strip non-content nodes and return whitespace-normalized plain text.
- * Never follows images / assets — text only for Gemini extraction.
+ * Strip non-content + chrome nodes and return whitespace-normalized plain text
+ * from the main content region only. Never follows images / assets.
  */
 export function htmlToCleanText(html: string): string {
   const $ = cheerio.load(html);
-  $('script, style, noscript, svg, iframe, canvas, link, meta, img, picture, source, video, audio').remove();
+  $(
+    [
+      'script',
+      'style',
+      'noscript',
+      'svg',
+      'iframe',
+      'canvas',
+      'link',
+      'meta',
+      'img',
+      'picture',
+      'source',
+      'video',
+      'audio',
+      // Page chrome — strip before reading so body fallback stays clean
+      'header',
+      'footer',
+      'nav',
+      'aside',
+      '[role="navigation"]',
+      '[role="banner"]',
+      '[role="contentinfo"]',
+      '[role="complementary"]',
+      '[role="search"]',
+    ].join(', '),
+  ).remove();
 
   let text = '';
-  if ($('main').length) text = $('main').text();
-  else if ($('article').length) text = $('article').text();
-  else if ($('body').length) text = $('body').text();
-  else text = $.root().text();
+  for (const sel of MAIN_CONTENT_SELECTORS) {
+    const nodes = $(sel);
+    if (!nodes.length) continue;
+    const candidate = nodes.first().text();
+    if (candidate.trim().length >= MIN_MAIN_TEXT_CHARS) {
+      text = candidate;
+      break;
+    }
+  }
+
+  if (!text.trim()) {
+    if ($('body').length) text = $('body').text();
+    else text = $.root().text();
+  }
 
   return text
     .replace(/\u00a0/g, ' ')
