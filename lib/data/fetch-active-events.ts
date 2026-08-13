@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAnonEnv } from '@/lib/supabase/env';
 import { distanceKm } from '@/lib/geo';
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { parseDbInstant } from '@/lib/datetime/bratislava';
 import {
   ALL_EVENTS_FALLBACK_MESSAGE,
   type EventCardData,
@@ -66,7 +67,7 @@ function mapRow(event: RawEventRow, lat: number, lng: number): EventCardData {
     sportType: event.sport_type ?? 'OTHER',
     type: event.type === 'community' ? 'community' : 'official',
     city: event.city,
-    startsAt: new Date(event.starts_at),
+    startsAt: parseDbInstant(event.starts_at),
     price: Number(event.price),
     priceCents: event.price_cents ?? Math.round(Number(event.price) * 100),
     currency: event.currency ?? 'EUR',

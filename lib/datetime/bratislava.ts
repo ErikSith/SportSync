@@ -13,6 +13,10 @@ type ZonedParts = {
   second: number;
 };
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
 function readZonedParts(date: Date, timeZone: string = APP_TIMEZONE): ZonedParts {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone,
@@ -22,7 +26,8 @@ function readZonedParts(date: Date, timeZone: string = APP_TIMEZONE): ZonedParts
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false,
+    // hourCycle is more reliable than hour12 across iOS Safari / Android WebView.
+    hourCycle: 'h23',
   }).formatToParts(date);
 
   const get = (type: Intl.DateTimeFormatPartTypes) =>
@@ -40,6 +45,19 @@ function readZonedParts(date: Date, timeZone: string = APP_TIMEZONE): ZonedParts
     minute: Number(get('minute')),
     second: Number(get('second')),
   };
+}
+
+/** Bratislava calendar day key YYYY-MM-DD (device timezone independent). */
+export function toAppDateKey(date: Date, timeZone: string = APP_TIMEZONE): string {
+  const p = readZonedParts(date, timeZone);
+  return `${p.year}-${pad2(p.month)}-${pad2(p.day)}`;
+}
+
+/** Next Bratislava calendar day after `dateKey` (YYYY-MM-DD). */
+export function addAppCalendarDays(dateKey: string, days: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const utc = new Date(Date.UTC(y!, m! - 1, d! + days));
+  return `${utc.getUTCFullYear()}-${pad2(utc.getUTCMonth() + 1)}-${pad2(utc.getUTCDate())}`;
 }
 
 /**
@@ -88,16 +106,18 @@ export function formatAppDate(
   return date.toLocaleDateString(locale, { ...options, timeZone: APP_TIMEZONE });
 }
 
+/**
+ * Wall-clock time in Europe/Bratislava as HH:mm.
+ * Built from zoned parts — not toLocaleTimeString — so iOS Safari / desktop
+ * Chrome cannot disagree on separators or 12h vs 24h.
+ */
 export function formatAppTime(
   date: Date,
-  options: Intl.DateTimeFormatOptions = {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  },
-  locale = 'en-GB',
+  _options?: Intl.DateTimeFormatOptions,
+  _locale?: string,
 ): string {
-  return date.toLocaleTimeString(locale, { ...options, timeZone: APP_TIMEZONE });
+  const p = readZonedParts(date);
+  return `${pad2(p.hour)}:${pad2(p.minute)}`;
 }
 
 export function formatAppDateTime(
@@ -105,19 +125,60 @@ export function formatAppDateTime(
   options: Intl.DateTimeFormatOptions,
   locale = 'en-GB',
 ): string {
-  return date.toLocaleString(locale, { ...options, timeZone: APP_TIMEZONE });
+  return date.toLocaleString(locale, {
+    ...options,
+    timeZone: APP_TIMEZONE,
+    hourCycle: options.hourCycle ?? 'h23',
+  });
 }
 
 /** Relative day label for event tabs/lists (Dnes / Zajtra / short weekday). */
 export function formatAppDayLabel(date: Date, locale = 'sk-SK'): string {
-  const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
-
-  const dayKey = (value: Date) =>
-    value.toLocaleDateString('en-CA', { timeZone: APP_TIMEZONE });
-
-  if (dayKey(date) === dayKey(now)) return 'Dnes';
-  if (dayKey(date) === dayKey(tomorrow)) return 'Zajtra';
+  const todayKey = toAppDateKey(new Date());
+  const eventKey = toAppDateKey(date);
+  if (eventKey === todayKey) return 'Dnes';
+  if (eventKey === addAppCalendarDays(todayKey, 1)) return 'Zajtra';
   return formatAppDate(date, { weekday: 'short', day: 'numeric' }, locale);
+}
+
+/**
+ * Parse a DB timestamp into an Instant.
+ * Scrapers write `Date.toISOString()` (UTC). Historically `events.starts_at` was
+ * `timestamp without time zone`, so PostgREST returned naive `2026-08-19T05:30:00`
+ * which JS treats as *local* — shifting Bratislava wall times by the UTC offset.
+ * Naive values are therefore interpreted as UTC.
+ */
+export function parseDbInstant(value: Date | string | null | undefined): Date {
+  if (value instanceof Date) return value;
+  if (value == null) return new Date(NaN);
+  const raw = String(value).trim();
+  if (!raw) return new Date(NaN);
+  if (/[zZ]$/.test(raw) || /[+-]\d{2}:\d{2}$/.test(raw)) return new Date(raw);
+  const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+  return new Date(`${normalized}Z`);
+}
+
+/**
+ * If copy says "o 7:30" / "každú stredu o 17:00" and the stored Instant's
+ * Bratislava wall clock differs, snap to that clock on the same calendar day.
+ * Keeps EventListItem time aligned with description / source-page wording.
+ */
+export function alignStartsAtWithCopyTime(
+  startsAt: Date,
+  text: string | null | undefined,
+): Date {
+  if (!text || Number.isNaN(startsAt.getTime())) return startsAt;
+  const m = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .match(/\bo\s+(\d{1,2})[:.](\d{2})\b/);
+  if (!m) return startsAt;
+  const hour = Number(m[1]);
+  const minute = Number(m[2]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return startsAt;
+  if (hour > 23 || minute > 59) return startsAt;
+  const parts = readZonedParts(startsAt);
+  if (parts.hour === hour && parts.minute === minute) return startsAt;
+  return zonedLocalDateTime(parts.year, parts.month - 1, parts.day, hour, minute, 0);
 }

@@ -13,7 +13,7 @@ import { EventRegisterButton } from '@/components/events/EventRegisterButton';
 import { EventExternalCta } from '@/components/events/EventExternalCta';
 import { EventAggregatedDisclaimer } from '@/components/events/EventAggregatedDisclaimer';
 import { ReportEventDataButton } from '@/components/events/ReportEventDataButton';
-import { formatAppDate, formatAppTime } from '@/lib/datetime/bratislava';
+import { alignStartsAtWithCopyTime, formatAppDate, formatAppTime } from '@/lib/datetime/bratislava';
 
 const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80';
 
@@ -27,6 +27,13 @@ function formatWhen(date: Date): string {
 
 function formatTime(date: Date): string {
   return formatAppTime(date);
+}
+
+function eventInstant(event: EventCardData): Date {
+  return alignStartsAtWithCopyTime(
+    event.startsAt instanceof Date ? event.startsAt : new Date(event.startsAt),
+    event.description,
+  );
 }
 
 function priceLabel(event: EventCardData): string {
@@ -190,11 +197,11 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
               <div className="space-y-2 rounded-xl border border-primary-container/20 bg-[#141210]/65 p-3">
                 <p className="flex items-center gap-2 font-body-md text-sm text-on-surface">
                   <Calendar className="h-4 w-4 shrink-0 text-primary-container" strokeWidth={2.25} />
-                  <span className="truncate">{formatWhen(event.startsAt)}</span>
+                  <span className="truncate">{formatWhen(eventInstant(event))}</span>
                 </p>
                 <p className="flex items-center gap-2 font-body-md text-sm text-on-surface">
                   <Clock className="h-4 w-4 shrink-0 text-primary-container" strokeWidth={2.25} />
-                  Starts at {formatTime(event.startsAt)}
+                  Starts at {formatTime(eventInstant(event))}
                 </p>
                 <p className="flex items-center gap-2 font-body-md text-sm text-on-surface">
                   <MapPin className="h-4 w-4 shrink-0 text-primary-container" strokeWidth={2.25} />

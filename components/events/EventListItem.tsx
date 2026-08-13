@@ -5,7 +5,11 @@ import { ChevronDown } from 'lucide-react';
 import type { EventCardData } from '@/lib/data/events';
 import { eventMatchesKids, eventMatchesWomen } from '@/lib/event-audience-filter';
 import { sportIcon } from '@/lib/utils/sport-icons';
-import { formatAppDayLabel, formatAppTime } from '@/lib/datetime/bratislava';
+import {
+  alignStartsAtWithCopyTime,
+  formatAppDayLabel,
+  formatAppTime,
+} from '@/lib/datetime/bratislava';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
 
 function asDate(value: Date | string): Date {
@@ -13,7 +17,7 @@ function asDate(value: Date | string): Date {
 }
 
 function formatStartTime(date: Date | string): string {
-  return formatAppTime(asDate(date), undefined, 'sk-SK');
+  return formatAppTime(asDate(date));
 }
 
 function priceLabel(event: EventCardData): string {
@@ -45,7 +49,7 @@ interface EventListItemProps {
 
 export function EventListItem({ event }: EventListItemProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
-  const startsAt = asDate(event.startsAt);
+  const startsAt = alignStartsAtWithCopyTime(asDate(event.startsAt), event.description);
   const day = formatAppDayLabel(startsAt);
   const time = formatStartTime(startsAt);
   const place = locationLabel(event);

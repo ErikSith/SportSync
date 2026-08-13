@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
 import type { EventType } from '@/lib/constants/events';
 import { activeFeedSince, feedStartsAtFloor } from '@/lib/retention/feed-window';
+import { parseDbInstant, alignStartsAtWithCopyTime } from '@/lib/datetime/bratislava';
 
 export { EVENT_SPORTS, type EventSport } from '@/lib/constants/sports';
 
@@ -145,6 +146,10 @@ function dateWindowBounds(window: EventFeedQuery['dateWindow']): { from: Date; t
 }
 
 function mapEventCard(event: EventRow, d: number): EventCardData {
+  const startsAt = alignStartsAtWithCopyTime(
+    parseDbInstant(event.starts_at),
+    event.description,
+  );
   return {
     id: event.id,
     title: event.title,
@@ -153,7 +158,7 @@ function mapEventCard(event: EventRow, d: number): EventCardData {
     sportType: event.sport_type ?? 'OTHER',
     type: normalizeEventType(event.type),
     city: event.city,
-    startsAt: new Date(event.starts_at),
+    startsAt,
     price: Number(event.price),
     priceCents: event.price_cents ?? Math.round(Number(event.price) * 100),
     currency: event.currency ?? 'EUR',
@@ -664,10 +669,10 @@ export async function getEventById(id: string): Promise<EventDetailData | null> 
     capacity: row.capacity,
     maxParticipants: row.max_participants ?? null,
     registeredCount: row.registered_count,
-    startsAt: new Date(row.starts_at),
-    eventDate: row.event_date ? new Date(row.event_date) : null,
-    startTime: row.start_time ? new Date(row.start_time) : null,
-    endTime: row.end_time ? new Date(row.end_time) : null,
+    startsAt: parseDbInstant(row.starts_at),
+    eventDate: row.event_date ? parseDbInstant(row.event_date) : null,
+    startTime: row.start_time ? parseDbInstant(row.start_time) : null,
+    endTime: row.end_time ? parseDbInstant(row.end_time) : null,
     entryRequirements: row.entry_requirements ?? null,
     venueName: venue?.name ?? null,
     venueAddress: venue?.address ?? null,

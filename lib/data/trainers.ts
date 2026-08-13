@@ -6,6 +6,7 @@ import {
   type CoachDetailData,
   type CoachLessonData,
 } from '@/lib/data/trainers-shared';
+import { parseDbInstant } from '@/lib/datetime/bratislava';
 
 export type { CoachCardData, CoachDetailData, CoachLessonData } from '@/lib/data/trainers-shared';
 export { formatCoachRating, formatDistanceMiles } from '@/lib/data/trainers-shared';
@@ -127,7 +128,7 @@ function mapLessonRow(lesson: LessonRow, viewerId: string): CoachLessonData {
     capacity: lesson.capacity,
     bookedCount: lesson.booked_count,
     durationMinutes: lesson.duration_minutes,
-    startsAt: new Date(lesson.starts_at),
+    startsAt: parseDbInstant(lesson.starts_at),
     status: lesson.status,
     venueName: venueNameFromRow(lesson.venues),
     venueId: lesson.venue_id ?? null,

@@ -8,7 +8,11 @@ import { resolveSportAtmosphereCover } from '@/lib/venues/venue-media';
 import { AtmosphereTabMedia } from '@/components/shared/AtmosphereTabMedia';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
-import { formatAppDayLabel, formatAppTime } from '@/lib/datetime/bratislava';
+import {
+  alignStartsAtWithCopyTime,
+  formatAppDayLabel,
+  formatAppTime,
+} from '@/lib/datetime/bratislava';
 
 export const EVENT_TAB_RAIL_W = 'w-[min(168px,72vw)] sm:w-[176px]';
 export const EVENT_TAB_H = 'h-[176px] sm:h-[188px]';
@@ -45,7 +49,7 @@ export function EventAtmosphereTab({
   const cover = resolveSportAtmosphereCover(event.sport, event.coverUrl);
   const free = priceLabel(event) === 'Free';
   const venue = event.venueName ?? event.city;
-  const startsAt = asDate(event.startsAt);
+  const startsAt = alignStartsAtWithCopyTime(asDate(event.startsAt), event.description);
   const sizeClass =
     layout === 'fill'
       ? `w-full ${EVENT_TAB_H}`

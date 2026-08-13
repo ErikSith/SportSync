@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { parseDbInstant } from '@/lib/datetime/bratislava';
 
 export interface VenueCardData {
   id: string;
@@ -555,7 +556,7 @@ async function fetchUpcomingEvents(venueId: string): Promise<VenueEventPreview[]
       id: event.id,
       title: event.title,
       sport: event.sport,
-      startsAt: new Date(event.starts_at),
+      startsAt: parseDbInstant(event.starts_at),
       status: event.status,
     }));
   } catch {
@@ -584,7 +585,7 @@ async function fetchUpcomingTournaments(venueId: string): Promise<VenueTournamen
       id: tournament.id,
       name: tournament.name,
       sport: tournament.sport,
-      startsAt: new Date(tournament.starts_at),
+      startsAt: parseDbInstant(tournament.starts_at),
       status: tournament.status,
     }));
   } catch {

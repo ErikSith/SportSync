@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { parseDbInstant } from '@/lib/datetime/bratislava';
 
 export interface TournamentCardData {
   id: string;
@@ -106,9 +107,11 @@ function mapTournamentRow(row: TournamentRow): TournamentCardData {
     currentParticipants: row.current_participants,
     maxParticipants: row.max_participants,
     coverUrl: row.cover_url,
-    startsAt: new Date(row.starts_at),
-    endsAt: row.ends_at ? new Date(row.ends_at) : null,
-    registrationDeadline: row.registration_deadline ? new Date(row.registration_deadline) : null,
+    startsAt: parseDbInstant(row.starts_at),
+    endsAt: row.ends_at ? parseDbInstant(row.ends_at) : null,
+    registrationDeadline: row.registration_deadline
+      ? parseDbInstant(row.registration_deadline)
+      : null,
     venueId: row.venue_id,
     venueName: venue?.name ?? null,
     venueCity: venue?.city ?? row.city ?? null,

@@ -11,6 +11,7 @@ import {
   type ClassSession,
   type GroupedVenueSchedule,
 } from '@/lib/feed/aggregate-routine-lessons';
+import { getZonedParts } from '@/lib/datetime/bratislava';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { VenueScheduleDrawer } from '@/components/events/VenueScheduleDrawer';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
@@ -57,7 +58,7 @@ function peakTimeLabel(lessons: ClassSession[]): string | null {
   const hourBuckets = new Map<number, { count: number; sample: Date }>();
   for (const lesson of lessons) {
     const starts = asDate(lesson.startsAt);
-    const hour = starts.getHours();
+    const hour = getZonedParts(starts).hour;
     const prev = hourBuckets.get(hour);
     hourBuckets.set(hour, {
       count: (prev?.count ?? 0) + 1,

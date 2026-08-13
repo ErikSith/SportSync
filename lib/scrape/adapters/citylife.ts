@@ -13,7 +13,8 @@ import type { AdapterResult, NormalizedScrapedEvent, ParticipationMode } from '@
 import type { SportTypeKey } from '@/lib/ai/theme-config';
 import { resolveSportType } from '@/lib/ai/theme-config';
 import { detectEventSport } from '@/lib/constants/sports';
-import { SCRAPE_DEFAULT_LOCAL_HOUR, getZonedParts, zonedLocalDateTime } from '@/lib/datetime/bratislava';
+import { appWeekday } from '@/lib/event-date-filter';
+import { SCRAPE_DEFAULT_LOCAL_HOUR, getZonedParts, zonedLocalDateTime, alignStartsAtWithCopyTime, formatAppTime } from '@/lib/datetime/bratislava';
 
 const SPORT_URL = 'https://www.citylife.sk/tag/sport';
 const BASE = 'https://www.citylife.sk';
@@ -268,7 +269,14 @@ function buildEvent(input: {
   scheduleNote: string | null;
   entryNote: string | null;
 }): NormalizedScrapedEvent {
-  const parts = getZonedParts(input.startsAt);
+  const copy = [input.intro, input.scheduleNote, input.entryNote].filter(Boolean).join(' ');
+  const startsAt = alignStartsAtWithCopyTime(input.startsAt, copy);
+  if (process.env.NODE_ENV !== 'production' && formatAppTime(input.startsAt) !== formatAppTime(startsAt)) {
+    console.warn(
+      `[citylife] aligned startsAt ${formatAppTime(input.startsAt)} → ${formatAppTime(startsAt)} for "${input.title}"`,
+    );
+  }
+  const parts = getZonedParts(startsAt);
   const dayKey = `${parts.year}${String(parts.month).padStart(2, '0')}${String(parts.day).padStart(2, '0')}`;
   return {
     source: 'citylife',
@@ -278,7 +286,7 @@ function buildEvent(input: {
     sportType: input.sportType,
     category: input.participationMode === 'participate' ? 'fitness' : 'match',
     participationMode: input.participationMode,
-    startsAt: input.startsAt,
+    startsAt,
     city: 'Bratislava',
     venueKey: venueKeyFor(input.venueLabel),
     locationName: input.venueLabel || undefined,
@@ -468,7 +476,7 @@ function expandWeekdayInRange(
     const dayKey = y * 10000 + m * 100 + d;
     if (dayKey > endKey) break;
     const noon = zonedLocalDateTime(y, m - 1, d, 12, 0, 0);
-    if (noon.getDay() === weekday) {
+    if (appWeekday(noon) === weekday) {
       out.push(parseTimeOnDate(noon, time));
     }
     const next = new Date(Date.UTC(y, m - 1, d + 1));

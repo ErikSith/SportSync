@@ -13,6 +13,7 @@ import {
   type AggregatedFeedItem,
 } from '@/lib/feed/aggregate-routine-lessons';
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
+import { parseDbInstant } from '@/lib/datetime/bratislava';
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
 
 export { getProfileByAuthId, type Profile } from '@/lib/data/profile';
@@ -200,7 +201,7 @@ function toEventCard(event: EventRow, distKm: number): EventCardData {
     sportType: event.sport_type ?? 'OTHER',
     type: normalizeEventType(event.type),
     city: event.city,
-    startsAt: new Date(event.starts_at),
+    startsAt: parseDbInstant(event.starts_at),
     price: Number(event.price),
     priceCents: event.price_cents ?? Math.round(Number(event.price) * 100),
     currency: event.currency ?? 'EUR',
@@ -848,7 +849,7 @@ function toFeaturedCard(event: EventRow, distKm: number): FeaturedEventCard {
     description: event.description,
     sport: event.sport,
     city: event.city,
-    startsAt: new Date(event.starts_at),
+    startsAt: parseDbInstant(event.starts_at),
     price: Number(event.price),
     coverUrl: event.cover_url,
     distanceKm: Math.round(distKm * 10) / 10,

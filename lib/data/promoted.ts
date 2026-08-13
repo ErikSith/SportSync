@@ -3,6 +3,7 @@ import type { EventCardData } from '@/lib/data/events';
 import type { TournamentCardData } from '@/lib/data/tournaments';
 import { sportColor } from '@/lib/utils/sport-icons';
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
+import { parseDbInstant } from '@/lib/datetime/bratislava';
 
 export type { PromotedBannerItem, PromotedKind } from '@/lib/data/promoted-types';
 
@@ -76,7 +77,7 @@ export async function getActivePromotedBanners(
       const price = Number(row.price ?? 0);
       const priceCents = (row.price_cents as number | null) ?? Math.round(price * 100);
       const sport = String(row.sport ?? 'OTHER');
-      const startsAt = new Date(String(row.starts_at));
+      const startsAt = parseDbInstant(String(row.starts_at));
       const promotedUntil = new Date(String(row.promoted_until));
       const city = String(row.city ?? venue?.city ?? '');
       const eventCard: EventCardData = {
@@ -140,7 +141,7 @@ export async function getActivePromotedBanners(
     const venue = resolveVenue(row.venues as VenueSnippet | VenueSnippet[] | null);
     const entryFee = Number(row.entry_fee ?? 0);
     const sport = String(row.sport ?? 'OTHER');
-    const startsAt = new Date(String(row.starts_at));
+    const startsAt = parseDbInstant(String(row.starts_at));
     const promotedUntil = new Date(String(row.promoted_until));
     const city = String(row.city || venue?.city || '');
     const tournamentCard: TournamentCardData = {

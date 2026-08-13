@@ -2,7 +2,7 @@
  * Calendar days are always Europe/Bratislava — same zone as event cards.
  */
 
-import { APP_TIMEZONE, getZonedParts } from '@/lib/datetime/bratislava';
+import { APP_TIMEZONE, toAppDateKey } from '@/lib/datetime/bratislava';
 
 export type DatePreset = 'all' | 'today' | 'tomorrow' | 'weekend' | 'custom';
 
@@ -21,8 +21,7 @@ function ymd(year: number, month1to12: number, day: number): string {
 
 /** Bratislava calendar day for an Instant (event startsAt, "now", …). */
 export function toDateKey(date: Date): string {
-  const p = getZonedParts(date, APP_TIMEZONE);
-  return ymd(p.year, p.month, p.day);
+  return toAppDateKey(date);
 }
 
 /** Stable YYYY-MM-DD from calendar Y/M/D (UI month grid / chip intent). */

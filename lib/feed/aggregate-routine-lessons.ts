@@ -1,4 +1,10 @@
 import type { EventCardData } from '@/lib/data/events';
+import {
+  addAppCalendarDays,
+  formatAppDate,
+  formatAppTime,
+  toAppDateKey,
+} from '@/lib/datetime/bratislava';
 
 /** Feed item kinds after routine-lesson aggregation. */
 export type FeedEventKind = 'INDEPENDENT_EVENT' | 'ROUTINE_LESSON_GROUP';
@@ -89,24 +95,18 @@ function asDate(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value);
 }
 
-/** Local calendar day key (YYYY-MM-DD) for grouping. */
+/** Bratislava calendar day key (YYYY-MM-DD) for grouping — device TZ independent. */
 export function eventDayKey(startsAt: Date | string): string {
-  const d = asDate(startsAt);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return toAppDateKey(asDate(startsAt));
 }
 
 function dayLabelFor(startsAt: Date): string {
-  const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
-
-  if (startsAt.toDateString() === now.toDateString()) return 'Dnešný';
-  if (startsAt.toDateString() === tomorrow.toDateString()) return 'Zajtrajší';
-  const weekday = startsAt.toLocaleDateString('sk-SK', { weekday: 'long' });
-  const datePart = startsAt.toLocaleDateString('sk-SK', { day: 'numeric', month: 'numeric' });
+  const todayKey = toAppDateKey(new Date());
+  const key = toAppDateKey(startsAt);
+  if (key === todayKey) return 'Dnešný';
+  if (key === addAppCalendarDays(todayKey, 1)) return 'Zajtrajší';
+  const weekday = formatAppDate(startsAt, { weekday: 'long' }, 'sk-SK');
+  const datePart = formatAppDate(startsAt, { day: 'numeric', month: 'numeric' }, 'sk-SK');
   const capped = weekday.charAt(0).toUpperCase() + weekday.slice(1);
   return `${capped} ${datePart}`;
 }
@@ -386,8 +386,8 @@ export function partitionFeedForSplitTabs(events: EventCardData[]): PartitionedF
 
 /** Slovak date overview for Rozpisy header, e.g. "štvrtok 6. 8.". */
 export function slovakScheduleDateOverview(date: Date = new Date()): string {
-  const weekday = date.toLocaleDateString('sk-SK', { weekday: 'long' });
-  const dayMonth = date.toLocaleDateString('sk-SK', { day: 'numeric', month: 'numeric' });
+  const weekday = formatAppDate(date, { weekday: 'long' }, 'sk-SK');
+  const dayMonth = formatAppDate(date, { day: 'numeric', month: 'numeric' }, 'sk-SK');
   return `${weekday} ${dayMonth}`;
 }
 
@@ -423,11 +423,7 @@ export function venueScheduleInitials(venueName: string): string {
 }
 
 export function formatLessonTime(startsAt: Date | string): string {
-  return asDate(startsAt).toLocaleTimeString('sk-SK', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
+  return formatAppTime(asDate(startsAt));
 }
 
 export function groupedScheduleTitle(group: GroupedVenueSchedule): string {

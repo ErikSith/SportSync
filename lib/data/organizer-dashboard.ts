@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { parseDbInstant } from '@/lib/datetime/bratislava';
 
 export interface OrganizerContentItem {
   id: string;
@@ -40,7 +41,7 @@ export async function getOrganizerUpcomingContent(profileId: string): Promise<Or
       kind: 'event',
       title: row.title as string,
       sport: row.sport as string,
-      startsAt: new Date(row.starts_at as string),
+      startsAt: parseDbInstant(row.starts_at as string),
       status: row.status as string,
       href: `/events/${row.id as string}`,
     });
@@ -52,7 +53,7 @@ export async function getOrganizerUpcomingContent(profileId: string): Promise<Or
       kind: 'tournament',
       title: row.name as string,
       sport: row.sport as string,
-      startsAt: new Date(row.starts_at as string),
+      startsAt: parseDbInstant(row.starts_at as string),
       status: row.status as string,
       href: '/tournaments',
     });
