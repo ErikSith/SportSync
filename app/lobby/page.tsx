@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { getPageViewer } from '@/lib/auth/viewer';
-import { getVenuesForHomeFilter } from '@/lib/data/homepage';
+import { getVenuesForLobbyPicker } from '@/lib/data/homepage';
 import {
   getCityLobbyFeed,
   getNearbyLobbyFeed,
@@ -101,7 +101,7 @@ export default async function LobbyPage() {
   const { profile } = viewer;
   const city = profile.city ?? 'Bratislava';
   const hasGps = profile.latitude !== null && profile.longitude !== null;
-  const venues = await getVenuesForHomeFilter(city);
+  const venues = await getVenuesForLobbyPicker(city);
 
   let dbLobbies: LobbyCardData[] = [];
   try {

@@ -25,7 +25,7 @@ export function LobbyGrid({
   }
 
   return (
-    <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 md:gap-4">
+    <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
       {matches.map((match) => (
         <LobbyActivityCard key={match.id} match={match} onView={onAction} busyId={busyId} />
       ))}

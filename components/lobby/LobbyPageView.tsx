@@ -16,8 +16,15 @@ import { LobbyActivityCard } from '@/components/lobby/LobbyActivityCard';
 import { LobbyGrid } from '@/components/lobby/LobbyGrid';
 import { CreateLobbyModal } from '@/components/lobby/CreateLobbyModal';
 import { CreateCrewModal } from '@/components/lobby/CreateCrewModal';
+import { LobbyPreviewModal } from '@/components/lobby/LobbyPreviewModal';
+import {
+  draftToLobbyPreview,
+  matchCardToLobbyPreview,
+  type LobbyPreviewData,
+} from '@/components/lobby/lobby-preview';
 import { PageTitleRow } from '@/components/shared/PageTitleRow';
 import type { CreateLobbyDraft } from '@/types/lobby';
+import { buildCreateLobbyPayload } from '@/lib/lobby-create';
 
 export function LobbyPageView({
   city = 'Bratislava',
@@ -35,6 +42,7 @@ export function LobbyPageView({
   const [search, setSearch] = useState('');
   const [lobbyModalOpen, setLobbyModalOpen] = useState(false);
   const [crewModalOpen, setCrewModalOpen] = useState(false);
+  const [preview, setPreview] = useState<LobbyPreviewData | null>(null);
   const [matches] = useState<MatchCardData[]>(
     initialMatches && initialMatches.length > 0 ? initialMatches : MOCK_MATCH_CARDS,
   );
@@ -69,11 +77,16 @@ export function LobbyPageView({
             (m.teamName?.toLowerCase().includes(q) ?? false) ||
             m.roster.some((p) => p.name.toLowerCase().includes(q)),
         );
-    return pool.slice(0, 4);
+    return pool;
   }, [matches, search]);
 
   function openMatch(id: string) {
-    router.push(`/lobby/${id}`);
+    const match = matches.find((m) => m.id === id);
+    if (!match) {
+      router.push(`/lobby/${id}`);
+      return;
+    }
+    setPreview(matchCardToLobbyPreview(match));
   }
 
   function selectSport(sport: LobbySportKey) {
@@ -86,9 +99,29 @@ export function LobbyPageView({
     setSearch('');
   }
 
-  function handleLobbyCreated(_draft: CreateLobbyDraft) {
-    // API wiring comes next — wizard shell is ready in the modal.
+  async function handleLobbyCreated(draft: CreateLobbyDraft) {
+    const built = buildCreateLobbyPayload(draft, city);
+    if (!built.ok) {
+      throw new Error(built.error);
+    }
+
+    const res = await fetch('/api/lobbies', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(built.payload),
+    });
+    const body = (await res.json().catch(() => null)) as {
+      error?: string;
+      lobbyId?: string;
+    } | null;
+
+    if (!res.ok || !body?.lobbyId) {
+      throw new Error(body?.error ?? 'Lobby sa nepodarilo vytvoriť.');
+    }
+
     setLobbyModalOpen(false);
+    setPreview(draftToLobbyPreview(draft, body.lobbyId, city));
+    router.refresh();
   }
 
   const sportMeta = selectedSport ? LOBBY_SPORT_META[selectedSport] : null;
@@ -178,13 +211,18 @@ export function LobbyPageView({
             <LobbySportPicker matches={matches} onSelect={selectSport} />
 
             <section className="space-y-3">
-              <h2 className="font-label-caps text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-                Featured Activity
-              </h2>
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="font-label-caps text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                  Featured Activity
+                </h2>
+                <p className="font-label-caps text-[9px] uppercase tracking-[0.14em] text-zinc-600">
+                  {featured.length} open
+                </p>
+              </div>
               {featured.length === 0 ? (
                 <p className="text-sm text-zinc-500">No open lobbies nearby right now.</p>
               ) : (
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                   {featured.map((match) => (
                     <LobbyActivityCard key={match.id} match={match} onView={openMatch} />
                   ))}
@@ -199,6 +237,8 @@ export function LobbyPageView({
         open={lobbyModalOpen}
         onClose={() => setLobbyModalOpen(false)}
         onCreated={handleLobbyCreated}
+        venues={venues}
+        city={city}
       />
       <CreateCrewModal
         open={crewModalOpen}
@@ -206,6 +246,16 @@ export function LobbyPageView({
         groups={groups}
         onCreated={() => router.refresh()}
       />
+      {preview ? (
+        <LobbyPreviewModal
+          lobby={preview}
+          open
+          onClose={() => {
+            setPreview(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

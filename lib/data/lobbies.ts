@@ -294,6 +294,7 @@ export interface LobbyVenueInfo {
   name: string;
   address: string | null;
   city: string;
+  websiteUrl: string | null;
 }
 
 export interface LobbyRosterParticipant {
@@ -309,6 +310,8 @@ export interface LobbyDetailData {
   id: string;
   sport: string;
   format: string;
+  title: string | null;
+  lobbyType: string | null;
   city: string;
   scheduledAt: Date;
   spotsTotal: number;
@@ -332,6 +335,8 @@ interface LobbyDetailRow {
   id: string;
   sport: string;
   format: string;
+  title: string | null;
+  lobby_type: string | null;
   city: string;
   scheduled_at: string;
   spots_total: number;
@@ -347,8 +352,8 @@ interface LobbyDetailRow {
   created_at: string;
   profiles: ProfileSnippet & { karma_score?: number | string | null } | Array<ProfileSnippet & { karma_score?: number | string | null }> | null;
   venues:
-    | { id: string; name: string; address: string | null; city: string }
-    | Array<{ id: string; name: string; address: string | null; city: string }>
+    | { id: string; name: string; address: string | null; city: string; website_url?: string | null }
+    | Array<{ id: string; name: string; address: string | null; city: string; website_url?: string | null }>
     | null;
   lobby_participants: Array<{
     user_id: string;
@@ -366,7 +371,7 @@ export async function getLobbyById(id: string, viewerProfileId: string): Promise
       `
       *,
       profiles!lobbies_host_id_fkey ( id, full_name, username, avatar_url, karma_score ),
-      venues ( id, name, address, city ),
+      venues ( id, name, address, city, website_url ),
       lobby_participants (
         user_id,
         joined_at,
@@ -407,6 +412,8 @@ export async function getLobbyById(id: string, viewerProfileId: string): Promise
     id: lobby.id,
     sport: lobby.sport,
     format: lobby.format,
+    title: lobby.title ?? null,
+    lobbyType: lobby.lobby_type ?? null,
     city: lobby.city,
     scheduledAt: new Date(lobby.scheduled_at),
     spotsTotal: lobby.spots_total,
@@ -431,6 +438,7 @@ export async function getLobbyById(id: string, viewerProfileId: string): Promise
           name: venueRow.name,
           address: venueRow.address,
           city: venueRow.city,
+          websiteUrl: venueRow.website_url ?? null,
         }
       : null,
     participants,

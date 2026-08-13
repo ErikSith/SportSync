@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -10,7 +10,7 @@ import {
   ChevronRight,
   Home,
   Repeat,
-  Sparkles,
+  Search,
   Swords,
   UserRound,
   Users,
@@ -20,6 +20,7 @@ import {
   LobbySchedulePicker,
 } from '@/components/lobby/LobbySchedulePicker';
 import { toDateKey } from '@/lib/event-date-filter';
+import type { HomeFilterVenue } from '@/lib/data/homepage';
 import type { CreateLobbyDraft, SkillLevel } from '@/types/lobby';
 import {
   EMPTY_CREATE_DRAFT,
@@ -27,19 +28,68 @@ import {
   LobbyType,
   SKILL_LEVEL_LABELS,
 } from '@/types/lobby';
-import { parseAiLobbyPrompt } from '@/components/lobby/lobby-ui';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 
 const SPORTS = ['Padel', 'Tenis', 'Futbal', 'Basketbal', 'Squash', 'Running', 'Volleyball', 'Hockey'];
-const VENUES = ['Park 21', 'Aurial Padel', 'FitCamp', 'Tehelné pole', 'NTC Bratislava'];
+const FALLBACK_VENUES: HomeFilterVenue[] = [
+  { id: 'fallback-park-21', name: 'Park 21', city: 'Bratislava', sports: [] },
+  { id: 'fallback-aurial', name: 'Aurial Padel', city: 'Bratislava', sports: ['PADEL'] },
+  { id: 'fallback-fitcamp', name: 'FitCamp', city: 'Bratislava', sports: [] },
+  { id: 'fallback-tehelne', name: 'Tehelné pole', city: 'Bratislava', sports: ['FOOTBALL'] },
+  { id: 'fallback-ntc', name: 'NTC Bratislava', city: 'Bratislava', sports: [] },
+];
 const SPOT_OPTIONS = [1, 2, 3, 4, 5] as const;
+const VENUE_SUGGESTION_LIMIT = 3;
+
+const SPORT_QUERY_KEYS: Record<string, string[]> = {
+  Padel: ['padel', 'PADEL'],
+  Tenis: ['tenis', 'tennis', 'TENNIS'],
+  Futbal: ['futbal', 'football', 'soccer', 'FOOTBALL'],
+  Basketbal: ['basket', 'basketball', 'BASKETBALL'],
+  Squash: ['squash', 'SQUASH'],
+  Running: ['run', 'running', 'beh', 'RUNNING'],
+  Volleyball: ['volley', 'volejbal', 'VOLLEYBALL'],
+  Hockey: ['hokej', 'hockey', 'HOCKEY'],
+};
+
+function scoreVenueMatch(
+  venue: HomeFilterVenue,
+  query: string,
+  selectedSport: string,
+): number {
+  const name = venue.name.toLowerCase();
+  const city = venue.city.toLowerCase();
+  const sports = venue.sports.map((s) => s.toUpperCase());
+  let score = 0;
+
+  if (name === query) score = 120;
+  else if (name.startsWith(query)) score = 95;
+  else if (name.split(/[\s\-_/]+/).some((part) => part.startsWith(query))) score = 85;
+  else if (name.includes(query)) score = 65;
+  else if (city.startsWith(query)) score = 30;
+  else if (city.includes(query)) score = 15;
+  else return 0;
+
+  const sportKeys = SPORT_QUERY_KEYS[selectedSport] ?? [];
+  if (sportKeys.length > 0) {
+    const sportHit = sports.some((sport) =>
+      sportKeys.some((key) => sport.includes(key.toUpperCase())),
+    );
+    const nameHit = sportKeys.some((key) => name.includes(key.toLowerCase()));
+    if (sportHit || nameHit) score += 25;
+  }
+
+  return score;
+}
 
 type DetailPhase = 'sport' | 'schedule' | 'venue' | 'players';
 
 interface CreateLobbyModalProps {
   open: boolean;
   onClose: () => void;
-  onCreated: (draft: CreateLobbyDraft) => void;
+  onCreated: (draft: CreateLobbyDraft) => Promise<void> | void;
+  venues?: HomeFilterVenue[];
+  city?: string;
 }
 
 const TYPE_OPTIONS: { type: LobbyType; icon: typeof Users; desc: string }[] = [
@@ -128,14 +178,24 @@ function StepChip({
   );
 }
 
-export function CreateLobbyModal({ open, onClose, onCreated }: CreateLobbyModalProps) {
+export function CreateLobbyModal({
+  open,
+  onClose,
+  onCreated,
+  venues = [],
+  city = 'Bratislava',
+}: CreateLobbyModalProps) {
   const titleId = useId();
+  const venueSearchId = useId();
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState(0);
   const [detailPhase, setDetailPhase] = useState<DetailPhase | null>(null);
   const [draft, setDraft] = useState<CreateLobbyDraft>(EMPTY_CREATE_DRAFT);
-  const [aiParsing, setAiParsing] = useState(false);
-  const [aiHint, setAiHint] = useState<string | null>(null);
+  const [venueQuery, setVenueQuery] = useState('');
+  const [venueHighlight, setVenueHighlight] = useState(0);
+  const [fetchedVenues, setFetchedVenues] = useState<HomeFilterVenue[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useBodyScrollLock(open);
 
@@ -145,14 +205,81 @@ export function CreateLobbyModal({ open, onClose, onCreated }: CreateLobbyModalP
     if (!open) return;
     setStep(0);
     setDetailPhase(null);
+    setVenueQuery('');
+    setVenueHighlight(0);
+    setSubmitting(false);
+    setSubmitError(null);
     setDraft({
       ...EMPTY_CREATE_DRAFT,
       date: toDateKey(new Date()),
       sport: '',
       venue: '',
+      venueId: null,
     });
-    setAiHint(null);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || venues.length > 0) return;
+    let cancelled = false;
+    fetch('/api/venues?radius=50')
+      .then((res) => res.json())
+      .then((payload: { venues?: Array<{ id: string; name: string; city: string; sports?: string[] | null }> }) => {
+        if (cancelled || !Array.isArray(payload.venues)) return;
+        setFetchedVenues(
+          payload.venues.map((v) => ({
+            id: v.id,
+            name: v.name,
+            city: v.city,
+            sports: v.sports ?? [],
+          })),
+        );
+      })
+      .catch(() => {
+        /* keep fallback list */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, venues.length]);
+
+  const catalogVenues = useMemo(() => {
+    if (venues.length > 0) return venues;
+    if (fetchedVenues.length > 0) return fetchedVenues;
+    return FALLBACK_VENUES;
+  }, [venues, fetchedVenues]);
+
+  const venueQueryTrim = venueQuery.trim();
+  const venueQueryLower = venueQueryTrim.toLowerCase();
+
+  const suggestedVenues = useMemo(() => {
+    // Wait for a real token so short noise ("t") doesn't dump a long list.
+    if (venueQueryLower.length < 2) return [];
+
+    return catalogVenues
+      .map((venue) => ({
+        venue,
+        score: scoreVenueMatch(venue, venueQueryLower, draft.sport),
+      }))
+      .filter((row) => row.score > 0)
+      .sort((a, b) => b.score - a.score || a.venue.name.localeCompare(b.venue.name))
+      .slice(0, VENUE_SUGGESTION_LIMIT)
+      .map((row) => row.venue);
+  }, [catalogVenues, venueQueryLower, draft.sport]);
+
+  const showSuggestions = venueQueryLower.length >= 2;
+
+  useEffect(() => {
+    setVenueHighlight(0);
+  }, [venueQueryLower, detailPhase]);
+
+  function selectVenue(name: string, venueId: string | null = null) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    patch({ venue: trimmed, venueId });
+    setVenueQuery('');
+    setVenueHighlight(0);
+    setDetailPhase(null);
+  }
 
   useEffect(() => {
     if (step === 1) setDetailPhase(null);
@@ -169,26 +296,6 @@ export function CreateLobbyModal({ open, onClose, onCreated }: CreateLobbyModalP
 
   function patch(partial: Partial<CreateLobbyDraft>) {
     setDraft((d) => ({ ...d, ...partial }));
-  }
-
-  function runAiFill() {
-    if (!draft.aiPrompt.trim()) return;
-    setAiParsing(true);
-    window.setTimeout(() => {
-      const parsed = parseAiLobbyPrompt(draft.aiPrompt);
-      setDraft((d) => ({
-        ...d,
-        sport: parsed.sport ?? d.sport,
-        venue: parsed.venue ?? d.venue,
-        time: parsed.time ?? d.time,
-        skillLevel: parsed.skillLevel ?? d.skillLevel,
-        spotsNeeded: parsed.spotsNeeded ?? d.spotsNeeded,
-        type: d.type ?? LobbyType.SINGLE_PLAYER_1,
-      }));
-      setAiHint('Skontroluj vyplnené polia a potvrď.');
-      setAiParsing(false);
-      setStep(1);
-    }, 650);
   }
 
   function canNext() {
@@ -384,26 +491,106 @@ export function CreateLobbyModal({ open, onClose, onCreated }: CreateLobbyModalP
                     ) : null}
 
                     {detailPhase === 'venue' ? (
-                      <motion.div key="venue" {...panelMotion}>
-                        <p className={`${sectionLabel} mb-2`}>Kde sa stretnete?</p>
-                        <div className={scrollRow} role="list">
-                          {VENUES.map((venue) => {
-                            const active = draft.venue === venue;
-                            return (
-                              <button
-                                key={venue}
-                                type="button"
-                                role="listitem"
-                                onClick={() => {
-                                  patch({ venue });
-                                  setDetailPhase(null);
-                                }}
-                                className={`${chip} ${active ? chipOn : chipIdle}`}
-                              >
-                                {venue}
-                              </button>
-                            );
-                          })}
+                      <motion.div key="venue" className="space-y-3" {...panelMotion}>
+                        <p className={sectionLabel}>Kde sa stretnete?</p>
+                        <div className="space-y-2">
+                          <label htmlFor={venueSearchId} className="relative block">
+                            <Search
+                              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+                              strokeWidth={1.75}
+                            />
+                            <input
+                              id={venueSearchId}
+                              type="search"
+                              role="combobox"
+                              aria-expanded={showSuggestions && suggestedVenues.length > 0}
+                              aria-controls={`${venueSearchId}-list`}
+                              aria-autocomplete="list"
+                              value={venueQuery}
+                              autoFocus
+                              autoComplete="off"
+                              placeholder={`Napíš názov športoviska v ${city}…`}
+                              onChange={(e) => setVenueQuery(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (!showSuggestions || suggestedVenues.length === 0) {
+                                  if (e.key === 'Enter' && venueQueryTrim) {
+                                    e.preventDefault();
+                                    selectVenue(venueQueryTrim, null);
+                                  }
+                                  return;
+                                }
+                                if (e.key === 'ArrowDown') {
+                                  e.preventDefault();
+                                  setVenueHighlight((i) =>
+                                    Math.min(i + 1, suggestedVenues.length - 1),
+                                  );
+                                  return;
+                                }
+                                if (e.key === 'ArrowUp') {
+                                  e.preventDefault();
+                                  setVenueHighlight((i) => Math.max(i - 1, 0));
+                                  return;
+                                }
+                                if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  setVenueQuery('');
+                                  return;
+                                }
+                                if (e.key !== 'Enter') return;
+                                e.preventDefault();
+                                const highlighted = suggestedVenues[venueHighlight];
+                                if (highlighted) {
+                                  selectVenue(highlighted.name, highlighted.id);
+                                  return;
+                                }
+                                if (venueQueryTrim) selectVenue(venueQueryTrim, null);
+                              }}
+                              className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-2.5 pl-10 pr-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-[#FF5722]/45 focus:bg-white/[0.04]"
+                            />
+                          </label>
+
+                          {showSuggestions && suggestedVenues.length > 0 ? (
+                            <div
+                              id={`${venueSearchId}-list`}
+                              role="listbox"
+                              aria-label="Najbližšie športoviská"
+                              className="flex flex-col gap-1"
+                            >
+                              {suggestedVenues.map((venue, index) => {
+                                const active = index === venueHighlight;
+                                return (
+                                  <button
+                                    key={venue.id}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={active}
+                                    onMouseEnter={() => setVenueHighlight(index)}
+                                    onClick={() => selectVenue(venue.name, venue.id)}
+                                    className={[
+                                      'w-full truncate rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                                      active
+                                        ? 'bg-white/[0.07] text-white'
+                                        : 'text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200',
+                                    ].join(' ')}
+                                  >
+                                    {venue.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : showSuggestions ? (
+                            <button
+                              type="button"
+                              onClick={() => selectVenue(venueQueryTrim, null)}
+                              className="w-full truncate rounded-lg px-3 py-2 text-left text-sm text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
+                            >
+                              Použiť „{venueQueryTrim}“
+                            </button>
+                          ) : (
+                            <p className="px-1 text-[11px] text-zinc-600">
+                              Začni písať — ukážeme 3 najbližšie tipy.
+                            </p>
+                          )}
                         </div>
                       </motion.div>
                     ) : null}
@@ -469,33 +656,6 @@ export function CreateLobbyModal({ open, onClose, onCreated }: CreateLobbyModalP
                       value={`${draft.spotsNeeded} · ${SKILL_LEVEL_LABELS[draft.skillLevel]}`}
                     />
                   </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-transparent p-4 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-primary-container/80" strokeWidth={1.75} />
-                      <p className="font-label-caps text-[9px] uppercase tracking-[0.12em] text-zinc-400">
-                        Alebo popíš AI
-                      </p>
-                    </div>
-                    <textarea
-                      value={draft.aiPrompt}
-                      onChange={(e) => patch({ aiPrompt: e.target.value })}
-                      rows={3}
-                      placeholder="Hľadám 4. do padelu v piatok o 17 v Parku 21…"
-                      className="w-full resize-none rounded-xl border border-white/10 bg-transparent px-3 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-white/18"
-                    />
-                    <button
-                      type="button"
-                      onClick={runAiFill}
-                      disabled={aiParsing || !draft.aiPrompt.trim()}
-                      className="w-full rounded-xl border border-white/10 py-2.5 font-label-caps text-[10px] uppercase tracking-[0.12em] text-zinc-300 transition hover:border-white/16 hover:text-white disabled:opacity-40"
-                    >
-                      {aiParsing ? 'AI číta…' : 'Vyplniť cez AI'}
-                    </button>
-                    {aiHint ? (
-                      <p className="font-body-sm text-xs text-primary-container/90">{aiHint}</p>
-                    ) : null}
-                  </div>
                 </div>
               ) : null}
             </div>
@@ -530,18 +690,35 @@ export function CreateLobbyModal({ open, onClose, onCreated }: CreateLobbyModalP
                   <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               ) : (
-                <button
-                  type="button"
-                  disabled={!draft.type}
-                  onClick={() => {
-                    if (!draft.type) return;
-                    onCreated(draft);
-                    onClose();
-                  }}
-                  className="flex-1 rounded-xl border border-primary-container/35 bg-primary-container/15 py-3 font-label-caps text-[11px] text-white transition-all hover:border-primary-container/50 hover:bg-primary-container/20 active:scale-[0.98] disabled:opacity-40"
-                >
-                  Vytvoriť
-                </button>
+                <div className="flex flex-1 flex-col gap-1.5">
+                  {submitError ? (
+                    <p className="text-center text-[11px] text-error">{submitError}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={!draft.type || submitting}
+                    onClick={() => {
+                      if (!draft.type || submitting) return;
+                      void (async () => {
+                        setSubmitError(null);
+                        setSubmitting(true);
+                        try {
+                          await onCreated(draft);
+                          onClose();
+                        } catch (err) {
+                          setSubmitError(
+                            err instanceof Error ? err.message : 'Lobby sa nepodarilo vytvoriť.',
+                          );
+                        } finally {
+                          setSubmitting(false);
+                        }
+                      })();
+                    }}
+                    className="w-full rounded-xl border border-primary-container/35 bg-primary-container/15 py-3 font-label-caps text-[11px] text-white transition-all hover:border-primary-container/50 hover:bg-primary-container/20 active:scale-[0.98] disabled:opacity-40"
+                  >
+                    {submitting ? 'Vytváram…' : 'Vytvoriť'}
+                  </button>
+                </div>
               )}
             </div>
           </motion.div>

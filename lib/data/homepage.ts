@@ -270,6 +270,20 @@ function lastSpotsFillRatio(event: EventCardData): number {
   return event.registeredCount / event.capacity;
 }
 
+function mapHomeFilterVenue(venue: {
+  id: string;
+  name: string;
+  city: string;
+  sports: string[] | null;
+}): HomeFilterVenue {
+  return {
+    id: venue.id,
+    name: venue.name,
+    city: venue.city,
+    sports: venue.sports ?? [],
+  };
+}
+
 /** Venues in the user's city for the homepage feed filter picker. */
 export async function getVenuesForHomeFilter(city: string, take = 12): Promise<HomeFilterVenue[]> {
   const supabase = await createClient();
@@ -285,12 +299,45 @@ export async function getVenuesForHomeFilter(city: string, take = 12): Promise<H
     return [];
   }
 
-  return data.map((venue) => ({
-    id: venue.id as string,
-    name: venue.name as string,
-    city: venue.city as string,
-    sports: (venue.sports as string[] | null) ?? [],
-  }));
+  return data.map((venue) =>
+    mapHomeFilterVenue(venue as { id: string; name: string; city: string; sports: string[] | null }),
+  );
+}
+
+/** Full venue list for lobby create autocomplete (city first, then all venues). */
+export async function getVenuesForLobbyPicker(city: string, take = 250): Promise<HomeFilterVenue[]> {
+  const supabase = await createClient();
+  const select = 'id, name, city, sports';
+
+  const cityRes = await supabase
+    .from('venues')
+    .select(select)
+    .ilike('city', `%${city}%`)
+    .order('name', { ascending: true })
+    .limit(take);
+
+  if (cityRes.error) {
+    console.error('[homepage.getVenuesForLobbyPicker]', cityRes.error.message, cityRes.error);
+  }
+
+  let rows = cityRes.data ?? [];
+
+  if (rows.length === 0) {
+    const allRes = await supabase
+      .from('venues')
+      .select(select)
+      .order('name', { ascending: true })
+      .limit(take);
+    if (allRes.error) {
+      console.error('[homepage.getVenuesForLobbyPicker.all]', allRes.error.message, allRes.error);
+      return [];
+    }
+    rows = allRes.data ?? [];
+  }
+
+  return rows.map((venue) =>
+    mapHomeFilterVenue(venue as { id: string; name: string; city: string; sports: string[] | null }),
+  );
 }
 
 /** Favorite venues from play history + explicit picks in the feed filter. */

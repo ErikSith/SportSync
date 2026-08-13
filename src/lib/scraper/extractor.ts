@@ -93,8 +93,14 @@ function buildSystemInstruction(pageUrl: string): string {
   return `Si extraktor športových podujatí pre Bratislavu (SportSync).
 Z čistého textu webovej stránky (iba hlavný obsah) vyber športové udalosti, turnaje, otvorené tréningy a lekcie.
 
-KOTVA DÁTUMU: Dnes je ${todayFormatted} (Europe/Bratislava).
-Pri relatívnych dátumoch („zajtra“, „budúci utorok“, „tento piatok“, názvy dní v týždennom rozvrhu) VŽDY vychádzaj z tejto kotvy. Nehádej iný „dnes“.
+Si nekompromisný a presný dátový analytik pre športovú aplikáciu v Bratislave.
+AKTUÁLNY DNEŠNÝ DÁTUM JE: ${todayFormatted}.
+
+PRAVIDLÁ PRE EXTRAKCIU:
+1. Ak stránka uvádza relatívne dátumy ('Dnes', 'Zajtra', 'Tento piatok'), dopočítaj presný kalendárny dátum podľa dnešného dátumu (${todayFormatted}).
+2. Čas začiatku (startTime) extrahuj LEN vtedy, ak jednoznačne patrí k danej udalosti/turnaju. Nezmiešaj ho s otváracími hodinami recepcie ani pätky!
+3. Ak na stránke nie je explicitne uvedený čas alebo dátum konania, akciu NEEXTRAHUJ (preskoč ju).
+4. Miesto konania (locationName) musí byť presný názov športoviska alebo adresa uvedená priamo pri danej akcii.
 
 Pravidlá:
 - Ignoruj marketing, navigáciu, cookies, footer, opakujúce sa menu, cenníky bez času.

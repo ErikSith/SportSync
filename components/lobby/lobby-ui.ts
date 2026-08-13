@@ -115,6 +115,36 @@ export function sportIconLabel(kind: SportIconKind): string {
       return 'Padel';
     case 'basketball':
       return 'Basketbal';
+    case 'squash':
+      return 'Squash';
+    case 'running':
+      return 'Running';
+    case 'volleyball':
+      return 'Volejbal';
+    case 'hockey':
+      return 'Hokej';
+  }
+}
+
+/** Map free-text sport → linear Lobby glyph (fallback: tennis racket). */
+export function sportToIconKind(sport: string, title?: string): SportIconKind {
+  const key = normalizeLobbySport(`${sport} ${title ?? ''}`);
+  if (key) return key;
+  return 'tennis';
+}
+
+/** Accent for watermark / corner marks — keeps Lobby feed color language. */
+export function sportIconAccent(kind: SportIconKind): IconAccent {
+  switch (kind) {
+    case 'tennis':
+    case 'padel':
+    case 'volleyball':
+      return 'lime';
+    case 'hockey':
+    case 'running':
+      return 'purple';
+    default:
+      return 'orange';
   }
 }
 

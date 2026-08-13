@@ -8,7 +8,15 @@ export type StackLobbyType = 'NEED_PLAYER' | 'TEAM_CHALLENGE' | 'RECURRING';
 
 export type SkillLevel = 'NOVICE' | 'INTERMEDIATE' | 'ADVANCED' | 'MEDIUM';
 
-export type SportIconKind = 'football' | 'tennis' | 'padel' | 'basketball';
+export type SportIconKind =
+  | 'football'
+  | 'tennis'
+  | 'padel'
+  | 'basketball'
+  | 'squash'
+  | 'running'
+  | 'volleyball'
+  | 'hockey';
 
 /** Hub sport keys used for Lobby sport picker → filtered feed. */
 export type LobbySportKey =
@@ -100,6 +108,8 @@ export interface CreateLobbyDraft {
   date: string;
   time: string;
   venue: string;
+  /** Real venues UUID when picked from catalog; null for free-text / fallback. */
+  venueId: string | null;
   spotsNeeded: number;
   skillLevel: SkillLevel;
   aiPrompt: string;
@@ -125,6 +135,7 @@ export const EMPTY_CREATE_DRAFT: CreateLobbyDraft = {
   date: '',
   time: '18:00',
   venue: 'Park 21',
+  venueId: null,
   spotsNeeded: 1,
   skillLevel: 'INTERMEDIATE',
   aiPrompt: '',

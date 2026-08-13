@@ -17,6 +17,9 @@ const createLobbySchema = z.object({
   spotsTotal: z.number().int().min(2).max(10),
   mercenaryMode: z.boolean().default(false),
   venueId: z.string().uuid().optional(),
+  skillLevel: z.number().int().min(0).max(3000).optional(),
+  lobbyType: z.enum(['NEED_PLAYER', 'TEAM_CHALLENGE', 'RECURRING']).optional(),
+  title: z.string().trim().min(1).max(120).optional(),
 });
 
 export async function POST(request: Request) {
@@ -43,25 +46,65 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Scheduled time must be in the future' }, { status: 400 });
   }
 
-  const { data: lobby, error: lobbyError } = await supabase
-    .from('lobbies')
-    .insert({
-      host_id: auth.user.id,
-      sport: input.sport,
-      format: input.format,
-      city: city.name,
-      scheduled_at: scheduledAt.toISOString(),
-      spots_total: input.spotsTotal,
-      cost_per_player: 0,
-      split_pay: false,
-      mercenary_mode: input.mercenaryMode,
-      venue_id: input.venueId ?? null,
-      latitude: city.latitude,
-      longitude: city.longitude,
-      status: 'open',
-    })
-    .select('id')
-    .single();
+  let latitude = city.latitude;
+  let longitude = city.longitude;
+
+  if (input.venueId) {
+    const { data: venue, error: venueError } = await supabase
+      .from('venues')
+      .select('id, latitude, longitude')
+      .eq('id', input.venueId)
+      .maybeSingle();
+    if (venueError || !venue) {
+      return NextResponse.json({ error: 'Venue not found' }, { status: 422 });
+    }
+    if (typeof venue.latitude === 'number' && typeof venue.longitude === 'number') {
+      latitude = venue.latitude;
+      longitude = venue.longitude;
+    }
+  }
+
+  const baseInsert = {
+    host_id: auth.user.id,
+    sport: input.sport,
+    format: input.format,
+    city: city.name,
+    scheduled_at: scheduledAt.toISOString(),
+    spots_total: input.spotsTotal,
+    cost_per_player: 0,
+    split_pay: false,
+    mercenary_mode: input.mercenaryMode,
+    venue_id: input.venueId ?? null,
+    latitude,
+    longitude,
+    status: 'open',
+  };
+
+  const enrichedInsert = {
+    ...baseInsert,
+    skill_level: input.skillLevel ?? null,
+    lobby_type: input.lobbyType ?? null,
+    title: input.title ?? null,
+  };
+
+  let lobby: { id: string } | null = null;
+  let lobbyError: { message: string } | null = null;
+
+  {
+    const first = await supabase.from('lobbies').insert(enrichedInsert).select('id').single();
+    lobby = first.data as { id: string } | null;
+    lobbyError = first.error;
+
+    // Remote DB may lag Prisma (missing lobby_type/title/skill_level) — retry core columns only.
+    if (
+      lobbyError &&
+      /lobby_type|skill_level|title|schema cache/i.test(lobbyError.message)
+    ) {
+      const fallback = await supabase.from('lobbies').insert(baseInsert).select('id').single();
+      lobby = fallback.data as { id: string } | null;
+      lobbyError = fallback.error;
+    }
+  }
 
   if (lobbyError || !lobby) {
     return NextResponse.json({ error: lobbyError?.message ?? 'Could not create lobby' }, { status: 500 });
@@ -78,15 +121,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: joinError.message }, { status: 500 });
   }
 
-  // Autonomous matchmaking: notify nearby players who like this sport, and if
-  // the lobby is a "Mercenary +1" broadcast an SOS to opted-in mercenaries.
   let matching: Awaited<ReturnType<typeof autoMatchPlayers>> | null = null;
   try {
     matching = await autoMatchPlayers({
       entityType: 'lobby',
       entityId: lobby.id as string,
       sport: input.sport,
-      title: `${input.format} in ${city.name}`,
+      title: input.title ?? `${input.format} in ${city.name}`,
       city: city.name,
       latitude: city.latitude,
       longitude: city.longitude,
