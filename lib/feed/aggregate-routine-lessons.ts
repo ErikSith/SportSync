@@ -9,12 +9,25 @@ const ROUTINE_CLASS_SOURCES = new Set([
   'prostor',
   'ofa-mma',
   'chaos-mma',
+  'gemini-web',
 ]);
 
 const SPECIAL_EVENT_TITLE =
-  /\b(piatkovica|open\s*air|hyrox|workshop|masterclass|marathon|turnaj|tournament|cup|open)\b/i;
+  /\b(piatkovica|open\s*air|hyrox|workshop|masterclass|marathon|turnaj|tournament|cup|championship|liga|match|zápas|exhibition|koncert)\b/i;
 
-const GROUP_CLASS_DESCRIPTION = /skupinov[ée]\s+cvičen/i;
+const GROUP_CLASS_DESCRIPTION =
+  /skupinov[ée]\s+cvičen|skupinov[ýáé]\s+tr[eé]ning|group\s+class|rozvrh\s+lekci/i;
+
+/** Typical repeating studio class names (not one-off events). */
+const GROUP_CLASS_TITLE =
+  /\b(pilates|piloxing|hiit|yoga|joga|tabata|spinning|cycling|crossfit|body\s*pump|body\s*combat|power\s*plate|bungee|jumping|kruhov[ýa]|funkčn|functional|kickbox|k1|muay\s*thai|box|boxing|mma|bjj|grappling|tréning|trening|lekcia|lesson|class|fitcamp|visionbody|kruhový\s+tréning)\b/i;
+
+/** Schedule / timetable pages → always group lessons unless title is a special event. */
+const SCHEDULE_SOURCE_URL =
+  /\/(rozvrh|schedule|calendar|kalendar|treningy?|tréningy?|lekcie?|classes?|skupinov)(\/|$|\?)/i;
+
+/** Minimum same-venue same-day aggregated slots to treat the whole bucket as lessons. */
+const DENSE_VENUE_DAY_MIN = 3;
 
 /** Minimum lessons per venue+day before collapsing into one schedule card. */
 const MIN_GROUP_SIZE = 2;
@@ -121,11 +134,26 @@ export function shortScheduleDayLabel(dayLabel: string): string {
 /**
  * Classify a feed event as a repeating venue group lesson vs a standalone event
  * (tournament, lobby match, marketing one-off, in-app registration).
+ *
+ * Heuristics (any one is enough, after base gates):
+ * - `class-` external id (scrapers mark schedule slots this way)
+ * - source_url looks like a rozvrh / schedule page
+ * - description mentions skupinové cvičenie
+ * - title looks like a studio class (Pilates, HIIT, Box…)
+ * - known dense class sources (Form Factory, gemini-web, …) + fitness/combat sports
+ * - optional dense venue-day override via `denseVenueDayIds`
  */
-export function isRoutineLesson(event: EventCardData): boolean {
+export function isRoutineLesson(
+  event: EventCardData,
+  denseVenueDayIds?: ReadonlySet<string>,
+): boolean {
   if (event.participationMode !== 'participate') return false;
   if (event.type === 'community') return false;
   if (!event.isAggregated) return false;
+
+  if (denseVenueDayIds?.has(event.id)) {
+    return !SPECIAL_EVENT_TITLE.test(event.title);
+  }
 
   const externalId = (event.externalId ?? '').toLowerCase();
   if (externalId.startsWith('event-')) return false;
@@ -133,17 +161,55 @@ export function isRoutineLesson(event: EventCardData): boolean {
 
   if (SPECIAL_EVENT_TITLE.test(event.title)) return false;
 
+  const sourceUrl = (event.sourceUrl ?? event.ticketUrl ?? '').toLowerCase();
+  if (SCHEDULE_SOURCE_URL.test(sourceUrl)) return true;
+
   if (GROUP_CLASS_DESCRIPTION.test(event.description ?? '')) return true;
+  if (GROUP_CLASS_TITLE.test(event.title)) return true;
 
   const source = (event.source ?? '').toLowerCase();
   if (ROUTINE_CLASS_SOURCES.has(source)) {
     const sport = event.sport.toUpperCase();
-    if (sport === 'FITNESS' || sport === 'OTHER' || sport === 'MMA' || sport === 'COMBAT') {
+    if (
+      sport === 'FITNESS' ||
+      sport === 'OTHER' ||
+      sport === 'MMA' ||
+      sport === 'COMBAT' ||
+      sport === 'BOXING' ||
+      sport === 'YOGA'
+    ) {
       return true;
     }
   }
 
   return false;
+}
+
+/**
+ * Venues that publish many short slots on the same day are studios, not event hosts.
+ * Returns event ids that should be treated as group lessons.
+ */
+export function denseVenueDayLessonIds(events: EventCardData[]): Set<string> {
+  const buckets = new Map<string, EventCardData[]>();
+
+  for (const event of events) {
+    if (event.participationMode !== 'participate') continue;
+    if (event.type === 'community') continue;
+    if (!event.isAggregated) continue;
+    if (SPECIAL_EVENT_TITLE.test(event.title)) continue;
+
+    const key = groupKey(event);
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(event);
+    else buckets.set(key, [event]);
+  }
+
+  const ids = new Set<string>();
+  for (const bucket of buckets.values()) {
+    if (bucket.length < DENSE_VENUE_DAY_MIN) continue;
+    for (const event of bucket) ids.add(event.id);
+  }
+  return ids;
 }
 
 function groupKey(event: EventCardData): string {
@@ -208,10 +274,11 @@ export function aggregateEventsForFeed(
   options?: { minGroupSize?: number },
 ): AggregatedFeedItem[] {
   const minGroupSize = options?.minGroupSize ?? MIN_GROUP_SIZE;
+  const denseIds = denseVenueDayLessonIds(events);
 
   const routineBuckets = new Map<string, EventCardData[]>();
   for (const event of events) {
-    if (!isRoutineLesson(event)) continue;
+    if (!isRoutineLesson(event, denseIds)) continue;
     const key = groupKey(event);
     const bucket = routineBuckets.get(key);
     if (bucket) bucket.push(event);
@@ -227,13 +294,23 @@ export function aggregateEventsForFeed(
   const result: AggregatedFeedItem[] = [];
 
   for (const event of events) {
-    if (!isRoutineLesson(event)) {
+    if (!isRoutineLesson(event, denseIds)) {
       result.push({ kind: 'INDEPENDENT_EVENT', event });
       continue;
     }
 
     const key = groupKey(event);
     if (!groupableKeys.has(key)) {
+      // Still a lesson — keep out of matches by emitting a 1-slot schedule group
+      // when split-feed min size is 1; otherwise fall through as independent only
+      // when minGroupSize > 1 (hybrid hub).
+      if (minGroupSize <= 1) {
+        if (!emittedGroups.has(key)) {
+          emittedGroups.add(key);
+          result.push(buildGroupedSchedule(routineBuckets.get(key) ?? [event], key));
+        }
+        continue;
+      }
       result.push({ kind: 'INDEPENDENT_EVENT', event });
       continue;
     }
@@ -291,13 +368,14 @@ export function partitionFeedForHybridHub(
  * - `venueGroupedSchedules` → Rozpisy & Lekcie (VenueScheduleGroup accordions)
  */
 export function partitionFeedForSplitTabs(events: EventCardData[]): PartitionedFeed {
+  const denseIds = denseVenueDayLessonIds(events);
   const partitioned = partitionFeedForHybridHub(events, {
     minGroupSize: SPLIT_FEED_MIN_GROUP_SIZE,
   });
 
   // Safety net: never surface a routine lesson as a match card.
   const uniqueEvents = partitioned.uniqueEvents.filter(
-    (item) => !isRoutineLesson(item.event),
+    (item) => !isRoutineLesson(item.event, denseIds),
   );
 
   return {

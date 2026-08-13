@@ -17,5 +17,14 @@
     "noUnusedParameters": false
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "prisma", "app", "components", "lib"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "prisma",
+    "app",
+    "components",
+    "lib",
+    "src/lib/scraper",
+    "src/lib/places"
+  ]
 }

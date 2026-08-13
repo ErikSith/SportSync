@@ -174,6 +174,8 @@ model Venue {
   longitude     Float?
   verified      Boolean  @default(false)
   websiteUrl    String?  @map("website_url")
+  /// Google Places place resource id (e.g. places/ChIJ…) for discovery upserts.
+  googlePlaceId String?  @unique @map("google_place_id")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -183,10 +185,38 @@ model Venue {
   tournaments      Tournament[]
   trainingLessons  TrainingLesson[]
   groupActivities  SportGroupActivity[]
+  scrapePages      VenueScrapePage[]
 
   @@index([city])
   @@index([district])
+  @@index([latitude, longitude])
   @@map("venues")
+}
+
+/// Official website / schedule / tournament page discovered for scraping.
+model VenueScrapePage {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId       String?   @map("venue_id") @db.Uuid
+  venue         Venue?    @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  /// Absolute URL to fetch (homepage, /turnaje, /rozvrh, …).
+  url           String
+  /// 'website' | 'tournaments' | 'schedule' | 'events' | 'other'
+  kind          String    @default("website")
+  /// Bratislava borough slug (e.g. ruzinov) when known.
+  borough       String?
+  enabled       Boolean   @default(true)
+  /// 'google-places' | 'manual' | 'scrape-targets'
+  source        String    @default("google-places")
+  lastScrapedAt DateTime? @map("last_scraped_at") @db.Timestamp(6)
+  lastStatus    String?   @map("last_status")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@unique([url])
+  @@index([borough, enabled])
+  @@index([venueId])
+  @@map("venue_scrape_pages")
 }
 
 /// Official venue/club event ("Venue events" in the SportSync business rules).

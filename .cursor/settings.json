@@ -2,6 +2,9 @@
   "plugins": {
     "bright-data": {
       "enabled": true
+    },
+    "firecrawl": {
+      "enabled": true
     }
   }
 }

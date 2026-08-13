@@ -6,6 +6,7 @@ import type { VenueCardData } from '@/lib/data/venues';
 import { getVenuesForArea } from '@/lib/data/area-feed';
 import { VenueCard } from '@/components/venues/VenueCard';
 import { VenueFilterChips } from '@/components/venues/VenueFilterChips';
+import { VenueDiscoveryMapClient } from '@/components/venues/VenueDiscoveryMapClient';
 import { LocationPrompt } from '@/components/home/LocationPrompt';
 import { PageTitleRow } from '@/components/shared/PageTitleRow';
 import { PlayerFeedFilterHydrator } from '@/components/home/HomeFeedFilterButton';
@@ -65,7 +66,6 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
       : getVenuesForArea({ location }),
   ]);
 
-  // District scope comes from venues.district in the database.
   const allVenues = rawFeed?.venues ?? [];
   const availableSports = sportsFromVenues(allVenues);
 
@@ -75,24 +75,26 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
     return true;
   });
 
+  const mappable = filtered.filter((v) => v.latitude != null && v.longitude != null);
+
   return (
     <>
       <Suspense fallback={null}>
         <PlayerFeedFilterHydrator />
       </Suspense>
-      <header className="bg-background/80 backdrop-blur-xl fixed top-0 w-full z-50 border-b border-white/10 shadow-2xl shadow-black/40">
+      <header className="bg-[#121212]/90 backdrop-blur-xl fixed top-0 w-full z-50 border-b border-white/10 shadow-2xl shadow-black/40">
         <div className="flex justify-between items-center px-container-margin-mobile h-16 w-full max-w-screen-xl mx-auto">
           <span className="w-10 h-10" aria-hidden />
           <Link href="/" className="font-display-lg-mobile text-display-lg-mobile font-bold tracking-tighter gradient-text">
             SPORTSYNC
           </Link>
-          <button type="button" className="text-primary hover:opacity-80 active:scale-95 transition-all" aria-label="Notifications">
+          <button type="button" className="text-[#FF5722] hover:opacity-80 active:scale-95 transition-all" aria-label="Notifications">
             <span className="material-symbols-outlined">notifications</span>
           </button>
         </div>
       </header>
 
-      <main className="flex-grow max-w-screen-xl mx-auto w-full px-container-margin-mobile md:px-container-margin-desktop py-gutter flex flex-col gap-gutter pt-24 pb-8">
+      <main className="flex-grow max-w-screen-xl mx-auto w-full px-container-margin-mobile md:px-container-margin-desktop py-gutter flex flex-col gap-gutter pt-24 pb-8 bg-[#121212]">
         <PageTitleRow
           city={city}
           venues={filterVenues}
@@ -103,7 +105,7 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
           }
           subtitle={
             <p className="font-body-md text-body-md text-on-surface-variant mt-1 max-w-2xl">
-              Elite courts and clubs near you — book the facility, not just the match.
+              Map-first discovery — tap a pin for courts, cups, and official links.
             </p>
           }
         />
@@ -111,7 +113,7 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
         {needsGpsPrompt ? (
           <LocationPrompt />
         ) : (
-          <section className="flex flex-col gap-4">
+          <section className="flex flex-col gap-5">
             <Suspense
               fallback={<div className="h-14 rounded-xl bg-surface-container-high animate-pulse" />}
             >
@@ -120,6 +122,20 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
                 availableSports={availableSports}
               />
             </Suspense>
+
+            {mappable.length > 0 ? (
+              <VenueDiscoveryMapClient venues={filtered} />
+            ) : (
+              <div className="rounded-2xl border border-[#FF5722]/25 bg-[#121212] p-8 text-center space-y-2">
+                <span className="material-symbols-outlined text-[#FF5722] text-3xl">pin_drop</span>
+                <p className="font-body-md text-body-md text-on-surface">
+                  No GPS pins yet for this filter.
+                </p>
+                <p className="font-body-md text-body-md text-on-surface-variant">
+                  Run Places discovery (`npm run discover:venues`) or clear filters.
+                </p>
+              </div>
+            )}
 
             {rawFeed?.showExtended && filtered.length > 0 && (
               <div className="flex items-center gap-3">
@@ -140,16 +156,20 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-1">
-                {filtered.map((venue) => (
-                  <VenueCard key={venue.id} venue={venue} />
-                ))}
+              <div className="space-y-3">
+                <h2 className="font-label-caps text-[11px] uppercase tracking-[0.16em] text-[#FF5722]">
+                  List
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filtered.map((venue) => (
+                    <VenueCard key={venue.id} venue={venue} />
+                  ))}
+                </div>
               </div>
             )}
           </section>
         )}
       </main>
-
     </>
   );
 }
