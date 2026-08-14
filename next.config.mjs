@@ -16,7 +16,7 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@prisma/client', 'pg', 'sharp', 'cheerio'],
   },
-  webpack: (config, { isServer, nextRuntime }) => {
+  webpack: (config, { isServer, nextRuntime, webpack }) => {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -30,6 +30,13 @@ const nextConfig = {
     }
 
     if (isServer && nextRuntime === 'edge') {
+      // supabase-js probes `process.version`; Edge/Workers have no Node process.
+      config.plugins.push(
+        new webpack.DefinePlugin({
+          'process.version': JSON.stringify('v20.11.0'),
+        }),
+      );
+
       const edgeExternals = [
         'pg',
         'pg-native',
@@ -38,9 +45,6 @@ const nextConfig = {
         'sharp',
         '@prisma/client',
         'prisma',
-        'crypto',
-        'cheerio',
-        '@google/generative-ai',
       ];
       if (Array.isArray(config.externals)) {
         config.externals.push(...edgeExternals);

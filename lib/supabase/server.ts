@@ -11,6 +11,7 @@ export async function createClient() {
   const { url, anonKey } = getSupabaseAnonEnv();
 
   return createServerClient(url, anonKey, {
+    global: { fetch: (...args: Parameters<typeof fetch>) => fetch(...args) },
     cookies: {
       getAll() {
         return cookieStore.getAll();

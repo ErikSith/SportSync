@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { runMidnightSync } from '@/src/lib/scraper/run';
+import { cleanupExpiredEvents } from '@/lib/retention/events';
+import { runAllScrapers } from '@/lib/scrape/run';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
-
-/** Vercel Pro: allow the sequential 3–5s venue crawl + Gemini calls. */
-export const maxDuration = 300;
 
 function isAuthorizedCron(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -33,24 +31,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    const report = await runMidnightSync();
+    const purge = await cleanupExpiredEvents();
+    const scrape = await runAllScrapers();
 
     return NextResponse.json({
       ok: true,
-      purge: report.purge,
+      purge,
       scrape: {
-        urls: report.scrape.urls,
-        dryRun: report.scrape.dryRun,
-        extracted: report.scrape.extracted,
-        created: report.scrape.upsert.created,
-        updated: report.scrape.upsert.updated,
-        unchanged: report.scrape.upsert.unchanged,
-        skipped: report.scrape.upsert.skipped,
-        tournamentsCreated: report.scrape.upsert.tournamentsCreated,
-        tournamentsUpdated: report.scrape.upsert.tournamentsUpdated,
-        errors: report.scrape.results
-          .filter((r) => r.error)
-          .map((r) => ({ url: r.url, error: r.error })),
+        created: scrape.created,
+        updated: scrape.updated,
+        unchanged: scrape.unchanged,
+        skipped: scrape.skipped,
+        adapters: scrape.adapters,
       },
     });
   } catch (error) {

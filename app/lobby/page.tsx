@@ -14,6 +14,8 @@ import { LobbyPageView } from '@/components/lobby/LobbyPageView';
 import { PlayerFeedFilterHydrator } from '@/components/home/HomeFeedFilterButton';
 import { BrandAppBar } from '@/components/shared/BrandAppBar';
 
+export const runtime = 'edge';
+
 function skillFromElo(elo: number | null): SkillLevel {
   if (elo === null) return 'INTERMEDIATE';
   if (elo >= 1600) return 'ADVANCED';

@@ -24,6 +24,7 @@ export async function updateSession(request: NextRequest) {
     }
 
     const supabase = createServerClient(url, anonKey, {
+      global: { fetch: (...args: Parameters<typeof fetch>) => fetch(...args) },
       cookies: {
         getAll() {
           return request.cookies.getAll();

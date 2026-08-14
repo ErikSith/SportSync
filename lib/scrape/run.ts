@@ -225,7 +225,9 @@ async function coverForEvent(
     return event.coverUrl;
   }
   try {
-    const { resolveEventCover } = await import('@/lib/media/cover-factory');
+    const { resolveEventCover } = await import(
+      /* webpackIgnore: true */ '@/lib/media/cover-factory'
+    );
     return await resolveEventCover({
       venueId,
       sport: event.sport,
@@ -522,7 +524,7 @@ async function persistAdapterResults(results: AdapterResult[]): Promise<ScrapeRu
   }
 
   const { ensureVenuesPg, upsertEventsPg, upsertTournamentsPg } = usePg
-    ? await import('@/lib/scrape/store-pg')
+    ? await import(/* webpackIgnore: true */ '@/lib/scrape/store-pg')
     : { ensureVenuesPg: null, upsertEventsPg: null, upsertTournamentsPg: null };
 
   const venueIds = usePg ? await ensureVenuesPg!() : await ensureVenues();
@@ -552,7 +554,7 @@ async function persistAdapterResults(results: AdapterResult[]): Promise<ScrapeRu
 
   try {
     const { cleanupDuplicateEventsByIdentity } = await import(
-      '@/lib/scrape/cleanup-duplicate-events'
+      /* webpackIgnore: true */ '@/lib/scrape/cleanup-duplicate-events'
     );
     const dedupe = await cleanupDuplicateEventsByIdentity();
     if (dedupe.deleted > 0) {
@@ -619,11 +621,21 @@ export async function runScraper(
     ),
   ];
 
-  const { prisma } = await import('@/lib/prisma');
-  const venues = await prisma.venue.findMany({
-    where: { websiteUrl: { not: null } },
-    select: { id: true, name: true, websiteUrl: true, sports: true, city: true },
-  });
+  const supabase = createAdminClient();
+  const { data: venueRows, error: venueError } = await supabase
+    .from('venues')
+    .select('id, name, website_url, sports, city')
+    .not('website_url', 'is', null);
+  if (venueError) {
+    throw new Error(`[scrape] venues lookup failed: ${venueError.message}`);
+  }
+  const venues = (venueRows ?? []).map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    websiteUrl: (row.website_url as string | null) ?? null,
+    sports: (row.sports as string[] | null) ?? [],
+    city: (row.city as string | null) ?? '',
+  }));
   const venueByHost = new Map<string, (typeof venues)[number]>();
   for (const venue of venues) {
     const host = hostnameOf(venue.websiteUrl ?? '');

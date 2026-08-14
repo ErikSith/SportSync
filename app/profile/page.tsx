@@ -20,6 +20,8 @@ import { SignOutButton } from '@/components/profile/SignOutButton';
 import { ProfileAccountSwitcher } from '@/components/profile/ProfileAccountSwitcher';
 import Link from 'next/link';
 
+export const runtime = 'edge';
+
 async function getCityKarmaRank(city: string, karmaScore: number): Promise<number | null> {
   const supabase = await createClient();
   const { count, error } = await supabase

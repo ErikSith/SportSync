@@ -1,6 +1,8 @@
 import { getPageViewer } from '@/lib/auth/viewer';
 import { TeamEventCreator } from '@/components/events/TeamEventCreator';
 
+export const runtime = 'edge';
+
 export default async function TeamEventCreatePage() {
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {

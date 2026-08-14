@@ -5,6 +5,8 @@ import { canAccessManageHub, organizerRoleLabel } from '@/lib/auth/tournament-ac
 import { getVenuesForOrganizer } from '@/lib/data/organizer-venues';
 import { getOrganizerUpcomingContent } from '@/lib/data/organizer-dashboard';
 
+export const runtime = 'edge';
+
 function formatDateTime(date: Date): string {
   return date.toLocaleString('en-GB', {
     day: 'numeric',

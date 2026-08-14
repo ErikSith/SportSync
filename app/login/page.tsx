@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { safeRedirectPath } from '@/lib/utils/safe-redirect';
 
+export const runtime = 'edge';
+
 type Mode = 'sign-in' | 'sign-up';
 
 /**

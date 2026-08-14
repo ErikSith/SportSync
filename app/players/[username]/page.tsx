@@ -23,6 +23,8 @@ import { ProfileRankingsSection } from '@/components/profile/ProfileRankingsSect
 import { ProfileActivitySection } from '@/components/profile/ProfileActivitySection';
 import { FriendActionButton } from '@/components/profile/FriendActionButton';
 
+export const runtime = 'edge';
+
 interface PlayerProfilePageProps {
   params: { username: string };
 }

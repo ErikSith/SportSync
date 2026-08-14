@@ -7,6 +7,8 @@ import { LOBBY_FORMATS, LOBBY_FORMAT_LABELS, type LobbyFormat } from '@/lib/cons
 import { LOBBY_SPORTS } from '@/lib/constants/sports';
 import { SUPPORTED_CITIES } from '@/lib/cities';
 
+export const runtime = 'edge';
+
 type FormState = 'idle' | 'submitting' | 'success';
 
 export default function CreateLobbyPage() {

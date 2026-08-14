@@ -4,6 +4,8 @@ import { getLobbyById } from '@/lib/data/lobbies';
 import { lobbyDetailToPreview } from '@/components/lobby/lobby-preview';
 import { LobbyDetailClient } from '@/components/lobby/LobbyDetailClient';
 
+export const runtime = 'edge';
+
 interface LobbyDetailPageProps {
   params: { id: string };
 }

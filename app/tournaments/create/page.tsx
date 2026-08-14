@@ -4,6 +4,8 @@ import { getVenuesForOrganizer } from '@/lib/data/organizer-venues';
 import { canCreateTournament } from '@/lib/auth/tournament-access';
 import { TournamentCreator } from '@/components/tournaments/TournamentCreator';
 
+export const runtime = 'edge';
+
 interface CreateTournamentPageProps {
   searchParams: { venueId?: string };
 }

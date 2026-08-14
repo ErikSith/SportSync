@@ -11,6 +11,8 @@ import { NextSessionCard } from '@/components/lobby/groups/NextSessionCard';
 import { CrewLeaderboard } from '@/components/lobby/groups/CrewLeaderboard';
 import { RecurringSchedulePanel } from '@/components/lobby/groups/RecurringSchedulePanel';
 
+export const runtime = 'edge';
+
 interface GroupDetailPageProps {
   params: { id: string };
 }

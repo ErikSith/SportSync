@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LOBBY_SPORTS } from '@/lib/constants/sports';
 
+export const runtime = 'edge';
+
 type FormState = 'idle' | 'submitting';
 
 export default function CreateGroupPage() {
