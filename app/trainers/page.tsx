@@ -8,6 +8,8 @@ import { PageTitleRow } from '@/components/shared/PageTitleRow';
 import { PlayerFeedFilterHydrator } from '@/components/home/HomeFeedFilterButton';
 import { matchesCoachSportsFilter, parseHomeFeedFilters } from '@/lib/home-feed-filters';
 
+export const runtime = 'edge';
+
 interface TrainersPageProps {
   searchParams: { sport?: string; venues?: string; type?: string; sort?: string };
 }

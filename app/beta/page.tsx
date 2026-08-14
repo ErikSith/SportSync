@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { resolveShareAppUrl } from '@/lib/share/app-url';
 
+export const runtime = 'edge';
+
 export const metadata = {
   title: 'SportSync Beta — Nainštaluj si appku',
   description: 'Naskenuj QR kód a pridaj SportSync na plochu telefónu.',

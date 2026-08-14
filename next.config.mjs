@@ -13,6 +13,9 @@ const nextConfig = {
       },
     ],
   },
+  experimental: {
+    serverComponentsExternalPackages: ['@prisma/client', 'pg', 'sharp', 'cheerio'],
+  },
   webpack: (config, { isServer, nextRuntime }) => {
     if (!isServer) {
       config.resolve.fallback = {
@@ -33,6 +36,11 @@ const nextConfig = {
         'pg-connection-string',
         'pgpass',
         'sharp',
+        '@prisma/client',
+        'prisma',
+        'crypto',
+        'cheerio',
+        '@google/generative-ai',
       ];
       if (Array.isArray(config.externals)) {
         config.externals.push(...edgeExternals);

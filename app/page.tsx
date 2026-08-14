@@ -21,6 +21,8 @@ import { HomeFeedFilterHydrator as PlayerFeedFilterHydrator, HomeFeedPreferences
 import { TrackPageView } from '@/components/telemetry/TrackPageView';
 import { parseHomeFeedFilters, activeHomeFeedFilterCount } from '@/lib/home-feed-filters';
 
+export const runtime = 'edge';
+
 interface HomePageProps {
   searchParams: {
     sport?: string;

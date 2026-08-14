@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { runMidnightSync } from '@/src/lib/scraper/run';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /** Vercel Pro: allow the sequential 3–5s venue crawl + Gemini calls. */
 export const maxDuration = 300;
@@ -31,7 +33,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { runMidnightSync } = await import('@/src/lib/scraper/run');
     const report = await runMidnightSync();
 
     return NextResponse.json({

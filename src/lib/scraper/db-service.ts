@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { detectEventSport } from '@/lib/constants/sports';
 import { resolveSportType, buildThemeConfig } from '@/lib/ai/theme-config';

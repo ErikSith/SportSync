@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { runAllScrapers } from '@/lib/scrape/run';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const maxDuration = 300;
 
@@ -31,7 +33,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { runAllScrapers } = await import('@/lib/scrape/run');
     const report = await runAllScrapers();
     return NextResponse.json({ ok: true, ...report });
   } catch (error) {

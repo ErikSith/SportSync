@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { SHOWCASE_CARDS } from '@/lib/demo/showcase';
 
+export const runtime = 'edge';
+
 export default async function DemoPage() {
   await getPageViewer();
 

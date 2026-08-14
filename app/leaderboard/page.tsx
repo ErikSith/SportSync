@@ -6,6 +6,8 @@ import { LeaderboardWidget } from '@/components/home/LeaderboardWidget';
 import { BratislavaVenueLeaderboard } from '@/components/home/BratislavaVenueLeaderboard';
 import { TrackPageView } from '@/components/telemetry/TrackPageView';
 
+export const runtime = 'edge';
+
 export default async function LeaderboardPage() {
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {

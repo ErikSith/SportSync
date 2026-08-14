@@ -3,8 +3,6 @@ import './globals.css';
 import { ThumbButton } from '@/components/navigation/ThumbButton';
 import { ServiceWorkerRegister } from '@/components/pwa/ServiceWorkerRegister';
 
-export const runtime = 'edge';
-
 export const metadata: Metadata = {
   title: 'SportSync - Apex Elite',
   description: 'Find local sports partners, official venue events, and elite training near you.',

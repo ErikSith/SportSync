@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { safeRedirectPath } from '@/lib/utils/safe-redirect';
 
+export const runtime = 'edge';
+
 /** Handles Supabase email-confirmation / magic-link redirects (PKCE code exchange). */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
