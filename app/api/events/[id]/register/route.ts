@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import {
+  externalRegistrationPayload,
+  resolveRegistrationTarget,
+} from '@/src/lib/scraper/registration-router';
 
 export const runtime = 'edge';
 
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
   const supabase = await createClient();
-  const { data: auth, error: authError } = await supabase.auth.getUser();
-  if (authError || !auth.user) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
 
   const { data: eventMeta } = await supabase
     .from('events')
-    .select('id, is_aggregated, source_url, ticket_url')
+    .select('id, is_aggregated, source, source_url, ticket_url')
     .eq('id', params.id)
     .maybeSingle();
 
@@ -20,14 +20,25 @@ export async function POST(_request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  if (eventMeta.is_aggregated) {
+  const target = resolveRegistrationTarget({
+    isAggregated: eventMeta.is_aggregated,
+    source: eventMeta.source,
+    sourceUrl: eventMeta.source_url,
+    ticketUrl: eventMeta.ticket_url,
+  });
+  if (target.mode === 'external') {
+    return NextResponse.json(externalRegistrationPayload(target.url));
+  }
+  if (target.mode === 'unavailable') {
     return NextResponse.json(
-      {
-        error: 'Tento event je agregovaný — registrácia prebieha na oficiálnej stránke organizátora',
-        externalUrl: eventMeta.source_url ?? eventMeta.ticket_url ?? null,
-      },
+      { error: 'Registrácia je len na stránke organizátora, ale odkaz chýba' },
       { status: 409 },
     );
+  }
+
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
   // Try atomic RPC first (requires migration)
@@ -100,6 +111,28 @@ export async function POST(_request: Request, { params }: { params: { id: string
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const supabase = await createClient();
+
+  const { data: eventMeta } = await supabase
+    .from('events')
+    .select('is_aggregated, source, source_url, ticket_url')
+    .eq('id', params.id)
+    .maybeSingle();
+
+  if (eventMeta) {
+    const target = resolveRegistrationTarget({
+      isAggregated: eventMeta.is_aggregated,
+      source: eventMeta.source,
+      sourceUrl: eventMeta.source_url,
+      ticketUrl: eventMeta.ticket_url,
+    });
+    if (target.mode === 'external') {
+      return NextResponse.json({
+        registered: false,
+        ...externalRegistrationPayload(target.url),
+      });
+    }
+  }
+
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) {
     return NextResponse.json({ registered: false });

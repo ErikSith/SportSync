@@ -113,6 +113,8 @@ async function scrapeFromRegistry(opts: {
     updated: 0,
     unchanged: 0,
     skipped: 0,
+    tournamentsCreated: 0,
+    tournamentsUpdated: 0,
   };
   const errors: Array<{ venue: string; url: string; error: string }> = [];
   let extracted = 0;
@@ -171,6 +173,8 @@ async function scrapeFromRegistry(opts: {
         upsert.updated += stats.updated;
         upsert.unchanged += stats.unchanged;
         upsert.skipped += stats.skipped;
+        upsert.tournamentsCreated += stats.tournamentsCreated;
+        upsert.tournamentsUpdated += stats.tournamentsUpdated;
       }
 
       if (target.id && !opts.dryRun) {

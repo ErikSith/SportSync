@@ -75,15 +75,24 @@ export function EventRegisterButton({
   async function register() {
     setError(null);
     const res = await fetch(`/api/events/${eventId}/register`, { method: 'POST' });
+    const body = (await res.json().catch(() => null)) as {
+      error?: string;
+      status?: string;
+      redirect?: boolean;
+      externalUrl?: string | null;
+    } | null;
+    if (body?.externalUrl) {
+      trackSignal('event.external_redirect', { eventId });
+      window.location.assign(body.externalUrl);
+      return;
+    }
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
       setError(body?.error ?? 'Could not register');
       return;
     }
-    const body = (await res.json()) as { status?: string };
-    setStatus(body.status ?? 'confirmed');
+    setStatus(body?.status ?? 'confirmed');
     setIsRegistered(true);
-    trackSignal('event.register', { eventId, status: body.status ?? 'confirmed' });
+    trackSignal('event.register', { eventId, status: body?.status ?? 'confirmed' });
     startTransition(() => router.refresh());
   }
 

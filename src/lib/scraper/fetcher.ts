@@ -4,8 +4,8 @@ import * as cheerio from 'cheerio';
 export const SCRAPER_USER_AGENT =
   'Mozilla/5.0 (compatible; SportSyncBot/1.0; +https://sportsync.app; event-aggregator)';
 
-/** Randomized gap between requests to the same host (ms). Never burst. */
-export const HOST_DELAY_MS = { min: 1500, max: 3500 } as const;
+/** Randomized gap between venue fetches (ms). Midnight cron: 3–5s, never burst. */
+export const HOST_DELAY_MS = { min: 3000, max: 5000 } as const;
 
 const FETCH_TIMEOUT_MS = 25_000;
 const MAX_RETRIES = 3;

@@ -1,8 +1,8 @@
 import { createHash } from 'crypto';
+import { Prisma } from '@prisma/client';
 import { detectEventSport } from '@/lib/constants/sports';
-import { eventIdentityKey } from '@/lib/events/event-identity';
 import { resolveSportType, buildThemeConfig } from '@/lib/ai/theme-config';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { prisma } from '@/lib/prisma';
 import {
   GEMINI_SCRAPER_SOURCE,
   type ScrapedEvent,
@@ -22,13 +22,32 @@ function parsePriceCents(text: string | null | undefined): number {
   return euros * 100 + cents;
 }
 
-/** Stable external id within gemini-web source for @@unique([source, externalId]). */
+export function canonicalizeSourceUrl(url: string): string {
+  try {
+    const parsed = new URL(url.trim());
+    parsed.hash = '';
+    if (parsed.pathname.length > 1 && parsed.pathname.endsWith('/')) {
+      parsed.pathname = parsed.pathname.slice(0, -1);
+    }
+    return parsed.toString();
+  } catch {
+    return url.trim();
+  }
+}
+
+/**
+ * Stable external id within gemini-web for @@unique([source, externalId]).
+ * Unique criterion: originalUrl + startTime (ISO).
+ */
 export function buildExternalId(
   event: ScrapedEvent,
   opts: { forceGroupClass?: boolean; scrapePageUrl?: string } = {},
 ): string {
-  const minute = event.startTime.slice(0, 16);
-  const raw = `${event.originalUrl}|${event.title.trim().toLowerCase()}|${minute}`;
+  const startsAt = new Date(event.startTime);
+  const startIso = Number.isNaN(startsAt.getTime())
+    ? event.startTime
+    : startsAt.toISOString();
+  const raw = `${canonicalizeSourceUrl(event.originalUrl)}|${startIso}`;
   const hash = createHash('sha1').update(raw).digest('hex').slice(0, 40);
   const pageUrl = opts.scrapePageUrl ?? event.originalUrl;
   const fromSchedulePage =
@@ -36,7 +55,6 @@ export function buildExternalId(
     /\/(rozvrh|schedule|calendar|kalendar|treningy?|tréningy?|lekcie?|classes?)(\/|$|\?)/i.test(
       pageUrl,
     );
-  // Weekly schedule / studio class slots → feed "Rozpisy & Lekcie"
   if (fromSchedulePage && !event.isTournament) {
     return `class-${hash}`;
   }
@@ -56,6 +74,13 @@ function withNotice(
   return `${base.slice(0, 400)}\n\n${notice}`.slice(0, 600);
 }
 
+function looksLikeTournament(event: ScrapedEvent): boolean {
+  if (event.isTournament) return true;
+  return /\b(turnaj|tournament|\bcup\b|championship|trophy|s[uú]ťaž|sutaz|kvalifik[aá]c)/i.test(
+    `${event.title} ${event.description ?? ''}`,
+  );
+}
+
 function strEq(a: unknown, b: unknown): boolean {
   return String(a ?? '') === String(b ?? '');
 }
@@ -71,7 +96,7 @@ export interface UpsertScrapedOptions {
 }
 
 function isGroupClassWrite(event: ScrapedEvent, opts: UpsertScrapedOptions): boolean {
-  if (event.isTournament) return false;
+  if (looksLikeTournament(event)) return false;
   if (opts.forceGroupClass) return true;
   const pageUrl = opts.scrapePageUrl ?? event.originalUrl;
   return /\/(rozvrh|schedule|calendar|kalendar|treningy?|tréningy?|lekcie?|classes?)(\/|$|\?)/i.test(
@@ -79,33 +104,53 @@ function isGroupClassWrite(event: ScrapedEvent, opts: UpsertScrapedOptions): boo
   );
 }
 
-async function findSoftIdentityMatch(
-  title: string,
-  startsAt: Date,
-): Promise<{ id: string } | null> {
-  const supabase = createAdminClient();
-  const windowMs = 90_000;
-  const from = new Date(startsAt.getTime() - windowMs).toISOString();
-  const to = new Date(startsAt.getTime() + windowMs).toISOString();
+async function findEventByUrlAndStart(originalUrl: string, startsAt: Date) {
+  const windowMs = 60_000;
+  const from = new Date(startsAt.getTime() - windowMs);
+  const to = new Date(startsAt.getTime() + windowMs);
+  return prisma.event.findFirst({
+    where: {
+      sourceUrl: originalUrl,
+      startsAt: { gte: from, lte: to },
+    },
+    select: {
+      id: true,
+      title: true,
+      sport: true,
+      startsAt: true,
+      priceCents: true,
+      sourceUrl: true,
+      venueId: true,
+      latitude: true,
+      longitude: true,
+      coverUrl: true,
+      externalId: true,
+    },
+  });
+}
 
-  const { data, error } = await supabase
-    .from('events')
-    .select('id, title, starts_at')
-    .gte('starts_at', from)
-    .lte('starts_at', to)
-    .neq('status', 'cancelled')
-    .limit(25);
-
-  if (error || !data) return null;
-
-  const key = eventIdentityKey(title, startsAt);
-  for (const row of data) {
-    if (!row.title || !row.starts_at) continue;
-    if (eventIdentityKey(String(row.title), new Date(String(row.starts_at))) === key) {
-      return { id: String(row.id) };
-    }
-  }
-  return null;
+async function findTournamentByUrlAndStart(originalUrl: string, startsAt: Date) {
+  const windowMs = 60_000;
+  const from = new Date(startsAt.getTime() - windowMs);
+  const to = new Date(startsAt.getTime() + windowMs);
+  return prisma.tournament.findFirst({
+    where: {
+      sourceUrl: originalUrl,
+      startsAt: { gte: from, lte: to },
+    },
+    select: {
+      id: true,
+      name: true,
+      sport: true,
+      startsAt: true,
+      entryFee: true,
+      sourceUrl: true,
+      venueId: true,
+      latitude: true,
+      longitude: true,
+      externalId: true,
+    },
+  });
 }
 
 async function upsertEvent(
@@ -115,104 +160,109 @@ async function upsertEvent(
   const startsAt = new Date(event.startTime);
   if (Number.isNaN(startsAt.getTime())) return 'skipped';
 
-  const supabase = createAdminClient();
+  const originalUrl = canonicalizeSourceUrl(event.originalUrl);
   const endTime = event.endTime ? new Date(event.endTime) : null;
   const asGroupClass = isGroupClassWrite(event, opts);
-  const externalId = buildExternalId(event, opts);
+  const externalId = buildExternalId({ ...event, originalUrl }, opts);
   const sport = detectEventSport(`${event.sportType} ${event.title}`);
   const sportType = resolveSportType(sport);
   const priceCents = parsePriceCents(event.priceText);
-  const description = withNotice(event.description, event.originalUrl, asGroupClass);
+  const description = withNotice(event.description, originalUrl, asGroupClass);
   const themeConfig = buildThemeConfig(sportType, null);
-  const startsIso = startsAt.toISOString();
-  const endIso =
-    endTime && !Number.isNaN(endTime.getTime()) ? endTime.toISOString() : null;
+  const endAt =
+    endTime && !Number.isNaN(endTime.getTime()) ? endTime : null;
+  const price = new Prisma.Decimal(priceCents / 100);
 
-  const { data: existing, error: findError } = await supabase
-    .from('events')
-    .select(
-      'id, title, sport, starts_at, price_cents, source_url, venue_id, latitude, longitude, cover_url',
-    )
-    .eq('source', GEMINI_SCRAPER_SOURCE)
-    .eq('external_id', externalId)
-    .maybeSingle();
+  const byKey = await prisma.event.findUnique({
+    where: {
+      source_externalId: { source: GEMINI_SCRAPER_SOURCE, externalId },
+    },
+    select: {
+      id: true,
+      title: true,
+      sport: true,
+      startsAt: true,
+      priceCents: true,
+      sourceUrl: true,
+      venueId: true,
+      latitude: true,
+      longitude: true,
+      coverUrl: true,
+      externalId: true,
+    },
+  });
+  const byUrlTime = byKey ? null : await findEventByUrlAndStart(originalUrl, startsAt);
+  const existing = byKey ?? byUrlTime;
 
-  if (findError) throw new Error(findError.message);
-
-  if (!existing) {
-    const soft = await findSoftIdentityMatch(event.title, startsAt);
-    if (soft) {
-      await supabase
-        .from('events')
-        .update({
-          scraped_at: new Date().toISOString(),
-          ...(opts.venueId ? { venue_id: opts.venueId } : {}),
-        })
-        .eq('id', soft.id);
-      return 'unchanged';
-    }
-  }
-
-  const venueId = opts.venueId ?? existing?.venue_id ?? null;
+  const venueId = opts.venueId ?? existing?.venueId ?? null;
   const latitude = opts.latitude ?? existing?.latitude ?? 48.1486;
   const longitude = opts.longitude ?? existing?.longitude ?? 17.1077;
 
-  const row = {
+  const shared = {
     type: 'official',
     status: 'open',
     sport,
-    sport_type: sportType,
+    sportType,
     title: event.title.slice(0, 200),
     description,
     city: 'Bratislava',
-    price_cents: priceCents,
+    priceCents,
     currency: 'EUR',
-    price: priceCents / 100,
-    event_date: startsIso,
-    start_time: startsIso,
-    end_time: endIso,
-    starts_at: startsIso,
-    theme_config: themeConfig,
+    price,
+    eventDate: startsAt,
+    startTime: startsAt,
+    endTime: endAt,
+    startsAt,
+    themeConfig: themeConfig as unknown as Prisma.InputJsonValue,
     source: GEMINI_SCRAPER_SOURCE,
-    external_id: externalId,
-    source_url: event.originalUrl,
-    source_name: 'Web (Gemini)',
-    ticket_url: event.originalUrl,
-    scraped_at: new Date().toISOString(),
-    is_aggregated: true,
-    participation_mode: 'participate',
-    ai_enriched: false,
-    venue_id: venueId,
+    externalId,
+    sourceUrl: originalUrl,
+    sourceName: 'Web (Gemini)',
+    ticketUrl: originalUrl,
+    scrapedAt: new Date(),
+    isAggregated: true,
+    participationMode: 'participate',
+    aiEnriched: false,
+    venueId,
     latitude,
     longitude,
-    photos: [],
-    sponsors_json: [],
   };
 
   if (existing) {
     const unchanged =
-      strEq(existing.title, row.title) &&
-      strEq(existing.sport, row.sport) &&
-      new Date(String(existing.starts_at)).getTime() === startsAt.getTime() &&
-      Number(existing.price_cents ?? 0) === priceCents &&
-      strEq(existing.source_url, event.originalUrl) &&
-      strEq(existing.venue_id, venueId);
+      strEq(existing.title, shared.title) &&
+      strEq(existing.sport, shared.sport) &&
+      existing.startsAt.getTime() === startsAt.getTime() &&
+      Number(existing.priceCents ?? 0) === priceCents &&
+      strEq(existing.sourceUrl, originalUrl) &&
+      strEq(existing.venueId, venueId);
 
     if (unchanged) {
-      await supabase
-        .from('events')
-        .update({ scraped_at: new Date().toISOString() })
-        .eq('id', existing.id);
+      await prisma.event.update({
+        where: { id: existing.id },
+        data: { scrapedAt: new Date(), externalId, source: GEMINI_SCRAPER_SOURCE },
+      });
       return 'unchanged';
     }
 
-    const { error } = await supabase.from('events').update(row).eq('id', existing.id);
-    if (error) throw new Error(error.message);
+    await prisma.event.update({
+      where: { id: existing.id },
+      data: shared,
+    });
     return 'updated';
   }
 
-  const { error } = await supabase.from('events').insert(row);
-  if (error) throw new Error(error.message);
+  await prisma.event.upsert({
+    where: {
+      source_externalId: { source: GEMINI_SCRAPER_SOURCE, externalId },
+    },
+    create: {
+      ...shared,
+      photos: [],
+      sponsorsJson: [],
+    },
+    update: shared,
+  });
   return 'created';
 }
 
@@ -223,81 +273,105 @@ async function upsertTournament(
   const startsAt = new Date(event.startTime);
   if (Number.isNaN(startsAt.getTime())) return 'skipped';
 
-  const supabase = createAdminClient();
+  const originalUrl = canonicalizeSourceUrl(event.originalUrl);
   const endsAt = event.endTime ? new Date(event.endTime) : null;
-  const externalId = buildExternalId(event, { ...opts, forceGroupClass: false });
+  const endsAtValue = endsAt && !Number.isNaN(endsAt.getTime()) ? endsAt : null;
+  const nowMs = Date.now();
+  if (endsAtValue ? endsAtValue.getTime() < nowMs : startsAt.getTime() < nowMs) {
+    return 'skipped';
+  }
+
+  const externalId = buildExternalId(
+    { ...event, originalUrl },
+    { ...opts, forceGroupClass: false },
+  );
   const sport = detectEventSport(`${event.sportType} ${event.title}`);
-  const entryFee = parsePriceCents(event.priceText) / 100;
-  const description = withNotice(event.description, event.originalUrl, false);
-  const startsIso = startsAt.toISOString();
-  const endsIso =
-    endsAt && !Number.isNaN(endsAt.getTime()) ? endsAt.toISOString() : null;
+  const entryFee = new Prisma.Decimal(parsePriceCents(event.priceText) / 100);
+  const description = withNotice(event.description, originalUrl, false);
 
-  const { data: existing, error: findError } = await supabase
-    .from('tournaments')
-    .select(
-      'id, name, sport, starts_at, entry_fee, source_url, venue_id, latitude, longitude',
-    )
-    .eq('source', GEMINI_SCRAPER_SOURCE)
-    .eq('external_id', externalId)
-    .maybeSingle();
+  const byKey = await prisma.tournament.findUnique({
+    where: {
+      source_externalId: { source: GEMINI_SCRAPER_SOURCE, externalId },
+    },
+    select: {
+      id: true,
+      name: true,
+      sport: true,
+      startsAt: true,
+      entryFee: true,
+      sourceUrl: true,
+      venueId: true,
+      latitude: true,
+      longitude: true,
+      externalId: true,
+    },
+  });
+  const byUrlTime = byKey
+    ? null
+    : await findTournamentByUrlAndStart(originalUrl, startsAt);
+  const existing = byKey ?? byUrlTime;
 
-  if (findError) throw new Error(findError.message);
-
-  const venueId = opts.venueId ?? existing?.venue_id ?? null;
+  const venueId = opts.venueId ?? existing?.venueId ?? null;
   const latitude = opts.latitude ?? existing?.latitude ?? null;
   const longitude = opts.longitude ?? existing?.longitude ?? null;
 
-  const row = {
+  const shared = {
     name: event.title.slice(0, 200),
     description,
     sport,
-    status: 'REGISTRATION_OPEN',
-    entry_fee: entryFee,
-    max_participants: 32,
+    status: 'REGISTRATION_OPEN' as const,
+    entryFee,
+    maxParticipants: 32,
     city: 'Bratislava',
-    starts_at: startsIso,
-    ends_at: endsIso,
+    startsAt,
+    endsAt: endsAtValue,
     source: GEMINI_SCRAPER_SOURCE,
-    external_id: externalId,
-    source_url: event.originalUrl,
-    ticket_url: event.originalUrl,
-    scraped_at: new Date().toISOString(),
-    venue_id: venueId,
+    externalId,
+    sourceUrl: originalUrl,
+    ticketUrl: originalUrl,
+    scrapedAt: new Date(),
+    venueId,
     latitude,
     longitude,
   };
 
   if (existing) {
     const unchanged =
-      strEq(existing.name, row.name) &&
-      strEq(existing.sport, row.sport) &&
-      new Date(String(existing.starts_at)).getTime() === startsAt.getTime() &&
-      Number(existing.entry_fee ?? 0) === entryFee &&
-      strEq(existing.source_url, event.originalUrl) &&
-      strEq(existing.venue_id, venueId);
+      strEq(existing.name, shared.name) &&
+      strEq(existing.sport, shared.sport) &&
+      existing.startsAt.getTime() === startsAt.getTime() &&
+      Number(existing.entryFee ?? 0) === Number(entryFee) &&
+      strEq(existing.sourceUrl, originalUrl) &&
+      strEq(existing.venueId, venueId);
 
     if (unchanged) {
-      await supabase
-        .from('tournaments')
-        .update({ scraped_at: new Date().toISOString() })
-        .eq('id', existing.id);
+      await prisma.tournament.update({
+        where: { id: existing.id },
+        data: { scrapedAt: new Date(), externalId, source: GEMINI_SCRAPER_SOURCE },
+      });
       return 'unchanged';
     }
 
-    const { error } = await supabase.from('tournaments').update(row).eq('id', existing.id);
-    if (error) throw new Error(error.message);
+    await prisma.tournament.update({
+      where: { id: existing.id },
+      data: shared,
+    });
     return 'updated';
   }
 
-  const { error } = await supabase.from('tournaments').insert(row);
-  if (error) throw new Error(error.message);
+  await prisma.tournament.upsert({
+    where: {
+      source_externalId: { source: GEMINI_SCRAPER_SOURCE, externalId },
+    },
+    create: shared,
+    update: shared,
+  });
   return 'created';
 }
 
 /**
- * Upsert scraped events/tournaments via Supabase service role.
- * Dedupes on (source, externalId) and soft title+minute identity for events.
+ * Idempotent Prisma upsert. Unique criterion: originalUrl + startTime
+ * (encoded as gemini-web `externalId`). Re-scrapes refresh price/description.
  */
 export async function upsertScrapedEvents(
   events: ScrapedEvent[],
@@ -308,6 +382,8 @@ export async function upsertScrapedEvents(
     updated: 0,
     unchanged: 0,
     skipped: 0,
+    tournamentsCreated: 0,
+    tournamentsUpdated: 0,
   };
 
   const seen = new Map<string, ScrapedEvent>();
@@ -317,16 +393,28 @@ export async function upsertScrapedEvents(
       stats.skipped += 1;
       continue;
     }
-    const key = eventIdentityKey(event.title, startsAt);
-    if (!seen.has(key)) seen.set(key, event);
+    const key = `${canonicalizeSourceUrl(event.originalUrl)}|${startsAt.toISOString()}`;
+    const prev = seen.get(key);
+    if (!prev) {
+      seen.set(key, event);
+      continue;
+    }
+    // Same url+time: keep richer price/description
+    if (!prev.priceText && event.priceText) seen.set(key, event);
+    else if (!prev.description && event.description) seen.set(key, event);
   }
 
   for (const event of seen.values()) {
     try {
-      const result = event.isTournament
+      const asTournament = looksLikeTournament(event);
+      const result = asTournament
         ? await upsertTournament(event, opts)
         : await upsertEvent(event, opts);
       stats[result] += 1;
+      if (asTournament) {
+        if (result === 'created') stats.tournamentsCreated += 1;
+        else if (result === 'updated') stats.tournamentsUpdated += 1;
+      }
     } catch (err) {
       stats.skipped += 1;
       console.warn(

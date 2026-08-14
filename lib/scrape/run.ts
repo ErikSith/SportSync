@@ -3,11 +3,14 @@ import { SPORT_TYPE_THEMES } from '@/lib/ai/theme-config';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { aggregatorNotice, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
+import { scrapeTextListing } from '@/lib/scrape/adapters/_text-listing';
+import { SCRAPING_SOURCES } from '@/lib/scrape/scraping-sources';
 import {
   DEFAULT_COVERS,
   VENUE_SEEDS,
   type AdapterResult,
   type NormalizedScrapedEvent,
+  type ScrapeAdapterId,
   type ScrapeRunReport,
 } from '@/lib/scrape/types';
 import { scrapeSkSlovan } from '@/lib/scrape/adapters/sk-slovan';
@@ -58,34 +61,65 @@ async function supportsForKidsColumn(supabase: ReturnType<typeof createAdminClie
 }
 
 /** Bratislava 20 + legacy feed adapters. Run sequentially to respect rate limits. */
-const SCRAPERS: ScraperFn[] = [
-  scrapeAurialPadel,
-  scrapePadelBa,
-  scrapeNtcBa,
-  scrapeOfaMma,
-  scrapeChaosMma,
-  scrapeProstor,
-  scrapeWakelake,
-  scrapeDivokaVoda,
-  scrapePbcBowling,
-  scrapeBncBa,
-  scrapeSipkySk,
-  scrapeBaMarathon,
-  scrapeStupavaTrophy,
-  scrapeHorskyBeh,
-  scrapeTopligaBa,
-  scrapeArealNevadzova,
-  scrapeK2Lezenie,
-  scrapeBlockDock,
-  scrapeFormFactory,
-  scrapeNivyZone,
-  scrapeSkSlovan,
-  scrapeHcSlovan,
-  scrapeGopassArena,
-  scrapeStz,
-  scrapePredpredaj,
-  scrapeCitylife,
+const NAMED_SCRAPERS: Array<{ id: ScrapeAdapterId; run: ScraperFn }> = [
+  { id: 'aurial-padel', run: scrapeAurialPadel },
+  { id: 'padel-ba', run: scrapePadelBa },
+  { id: 'ntc-ba', run: scrapeNtcBa },
+  { id: 'ofa-mma', run: scrapeOfaMma },
+  { id: 'chaos-mma', run: scrapeChaosMma },
+  { id: 'prostor', run: scrapeProstor },
+  { id: 'wakelake', run: scrapeWakelake },
+  { id: 'divoka-voda', run: scrapeDivokaVoda },
+  { id: 'pbc-bowling', run: scrapePbcBowling },
+  { id: 'bnc-ba', run: scrapeBncBa },
+  { id: 'sipky-sk', run: scrapeSipkySk },
+  { id: 'ba-marathon', run: scrapeBaMarathon },
+  { id: 'stupava-trophy', run: scrapeStupavaTrophy },
+  { id: 'horsky-beh', run: scrapeHorskyBeh },
+  { id: 'topliga-ba', run: scrapeTopligaBa },
+  { id: 'areal-nevadzova', run: scrapeArealNevadzova },
+  { id: 'k2-lezenie', run: scrapeK2Lezenie },
+  { id: 'block-dock', run: scrapeBlockDock },
+  { id: 'form-factory', run: scrapeFormFactory },
+  { id: 'nivy-zone', run: scrapeNivyZone },
+  { id: 'sk-slovan', run: scrapeSkSlovan },
+  { id: 'hc-slovan', run: scrapeHcSlovan },
+  { id: 'gopass-arena', run: scrapeGopassArena },
+  { id: 'stz', run: scrapeStz },
+  { id: 'predpredaj', run: scrapePredpredaj },
+  { id: 'citylife', run: scrapeCitylife },
 ];
+
+const SCRAPER_BY_ID = new Map<ScrapeAdapterId, ScraperFn>(
+  NAMED_SCRAPERS.map((entry) => [entry.id, entry.run]),
+);
+
+/** Midnight venue crawl — 4s between requests (polite, never burst). */
+const BETWEEN_URL_MS = 4000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function hostnameOf(url: string): string | null {
+  try {
+    return new URL(url).hostname.replace(/^www\./i, '').toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function specializedAdapterForUrl(url: string): { id: ScrapeAdapterId; run: ScraperFn } | null {
+  const host = hostnameOf(url);
+  if (!host) return null;
+  const source = SCRAPING_SOURCES.find(
+    (item) => item.adapterId && hostnameOf(item.url) === host,
+  );
+  if (!source?.adapterId) return null;
+  const run = SCRAPER_BY_ID.get(source.adapterId);
+  if (!run) return null;
+  return { id: source.adapterId, run };
+}
 
 async function ensureVenues(): Promise<Map<string, string>> {
   const supabase = createAdminClient();
@@ -479,15 +513,7 @@ async function upsertTournaments(
   return stats;
 }
 
-async function runScrapersSequentially(): Promise<AdapterResult[]> {
-  const results: AdapterResult[] = [];
-  for (const scrape of SCRAPERS) {
-    results.push(await scrape());
-  }
-  return results;
-}
-
-export async function runAllScrapers(): Promise<ScrapeRunReport> {
+async function persistAdapterResults(results: AdapterResult[]): Promise<ScrapeRunReport> {
   const usePg = !hasValidServiceRoleKey();
   if (usePg) {
     console.warn(
@@ -499,10 +525,15 @@ export async function runAllScrapers(): Promise<ScrapeRunReport> {
     ? await import('@/lib/scrape/store-pg')
     : { ensureVenuesPg: null, upsertEventsPg: null, upsertTournamentsPg: null };
 
-  const venueIds = usePg
-    ? await ensureVenuesPg!()
-    : await ensureVenues();
-  const results = await runScrapersSequentially();
+  const venueIds = usePg ? await ensureVenuesPg!() : await ensureVenues();
+
+  const extraVenueIds = new Map<string, string>();
+  for (const event of results.flatMap((r) => r.events)) {
+    if (/^[0-9a-f-]{36}$/i.test(event.venueKey)) {
+      extraVenueIds.set(event.venueKey, event.venueKey);
+    }
+  }
+  for (const [key, id] of extraVenueIds) venueIds.set(key, id);
 
   const all = results.flatMap((r) => r.events);
   const tournamentItems = prepareScrapedEventsForUpsert(
@@ -519,9 +550,10 @@ export async function runAllScrapers(): Promise<ScrapeRunReport> {
     ? await upsertTournamentsPg!(tournamentItems, venueIds)
     : await upsertTournaments(tournamentItems, venueIds);
 
-  // Drop any leftover title+datetime duplicates (cross-source / unstable ids).
   try {
-    const { cleanupDuplicateEventsByIdentity } = await import('@/lib/scrape/cleanup-duplicate-events');
+    const { cleanupDuplicateEventsByIdentity } = await import(
+      '@/lib/scrape/cleanup-duplicate-events'
+    );
     const dedupe = await cleanupDuplicateEventsByIdentity();
     if (dedupe.deleted > 0) {
       console.log('[scrape] removed duplicate events', dedupe);
@@ -544,4 +576,124 @@ export async function runAllScrapers(): Promise<ScrapeRunReport> {
       error: r.error,
     })),
   };
+}
+
+async function runScrapersSequentially(): Promise<AdapterResult[]> {
+  const results: AdapterResult[] = [];
+  for (const scrape of NAMED_SCRAPERS) {
+    results.push(await scrape.run());
+  }
+  return results;
+}
+
+export async function runAllScrapers(): Promise<ScrapeRunReport> {
+  const results = await runScrapersSequentially();
+  return persistAdapterResults(results);
+}
+
+export interface RunScraperReport extends ScrapeRunReport {
+  urls: number;
+  dryRun: boolean;
+}
+
+/**
+ * Scrape a list of venue website URLs sequentially.
+ * `dryRun = false` persists into events/tournaments (midnight cron).
+ */
+export async function runScraper(
+  urls: string[],
+  dryRun = false,
+): Promise<RunScraperReport> {
+  const unique = [
+    ...new Set(
+      urls
+        .map((u) => u.trim())
+        .filter((u) => {
+          try {
+            const parsed = new URL(u);
+            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+          } catch {
+            return false;
+          }
+        }),
+    ),
+  ];
+
+  const { prisma } = await import('@/lib/prisma');
+  const venues = await prisma.venue.findMany({
+    where: { websiteUrl: { not: null } },
+    select: { id: true, name: true, websiteUrl: true, sports: true, city: true },
+  });
+  const venueByHost = new Map<string, (typeof venues)[number]>();
+  for (const venue of venues) {
+    const host = hostnameOf(venue.websiteUrl ?? '');
+    if (host && !venueByHost.has(host)) venueByHost.set(host, venue);
+  }
+
+  const results: AdapterResult[] = [];
+  const ranAdapters = new Set<ScrapeAdapterId>();
+
+  for (let i = 0; i < unique.length; i++) {
+    if (i > 0) {
+      await sleep(BETWEEN_URL_MS + Math.floor(Math.random() * 400));
+    }
+
+    const url = unique[i]!;
+    const specialized = specializedAdapterForUrl(url);
+    if (specialized) {
+      if (ranAdapters.has(specialized.id)) continue;
+      ranAdapters.add(specialized.id);
+      try {
+        results.push(await specialized.run());
+      } catch (error) {
+        results.push({
+          source: specialized.id,
+          events: [],
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      continue;
+    }
+
+    const venue = venueByHost.get(hostnameOf(url) ?? '') ?? null;
+    const sport = venue?.sports[0] ?? 'OTHER';
+    try {
+      results.push(
+        await scrapeTextListing({
+          source: 'venue-web',
+          sport,
+          venueKey: venue?.id ?? 'unknown',
+          city: venue?.city || 'Bratislava',
+          urls: [url],
+          defaultCategory: 'match',
+          maxEvents: 25,
+        }),
+      );
+    } catch (error) {
+      results.push({
+        source: 'venue-web',
+        events: [],
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  if (dryRun) {
+    return {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      unchanged: 0,
+      adapters: results.map((r) => ({
+        source: r.source,
+        count: r.events.length,
+        error: r.error,
+      })),
+      urls: unique.length,
+      dryRun: true,
+    };
+  }
+
+  const persisted = await persistAdapterResults(results);
+  return { ...persisted, urls: unique.length, dryRun: false };
 }

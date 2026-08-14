@@ -5,6 +5,8 @@ export type {
   ScraperRunReport,
   ScraperUpsertStats,
   ScraperUrlResult,
+  MidnightPurgeStats,
+  MidnightSyncReport,
 } from './types';
 
 export {
@@ -17,6 +19,24 @@ export {
 } from './fetcher';
 
 export { extractEventsFromText } from './extractor';
-export { upsertScrapedEvents, buildExternalId } from './db-service';
+export { upsertScrapedEvents, buildExternalId, canonicalizeSourceUrl } from './db-service';
 export type { UpsertScrapedOptions } from './db-service';
-export { runGeminiScraper, type RunScraperOptions } from './run';
+export {
+  runGeminiScraper,
+  runMidnightSync,
+  loadVenueWebsiteTargets,
+  type RunScraperOptions,
+  type VenueScrapeTarget,
+} from './run';
+export { purgePastListings } from './purge';
+export {
+  resolveRegistrationTarget,
+  resolveBookingUrl,
+  isAggregatedListing,
+  externalRegistrationPayload,
+} from './registration-router';
+export type {
+  RegistrationListing,
+  RegistrationTarget,
+  ExternalRegistrationResponse,
+} from './registration-router';

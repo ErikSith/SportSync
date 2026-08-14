@@ -60,6 +60,7 @@ export async function getActivePromotedBanners(
       .eq('is_promoted', true)
       .gt('promoted_until', nowIso)
       .in('status', ['REGISTRATION_OPEN', 'IN_PROGRESS'])
+      .or(`starts_at.gte."${nowIso}",ends_at.gte."${nowIso}"`)
       .order('promoted_until', { ascending: false })
       .limit(take),
   ]);

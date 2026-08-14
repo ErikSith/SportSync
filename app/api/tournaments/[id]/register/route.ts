@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import {
+  externalRegistrationPayload,
+  resolveRegistrationTarget,
+} from '@/src/lib/scraper/registration-router';
 
 export const runtime = 'edge';
 
@@ -26,10 +30,6 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
   const supabase = await createClient();
-  const { data: auth, error: authError } = await supabase.auth.getUser();
-  if (authError || !auth.user) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
 
   const { data: tournament, error: tournamentError } = await supabase
     .from('tournaments')
@@ -43,15 +43,24 @@ export async function POST(_request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
   }
 
-  // Aggregated cups — SportSync only lists them; registration is on the organizer site.
-  if (tournament.source) {
+  const target = resolveRegistrationTarget({
+    source: tournament.source,
+    sourceUrl: tournament.source_url,
+    ticketUrl: tournament.ticket_url,
+  });
+  if (target.mode === 'external') {
+    return NextResponse.json(externalRegistrationPayload(target.url));
+  }
+  if (target.mode === 'unavailable') {
     return NextResponse.json(
-      {
-        error: 'Tento turnaj je agregovaný — registrácia prebieha na oficiálnej stránke organizátora',
-        externalUrl: tournament.source_url ?? tournament.ticket_url ?? null,
-      },
+      { error: 'Registrácia je len na stránke organizátora, ale odkaz chýba' },
       { status: 409 },
     );
+  }
+
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
   if (tournament.status !== 'REGISTRATION_OPEN') {

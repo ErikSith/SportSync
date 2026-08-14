@@ -10,18 +10,18 @@ import {
 } from './types';
 
 /**
- * `gemini-2.0-flash` / pinned `gemini-2.5-flash` often 404 on free keys.
- * Prefer the rolling `*-latest` aliases, then current Flash / Flash-Lite IDs.
+ * Prefer Gemini 1.5 Flash as specified; fall back to rolling Flash aliases
+ * when 1.5 is retired or 404s on the current API key.
  */
-export const DEFAULT_GEMINI_MODEL = 'gemini-flash-lite-latest';
+export const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash';
 
 export const GEMINI_MODEL_FALLBACKS = [
-  'gemini-flash-lite-latest',
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-latest',
   'gemini-flash-latest',
-  'gemini-3.5-flash',
-  'gemini-3.6-flash',
+  'gemini-flash-lite-latest',
+  'gemini-2.0-flash',
+  'gemini-2.5-flash',
 ] as const;
 
 /** Mirrors ScrapedEventListSchema for Gemini structured output. */
@@ -112,9 +112,13 @@ Pravidlá:
 - Ak sú uvedené konkrétne dátumy (deň.mesiac.rok / ISO), použi ich.
 - startTime (a endTime) musia byť ISO 8601 s offsetom Bratislavy (+02:00 alebo +01:00).
 - locationName ber len z hlavného obsahu (adresa / názov športoviska pri udalosti), nie z menu ani footera.
-- originalUrl nastav na: ${pageUrl}
+- originalUrl MUSÍ byť platná absolútna http(s) URL: použi priamy rezervačný/registračný odkaz
+  (rezervácia, booking, prihláška, lístky), ak je na stránke uvedený. Inak použi: ${pageUrl}
+- Nikdy nevymýšľaj URL. originalUrl musí patriť organizátorovi / rezervačnému systému.
 - description max 2 krátke vety; priceText len ak je cena uvedená.
-- isTournament = true len pre turnaje/súťaže/championshipy.
+- isTournament = true pre turnaje, súťaže, championshipy, cup, open (turnaj), liga, trophy, kvalifikáciu.
+  Tieto záznamy idú do tabuľky Tournament (nie Event).
+- isTournament = false pre tréningy, lekcie, rekreačné zápasy a týždenný rozvrh.
 - Ak na stránke naozaj nie sú žiadne časy ani dátumy aktivít, vráť prázdne pole events.`;
 }
 
@@ -227,7 +231,8 @@ export async function extractEventsFromText(
     throw new Error(`Gemini returned non-JSON for ${pageUrl}: ${raw.slice(0, 200)}`);
   }
 
-  const validated = ScrapedEventListSchema.safeParse(parsedJson);
+  const coerced = coerceOriginalUrls(parsedJson, pageUrl);
+  const validated = ScrapedEventListSchema.safeParse(coerced);
   if (!validated.success) {
     throw new Error(
       `Zod validation failed for ${pageUrl}: ${validated.error.issues
@@ -239,26 +244,52 @@ export async function extractEventsFromText(
 
   const now = Date.now() - 60 * 60 * 1000;
   return validated.data.events
-    .map((e) => {
-      let originalUrl = e.originalUrl?.trim() || pageUrl;
-      try {
-        originalUrl = new URL(originalUrl).toString();
-      } catch {
-        originalUrl = pageUrl;
-      }
-      return {
-        ...e,
-        title: e.title.trim(),
-        sportType: e.sportType.trim(),
-        locationName: e.locationName.trim(),
-        originalUrl,
-        description: e.description?.trim() || null,
-        priceText: e.priceText?.trim() || null,
-        endTime: e.endTime?.trim() || null,
-      };
-    })
+    .map((e) => ({
+      ...e,
+      title: e.title.trim(),
+      sportType: e.sportType.trim(),
+      locationName: e.locationName.trim(),
+      originalUrl: absoluteHttpUrl(e.originalUrl, pageUrl),
+      description: e.description?.trim() || null,
+      priceText: e.priceText?.trim() || null,
+      endTime: e.endTime?.trim() || null,
+    }))
     .filter((e) => {
       const t = Date.parse(e.startTime);
       return Number.isFinite(t) && t >= now && e.title.length >= 3;
     });
+}
+
+function absoluteHttpUrl(value: string | null | undefined, fallback: string): string {
+  const candidate = (value ?? '').trim() || fallback;
+  try {
+    const resolved = new URL(candidate, fallback);
+    if (resolved.protocol === 'http:' || resolved.protocol === 'https:') {
+      return resolved.toString();
+    }
+  } catch {
+    // fall through
+  }
+  return fallback;
+}
+
+/** Gemini sometimes returns relative paths — coerce to absolute URLs before Zod `.url()`. */
+function coerceOriginalUrls(parsed: unknown, pageUrl: string): unknown {
+  if (!parsed || typeof parsed !== 'object' || !('events' in parsed)) return parsed;
+  const events = (parsed as { events: unknown }).events;
+  if (!Array.isArray(events)) return parsed;
+  return {
+    ...parsed,
+    events: events.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const row = item as Record<string, unknown>;
+      return {
+        ...row,
+        originalUrl: absoluteHttpUrl(
+          typeof row.originalUrl === 'string' ? row.originalUrl : null,
+          pageUrl,
+        ),
+      };
+    }),
+  };
 }

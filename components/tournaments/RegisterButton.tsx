@@ -152,12 +152,12 @@ export function RegisterButton({
       status?: string;
       externalUrl?: string | null;
     } | null;
+    if (body?.externalUrl) {
+      trackSignal('tournament.external_redirect', { tournamentId });
+      window.location.assign(body.externalUrl);
+      return;
+    }
     if (!res.ok) {
-      // Aggregated cups — send the user to the organizer site instead of showing skill errors.
-      if (body?.externalUrl) {
-        window.location.assign(body.externalUrl);
-        return;
-      }
       setError(body?.error ?? 'Could not register');
       return;
     }

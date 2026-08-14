@@ -42,7 +42,8 @@ export type ScrapeAdapterId =
   | 'areal-nevadzova'
   | 'k2-lezenie'
   | 'block-dock'
-  | 'nivy-zone';
+  | 'nivy-zone'
+  | 'venue-web';
 
 export interface NormalizedScrapedEvent {
   source: ScrapeAdapterId;

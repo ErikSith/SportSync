@@ -30,6 +30,7 @@ export const SOURCE_DISPLAY_NAMES: Record<ScrapeAdapterId, string> = {
   'k2-lezenie': 'K2 Lezecká stena',
   'block-dock': 'Block Dock Bouldering',
   'nivy-zone': 'Nivy Zóna Eventy',
+  'venue-web': 'Oficiálny web športoviska',
 };
 
 export function sourceDisplayName(source: string | null | undefined, fallback?: string | null): string {

@@ -8,19 +8,19 @@ export const ScrapedEventSchema = z.object({
   isTournament: z
     .boolean()
     .describe(
-      'True ak ide o turnaj/súťaž, False ak ide o bežný tréning alebo lekciu',
+      'True ak ide o turnaj/súťaž, False ak ide o tréning alebo rekreačnú lekciu',
     ),
   startTime: z
     .string()
     .describe(
-      'Dátum a čas začiatku vo formáte ISO 8601 (napr. 2026-08-15T09:00:00Z)',
+      'Dátum a čas začiatku vo formáte ISO 8601 string (napr. 2026-08-15T09:00:00Z)',
     ),
   endTime: z
     .string()
     .optional()
     .nullable()
     .describe('Dátum a čas konca ak je uvedený'),
-  locationName: z.string().describe('Názov športoviska alebo presná adresa'),
+  locationName: z.string().describe('Názov športoviska alebo adresa'),
   priceText: z
     .string()
     .optional()
@@ -31,7 +31,10 @@ export const ScrapedEventSchema = z.object({
     .optional()
     .nullable()
     .describe('Stručný výťah pravidiel alebo pokynov (max 2 vety)'),
-  originalUrl: z.string().min(1).describe('Priama URL adresa zdroja'),
+  originalUrl: z
+    .string()
+    .url()
+    .describe('Priama URL adresa zdroja/rezervačného systému'),
 });
 
 export type ScrapedEvent = z.infer<typeof ScrapedEventSchema>;
@@ -62,12 +65,12 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
           isTournament: {
             type: 'boolean',
             description:
-              'True ak ide o turnaj/súťaž, False ak ide o bežný tréning alebo lekciu',
+              'True ak ide o turnaj/súťaž, False ak ide o tréning alebo rekreačnú lekciu',
           },
           startTime: {
             type: 'string',
             description:
-              'Dátum a čas začiatku vo formáte ISO 8601 (napr. 2026-08-15T09:00:00Z)',
+              'Dátum a čas začiatku vo formáte ISO 8601 string (napr. 2026-08-15T09:00:00Z)',
           },
           endTime: {
             type: 'string',
@@ -76,7 +79,7 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
           },
           locationName: {
             type: 'string',
-            description: 'Názov športoviska alebo presná adresa',
+            description: 'Názov športoviska alebo adresa',
           },
           priceText: {
             type: 'string',
@@ -90,7 +93,8 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
           },
           originalUrl: {
             type: 'string',
-            description: 'Priama URL adresa zdroja',
+            description:
+              'Priama URL adresa zdroja/rezervačného systému',
           },
         },
         required: [
@@ -114,6 +118,8 @@ export interface ScraperUpsertStats {
   updated: number;
   unchanged: number;
   skipped: number;
+  tournamentsCreated: number;
+  tournamentsUpdated: number;
 }
 
 export interface ScraperUrlResult {
@@ -128,4 +134,16 @@ export interface ScraperRunReport {
   extracted: number;
   upsert: ScraperUpsertStats;
   results: ScraperUrlResult[];
+}
+
+export interface MidnightPurgeStats {
+  deletedEvents: number;
+  deletedTournaments: number;
+  deleted: number;
+}
+
+export interface MidnightSyncReport {
+  ok: boolean;
+  purge: MidnightPurgeStats;
+  scrape: ScraperRunReport;
 }

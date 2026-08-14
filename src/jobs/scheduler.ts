@@ -52,7 +52,7 @@ export function startScheduler(): void {
     }
   });
 
-  cron.schedule('0 */12 * * *', async () => {
+  cron.schedule('0 0 * * *', async () => {
     try {
       const base =
         process.env.SPORTSYNC_APP_URL ||
@@ -60,44 +60,21 @@ export function startScheduler(): void {
         'http://localhost:3000';
       const secret = process.env.CRON_SECRET;
       if (!secret) {
-        console.warn('[scrape-events] CRON_SECRET missing — skip');
+        console.warn('[midnight-sync] CRON_SECRET missing — skip');
         return;
       }
-      const res = await fetch(`${base.replace(/\/$/, '')}/api/cron/scrape-events`, {
-        method: 'POST',
-        headers: { 'x-agent-key': secret },
+      const res = await fetch(`${base.replace(/\/$/, '')}/api/cron/midnight-sync`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${secret}` },
       });
       const body = await res.text();
-      console.log(`[scrape-events] HTTP ${res.status} ${body.slice(0, 400)}`);
+      console.log(`[midnight-sync] HTTP ${res.status} ${body.slice(0, 400)}`);
     } catch (err) {
-      console.error('[scrape-events] failed', err);
-    }
-  });
-
-  // Daily retention: hard-delete scraped events older than 48h (03:00)
-  cron.schedule('0 3 * * *', async () => {
-    try {
-      const base =
-        process.env.SPORTSYNC_APP_URL ||
-        process.env.NEXT_PUBLIC_APP_URL ||
-        'http://localhost:3000';
-      const secret = process.env.CRON_SECRET;
-      if (!secret) {
-        console.warn('[purge-events] CRON_SECRET missing — skip');
-        return;
-      }
-      const res = await fetch(`${base.replace(/\/$/, '')}/api/cron/purge-events`, {
-        method: 'POST',
-        headers: { 'x-agent-key': secret },
-      });
-      const body = await res.text();
-      console.log(`[purge-events] HTTP ${res.status} ${body.slice(0, 400)}`);
-    } catch (err) {
-      console.error('[purge-events] failed', err);
+      console.error('[midnight-sync] failed', err);
     }
   });
 
   console.log(
-    '[scheduler] cron jobs registered (mercenary */5, housekeeping */10, scrape-events */12h, purge-events daily 03:00)',
+    '[scheduler] cron jobs registered (mercenary */5, housekeeping */10, midnight-sync 00:00 UTC)',
   );
 }
