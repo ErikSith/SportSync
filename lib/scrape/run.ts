@@ -40,6 +40,7 @@ import { scrapeK2Lezenie } from '@/lib/scrape/adapters/k2-lezenie';
 import { scrapeBlockDock } from '@/lib/scrape/adapters/block-dock';
 import { scrapeNivyZone } from '@/lib/scrape/adapters/nivy-zone';
 import { hasValidServiceRoleKey } from '@/lib/db/service-role';
+import { cleanupDuplicateEventsByIdentity } from '@/lib/scrape/cleanup-duplicate-events';
 import {
   prepareScrapedEventsForUpsert,
   pickSoftIdentityMatch,
@@ -218,24 +219,14 @@ async function syncVenueBorough(
 
 async function coverForEvent(
   event: NormalizedScrapedEvent,
-  venueId: string | null,
+  _venueId: string | null,
 ): Promise<string> {
   // Scraped events always require AI graphics — never persist third-party photos.
+  // Cover factory uses `sharp` (Node-only); Edge cron uses SportSync plates.
   if (SCRAPE_ETHICS.allowThirdPartyMedia && event.coverUrl && event.requiresAiGraphic === false) {
     return event.coverUrl;
   }
-  try {
-    const { resolveEventCover } = await import(
-      /* webpackIgnore: true */ '@/lib/media/cover-factory'
-    );
-    return await resolveEventCover({
-      venueId,
-      sport: event.sport,
-      title: event.title,
-    });
-  } catch {
-    return DEFAULT_COVERS[event.sport] ?? DEFAULT_COVERS.OTHER ?? DEFAULT_COVERS.FITNESS!;
-  }
+  return DEFAULT_COVERS[event.sport] ?? DEFAULT_COVERS.OTHER ?? DEFAULT_COVERS.FITNESS!;
 }
 
 function withAggregatorDescription(
@@ -516,18 +507,15 @@ async function upsertTournaments(
 }
 
 async function persistAdapterResults(results: AdapterResult[]): Promise<ScrapeRunReport> {
-  const usePg = !hasValidServiceRoleKey();
-  if (usePg) {
-    console.warn(
-      '[scrape] SUPABASE_SERVICE_ROLE_KEY missing/placeholder — writing via DATABASE_URL pooler.',
+  // Node `pg` fallback (`store-pg`) is not loaded here — Cloudflare Edge cannot
+  // resolve that module. Cron/Edge always writes through Supabase REST.
+  if (!hasValidServiceRoleKey()) {
+    throw new Error(
+      '[scrape] SUPABASE_SERVICE_ROLE_KEY missing/placeholder — required on Edge runtime.',
     );
   }
 
-  const { ensureVenuesPg, upsertEventsPg, upsertTournamentsPg } = usePg
-    ? await import(/* webpackIgnore: true */ '@/lib/scrape/store-pg')
-    : { ensureVenuesPg: null, upsertEventsPg: null, upsertTournamentsPg: null };
-
-  const venueIds = usePg ? await ensureVenuesPg!() : await ensureVenues();
+  const venueIds = await ensureVenues();
 
   const extraVenueIds = new Map<string, string>();
   for (const event of results.flatMap((r) => r.events)) {
@@ -545,17 +533,10 @@ async function persistAdapterResults(results: AdapterResult[]): Promise<ScrapeRu
     all.filter((e) => e.category !== 'tournament'),
   );
 
-  const eventStats = usePg
-    ? await upsertEventsPg!(eventItems, venueIds)
-    : await upsertEvents(eventItems, venueIds);
-  const tournamentStats = usePg
-    ? await upsertTournamentsPg!(tournamentItems, venueIds)
-    : await upsertTournaments(tournamentItems, venueIds);
+  const eventStats = await upsertEvents(eventItems, venueIds);
+  const tournamentStats = await upsertTournaments(tournamentItems, venueIds);
 
   try {
-    const { cleanupDuplicateEventsByIdentity } = await import(
-      /* webpackIgnore: true */ '@/lib/scrape/cleanup-duplicate-events'
-    );
     const dedupe = await cleanupDuplicateEventsByIdentity();
     if (dedupe.deleted > 0) {
       console.log('[scrape] removed duplicate events', dedupe);

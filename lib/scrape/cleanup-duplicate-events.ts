@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
-import { hasValidServiceRoleKey, withPgAdmin } from '@/lib/db/pg';
+import { hasValidServiceRoleKey } from '@/lib/db/service-role';
 import {
   eventIdentityKey,
   preferIdentityEvent,
@@ -109,42 +109,12 @@ async function cleanupViaSupabase(): Promise<DuplicateCleanupReport> {
   return { scanned, groups, deleted, kept };
 }
 
-async function cleanupViaPg(): Promise<DuplicateCleanupReport> {
-  return withPgAdmin(async (client) => {
-    const res = await client.query<DupRow>(
-      `select id, title, starts_at::text as starts_at, registered_count, venue_id,
-              source_url, ticket_url, is_aggregated, cover_url, status
-         from events
-        where status is distinct from 'cancelled'
-        order by starts_at asc
-        limit 5000`,
-    );
-
-    const { scanned, groups, kept, dropIds } = groupDuplicates(res.rows);
-    let deleted = 0;
-
-    if (dropIds.length > 0) {
-      const del = await client.query(`delete from events where id = any($1::uuid[])`, [
-        dropIds,
-      ]);
-      deleted = del.rowCount ?? 0;
-    }
-
-    return { scanned, groups, deleted, kept };
-  });
-}
-
 /** Remove open events that share the same title + local date/time minute. */
 export async function cleanupDuplicateEventsByIdentity(): Promise<DuplicateCleanupReport> {
-  if (hasValidServiceRoleKey()) {
-    try {
-      return await cleanupViaSupabase();
-    } catch (err) {
-      console.warn(
-        '[cleanup-duplicates] Supabase admin failed, falling back to DATABASE_URL:',
-        err instanceof Error ? err.message : err,
-      );
-    }
+  if (!hasValidServiceRoleKey()) {
+    throw new Error(
+      '[cleanup-duplicates] SUPABASE_SERVICE_ROLE_KEY missing — pg fallback is not available on Edge.',
+    );
   }
-  return cleanupViaPg();
+  return cleanupViaSupabase();
 }
