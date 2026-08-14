@@ -16,6 +16,7 @@ import { TopAppBar } from '@/components/home/TopAppBar';
 import { QuickActions } from '@/components/home/QuickActions';
 import { EventsInspirationSection } from '@/components/home/EventsInspirationSection';
 import { LocationPrompt } from '@/components/home/LocationPrompt';
+import { LockViewport } from '@/components/home/LockViewport';
 import { HomeFeedFilterHydrator as PlayerFeedFilterHydrator, HomeFeedPreferencesAside } from '@/components/home/HomeFeedFilterButton';
 import { TrackPageView } from '@/components/telemetry/TrackPageView';
 import { parseHomeFeedFilters, activeHomeFeedFilterCount } from '@/lib/home-feed-filters';
@@ -177,6 +178,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   return (
     <>
+      <LockViewport />
       <TrackPageView
         page="home"
         extra={{
@@ -199,7 +201,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
       <TopAppBar avatarUrl={profile.avatarUrl} name={displayName} />
 
-      <main className="pt-24 px-container-margin-mobile md:px-container-margin-desktop max-w-7xl mx-auto space-y-8 md:space-y-section-gap relative z-10 w-full min-w-0">
+      <main className="h-dvh max-h-dvh overflow-hidden overscroll-none pt-24 px-container-margin-mobile md:px-container-margin-desktop max-w-7xl mx-auto space-y-8 md:space-y-section-gap relative z-10 w-full min-w-0 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]">
         <section className="space-y-5 md:space-y-6">
           <header className="space-y-2 border-b border-white/5 pb-4">
             <div className="flex items-start justify-between gap-2.5">
