@@ -29,8 +29,6 @@ import {
   parseEventDateRange,
 } from '@/lib/event-date-filter';
 
-export const runtime = 'edge';
-
 interface EventsPageProps {
   searchParams: {
     sport?: string;

@@ -1,8 +1,6 @@
 import { getPageViewer } from '@/lib/auth/viewer';
 import { JoinGroupClient } from '@/components/lobby/groups/JoinGroupClient';
 
-export const runtime = 'edge';
-
 interface JoinGroupPageProps {
   params: { code: string };
 }

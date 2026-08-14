@@ -6,8 +6,6 @@ import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { resolveVenueCover, resolveVenueLogo } from '@/lib/venues/venue-media';
 import { sportDisplayLabel } from '@/lib/constants/sports';
 
-export const runtime = 'edge';
-
 function formatDateTime(date: Date): string {
   return date.toLocaleString('en-GB', {
     day: 'numeric',

@@ -17,8 +17,6 @@ import {
 } from '@/lib/home-feed-filters';
 import { parseFeedArea, resolveFeedLocation } from '@/lib/cities';
 
-export const runtime = 'edge';
-
 interface VenuesPageProps {
   searchParams: { sport?: string; venues?: string; type?: string; area?: string };
 }

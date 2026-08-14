@@ -18,8 +18,6 @@ import {
   parseEventDateRange,
 } from '@/lib/event-date-filter';
 
-export const runtime = 'edge';
-
 interface TournamentsPageProps {
   searchParams: {
     sport?: string;

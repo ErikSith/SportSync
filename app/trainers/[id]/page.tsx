@@ -11,8 +11,6 @@ import { TrainerCredentials } from '@/components/trainers/TrainerCredentials';
 import { TrainerLessonCard } from '@/components/trainers/TrainerLessonCard';
 import { TrainerDetailActions } from '@/components/trainers/TrainerDetailActions';
 
-export const runtime = 'edge';
-
 interface TrainerDetailPageProps {
   params: { id: string };
 }

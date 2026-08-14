@@ -10,8 +10,6 @@ import { TrainerCredentials } from '@/components/trainers/TrainerCredentials';
 import { TrainerLessonCard } from '@/components/trainers/TrainerLessonCard';
 import { TrainerDetailActions } from '@/components/trainers/TrainerDetailActions';
 
-export const runtime = 'edge';
-
 /** Dev preview of the elite trainer profile — no auth or DB required. */
 export default function TrainerPreviewPage() {
   const coach = SHOWCASE_MOCK_COACH;

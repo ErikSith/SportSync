@@ -14,8 +14,6 @@ import { resolveTheme } from '@/lib/ai/theme-config-client';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { APP_TIMEZONE, formatAppDate, formatAppTime } from '@/lib/datetime/bratislava';
 
-export const runtime = 'edge';
-
 const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1200&q=80';
 
 const SPORT_ICONS: Record<string, string> = {

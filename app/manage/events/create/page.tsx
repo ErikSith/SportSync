@@ -4,8 +4,6 @@ import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { getVenuesForOrganizer } from '@/lib/data/organizer-venues';
 import { VenueEventCreator } from '@/components/events/VenueEventCreator';
 
-export const runtime = 'edge';
-
 interface CreateOfficialEventPageProps {
   searchParams: { venueId?: string };
 }

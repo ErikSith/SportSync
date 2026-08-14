@@ -5,8 +5,6 @@ import { getSessionById, getBookingOptionsForCity } from '@/lib/data/sport-group
 import { formatGroupSchedule, GROUP_SPORT_ICONS, sportDisplayLabel } from '@/lib/data/sport-groups-shared';
 import { SessionCoordinationHub } from '@/components/lobby/groups/SessionCoordinationHub';
 
-export const runtime = 'edge';
-
 interface SessionDetailPageProps {
   params: { id: string; sessionId: string };
 }
