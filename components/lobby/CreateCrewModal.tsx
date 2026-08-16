@@ -85,9 +85,17 @@ interface CreateCrewModalProps {
   onClose: () => void;
   groups?: GroupCardData[];
   onCreated?: () => void;
+  /** When true, open directly on the create wizard even if user already has crews. */
+  preferWizard?: boolean;
 }
 
-export function CreateCrewModal({ open, onClose, groups = [], onCreated }: CreateCrewModalProps) {
+export function CreateCrewModal({
+  open,
+  onClose,
+  groups = [],
+  onCreated,
+  preferWizard = false,
+}: CreateCrewModalProps) {
   const titleId = useId();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -106,7 +114,7 @@ export function CreateCrewModal({ open, onClose, groups = [], onCreated }: Creat
 
   useEffect(() => {
     if (!open) return;
-    setView(groups.length > 0 ? 'hub' : 'wizard');
+    setView(preferWizard || groups.length === 0 ? 'wizard' : 'hub');
     setStep(0);
     setDraft(EMPTY_DRAFT);
     setCreateState('idle');
@@ -115,7 +123,7 @@ export function CreateCrewModal({ open, onClose, groups = [], onCreated }: Creat
     setInviteState('idle');
     setInviteError(null);
     setCopyState('idle');
-  }, [open, groups.length]);
+  }, [open, groups.length, preferWizard]);
 
   useEffect(() => {
     if (!open) return;

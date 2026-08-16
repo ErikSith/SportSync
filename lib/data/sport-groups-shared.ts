@@ -84,6 +84,10 @@ export interface GroupActivityData {
   eventId: string | null;
   eventTitle: string | null;
   goingCount: number;
+  /** User ids who RSVP'd going (for avatar stacks on mini cards). */
+  goingUserIds: string[];
+  /** User ids who RSVP'd declined. */
+  declinedUserIds: string[];
 }
 
 export interface SessionRsvpData {
@@ -288,6 +292,8 @@ function groupActivityFromCard(group: GroupCardData): GroupActivityData | null {
     eventId: c.eventId,
     eventTitle: null,
     goingCount: c.goingCount,
+    goingUserIds: [],
+    declinedUserIds: [],
   };
 }
 

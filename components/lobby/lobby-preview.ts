@@ -1,6 +1,7 @@
 import { formatLobbyLabel } from '@/lib/constants/lobbies';
 import { sportDisplayLabel } from '@/lib/constants/sports';
 import type { LobbyDetailData } from '@/lib/data/lobbies';
+import { isVenueUuid } from '@/lib/lobby-create';
 import { lobbyTierLabel } from '@/lib/utils/lobby';
 import {
   LOBBY_TYPE_LABELS,
@@ -173,7 +174,7 @@ export function draftToLobbyPreview(
     isJoined: true,
     mercenaryMode: draft.type === LobbyType.SINGLE_PLAYER_1,
     status: 'open',
-    venueId: draft.venueId,
+    venueId: isVenueUuid(draft.venueId) ? draft.venueId : null,
     websiteUrl: null,
     distanceKm: null,
     priceLabel: 'Free',

@@ -143,7 +143,7 @@ export default async function LobbyPage() {
         city={city}
         venues={venues}
         initialMatches={initialMatches}
-        groups={groups}
+        groups={JSON.parse(JSON.stringify(groups)) as typeof groups}
       />
     </>
   );

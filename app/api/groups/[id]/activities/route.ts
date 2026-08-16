@@ -6,7 +6,7 @@ import { LOBBY_SPORTS } from '@/lib/constants/sports';
 export const runtime = 'edge';
 
 const planActivitySchema = z.object({
-  title: z.string().min(2).max(120),
+  title: z.string().min(2).max(120).optional(),
   sport: z.enum(LOBBY_SPORTS),
   scheduledAt: z.string().datetime(),
   locationNote: z.string().max(200).optional(),
@@ -55,12 +55,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
   }
 
+  const sportLabel = input.sport.charAt(0) + input.sport.slice(1).toLowerCase();
+  const title = input.title?.trim() || sportLabel;
+
   const { data: activity, error: activityError } = await supabase
     .from('sport_group_activities')
     .insert({
       group_id: params.id,
       created_by_id: auth.user.id,
-      title: input.title.trim(),
+      title,
       sport: input.sport,
       scheduled_at: scheduledAt.toISOString(),
       location_note: input.locationNote?.trim() || null,

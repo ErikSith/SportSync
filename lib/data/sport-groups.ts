@@ -74,8 +74,9 @@ interface ActivityRow {
   destination_name: string | null;
   destination_address: string | null;
   parking_note: string | null;
-  venue_id: string | null;
-  event_id: string | null;
+  /** Optional — live DB may lag Prisma (columns / FKs not yet applied). */
+  venue_id?: string | null;
+  event_id?: string | null;
   open_to_mercenaries?: boolean | null;
   spots_needed?: number | null;
   mercenary_lobby_id?: string | null;
@@ -166,6 +167,10 @@ function countGoing(rsvps: RsvpRow[] | undefined): number {
   return (rsvps ?? []).filter((r) => r.status === 'going').length;
 }
 
+function rsvpUserIds(rsvps: RsvpRow[] | undefined, status: string): string[] {
+  return (rsvps ?? []).filter((r) => r.status === status).map((r) => r.user_id);
+}
+
 function resolveNamed<T extends { id: string }>(raw: T | T[] | null | undefined): T | null {
   if (!raw) return null;
   return Array.isArray(raw) ? raw[0] ?? null : raw;
@@ -192,6 +197,8 @@ function mapActivity(row: ActivityRow): GroupActivityData {
     eventId: row.event_id ?? event?.id ?? null,
     eventTitle: event?.title ?? null,
     goingCount: countGoing(rsvps),
+    goingUserIds: rsvpUserIds(rsvps, 'going'),
+    declinedUserIds: rsvpUserIds(rsvps, 'declined'),
   };
 }
 
@@ -233,7 +240,7 @@ function mapGroupCard(group: GroupRow, viewerId: string, viewerRole: string): Gr
           venueId: nextRow.venue_id ?? null,
           eventId: nextRow.event_id ?? null,
         }
-      : null,
+      : null, // venue/event ids only when columns exist on sport_group_activities
     isOwner: group.owner_id === viewerId,
     viewerRole,
   };
@@ -279,8 +286,6 @@ export async function getMyGroups(profileId: string): Promise<GroupCardData[]> {
         destination_name,
         destination_address,
         parking_note,
-        venue_id,
-        event_id,
         sport_group_activity_rsvps (
           user_id,
           status,
@@ -339,11 +344,7 @@ export async function getGroupById(id: string, viewerId: string): Promise<GroupD
         destination_name,
         destination_address,
         parking_note,
-        venue_id,
-        event_id,
         profiles!sport_group_activities_created_by_id_fkey ( full_name, username ),
-        venues ( id, name ),
-        events ( id, title ),
         sport_group_activity_rsvps ( user_id, status, paid )
       )
     `,
@@ -550,13 +551,9 @@ export async function getSessionById(
       destination_name,
       destination_address,
       parking_note,
-      venue_id,
-      event_id,
       open_to_mercenaries,
       spots_needed,
       mercenary_lobby_id,
-      venues ( id, name ),
-      events ( id, title ),
       profiles!sport_group_activities_created_by_id_fkey ( full_name, username ),
       sport_group_activity_rsvps (
         user_id,
@@ -657,10 +654,6 @@ export async function getGroupActivities(groupId: string): Promise<GroupActivity
       destination_name,
       destination_address,
       parking_note,
-      venue_id,
-      event_id,
-      venues ( id, name ),
-      events ( id, title ),
       profiles!sport_group_activities_created_by_id_fkey ( full_name, username ),
       sport_group_activity_rsvps ( user_id, status, paid )
     `,
