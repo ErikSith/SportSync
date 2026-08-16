@@ -7,6 +7,7 @@ import {
   TileLayer,
   Marker,
   Popup,
+  CircleMarker,
   useMap,
 } from 'react-leaflet';
 import L from 'leaflet';
@@ -35,6 +36,11 @@ export interface VenueMapPin {
   activities: VenueCardData['activities'];
   distanceKm: number;
   verified: boolean;
+}
+
+export interface UserMapLocation {
+  latitude: number;
+  longitude: number;
 }
 
 function toPins(venues: VenueCardData[]): VenueMapPin[] {
@@ -97,6 +103,15 @@ function venueBadgeIcon(pin: VenueMapPin, selected: boolean): L.DivIcon {
   });
 }
 
+function userLocationIcon(): L.DivIcon {
+  return L.divIcon({
+    className: 'ss-user-loc',
+    html: `<div class="ss-user-loc__pulse" aria-hidden="true"><div class="ss-user-loc__dot"></div></div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
+
 function createClusterIcon(cluster: L.MarkerCluster): L.DivIcon {
   const count = cluster.getChildCount();
   return L.divIcon({
@@ -107,22 +122,30 @@ function createClusterIcon(cluster: L.MarkerCluster): L.DivIcon {
   });
 }
 
-function FitBounds({ pins }: { pins: VenueMapPin[] }) {
+function FitBounds({
+  pins,
+  userLocation,
+}: {
+  pins: VenueMapPin[];
+  userLocation: UserMapLocation | null;
+}) {
   const map = useMap();
   useEffect(() => {
-    if (pins.length === 0) {
+    const points: [number, number][] = pins.map((p) => [p.latitude, p.longitude]);
+    if (userLocation) {
+      points.push([userLocation.latitude, userLocation.longitude]);
+    }
+    if (points.length === 0) {
       map.setView(BRATISLAVA, 12);
       return;
     }
-    if (pins.length === 1) {
-      map.setView([pins[0]!.latitude, pins[0]!.longitude], 14);
+    if (points.length === 1) {
+      map.setView(points[0]!, 14);
       return;
     }
-    const bounds = L.latLngBounds(
-      pins.map((p) => [p.latitude, p.longitude] as [number, number]),
-    );
+    const bounds = L.latLngBounds(points);
     map.fitBounds(bounds.pad(0.18));
-  }, [map, pins]);
+  }, [map, pins, userLocation]);
   return null;
 }
 
@@ -134,6 +157,23 @@ function FlyToSelection({ pin }: { pin: VenueMapPin | null }) {
       duration: 0.55,
     });
   }, [map, pin]);
+  return null;
+}
+
+function FlyToUser({
+  location,
+  requestId,
+}: {
+  location: UserMapLocation | null;
+  requestId: number;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    if (!location || requestId === 0) return;
+    map.flyTo([location.latitude, location.longitude], Math.max(map.getZoom(), 14), {
+      duration: 0.55,
+    });
+  }, [map, location, requestId]);
   return null;
 }
 
@@ -187,10 +227,75 @@ function VenuePinPopup({ pin }: { pin: VenueMapPin }) {
   );
 }
 
-export function VenueDiscoveryMap({ venues }: { venues: VenueCardData[] }) {
+export function VenueDiscoveryMap({
+  venues,
+  userLocation: savedLocation = null,
+}: {
+  venues: VenueCardData[];
+  userLocation?: UserMapLocation | null;
+}) {
   const pins = useMemo(() => toPins(venues), [venues]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [liveLocation, setLiveLocation] = useState<UserMapLocation | null>(null);
+  const [locateError, setLocateError] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [flyRequestId, setFlyRequestId] = useState(0);
   const selected = pins.find((p) => p.id === selectedId) ?? null;
+  const userLocation = liveLocation ?? savedLocation;
+
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLiveLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setLocateError(null);
+      },
+      () => {
+        /* Keep saved profile pin if permission denied. */
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 },
+    );
+  }, []);
+
+  function locateMe() {
+    if (!('geolocation' in navigator)) {
+      setLocateError('GPS nie je dostupné');
+      return;
+    }
+    setLocating(true);
+    setLocateError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const next = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        setLiveLocation(next);
+        setFlyRequestId((n) => n + 1);
+        setLocating(false);
+        void fetch('/api/profile/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source: 'gps',
+            latitude: next.latitude,
+            longitude: next.longitude,
+          }),
+        }).catch(() => {
+          /* map pin still works without persist */
+        });
+      },
+      () => {
+        setLocating(false);
+        setLocateError('Povolenie GPS bolo zamietnuté');
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }
 
   return (
     <div
@@ -198,7 +303,11 @@ export function VenueDiscoveryMap({ venues }: { venues: VenueCardData[] }) {
       style={{ background: SURFACE }}
     >
       <MapContainer
-        center={BRATISLAVA}
+        center={
+          userLocation
+            ? ([userLocation.latitude, userLocation.longitude] as [number, number])
+            : BRATISLAVA
+        }
         zoom={12}
         className="h-full w-full bg-[#121212]"
         zoomControl={false}
@@ -208,8 +317,9 @@ export function VenueDiscoveryMap({ venues }: { venues: VenueCardData[] }) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
-        <FitBounds pins={pins} />
+        <FitBounds pins={pins} userLocation={userLocation} />
         <FlyToSelection pin={selected} />
+        <FlyToUser location={userLocation} requestId={flyRequestId} />
         <MarkerClusterGroup
           chunkedLoading
           showCoverageOnHover={false}
@@ -242,6 +352,36 @@ export function VenueDiscoveryMap({ venues }: { venues: VenueCardData[] }) {
             </Marker>
           ))}
         </MarkerClusterGroup>
+
+        {userLocation ? (
+          <>
+            <CircleMarker
+              center={[userLocation.latitude, userLocation.longitude]}
+              radius={18}
+              pathOptions={{
+                color: '#FF5722',
+                fillColor: '#FF5722',
+                fillOpacity: 0.15,
+                weight: 1,
+                opacity: 0.45,
+              }}
+            />
+            <Marker
+              position={[userLocation.latitude, userLocation.longitude]}
+              icon={userLocationIcon()}
+              zIndexOffset={1200}
+            >
+              <Popup className="ss-venue-popup" closeButton offset={[0, -4]}>
+                <div className="ss-venue-popup-body px-1 py-0.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#FF5722]">
+                    Tvoja poloha
+                  </p>
+                  <p className="mt-0.5 text-xs text-white/80">Tu si podľa GPS</p>
+                </div>
+              </Popup>
+            </Marker>
+          </>
+        ) : null}
       </MapContainer>
 
       <div className="pointer-events-none absolute left-3 top-3 z-[400] rounded-lg border border-white/10 bg-[#121212]/85 px-3 py-2 backdrop-blur-md">
@@ -250,7 +390,27 @@ export function VenueDiscoveryMap({ venues }: { venues: VenueCardData[] }) {
         </p>
         <p className="text-xs text-white/70">
           {pins.length} pin{pins.length === 1 ? '' : 's'} with GPS
+          {userLocation ? ' · Ty' : ''}
         </p>
+      </div>
+
+      <div className="absolute bottom-3 right-3 z-[400] flex flex-col items-end gap-1.5">
+        {locateError ? (
+          <p className="rounded-lg border border-red-500/30 bg-[#121212]/90 px-2.5 py-1.5 text-[10px] text-red-300 backdrop-blur-md">
+            {locateError}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          onClick={locateMe}
+          disabled={locating}
+          className="pointer-events-auto inline-flex items-center gap-1.5 rounded-xl border border-[#FF5722]/35 bg-[#121212]/90 px-3 py-2 text-[11px] font-semibold text-white backdrop-blur-md transition hover:border-[#FF5722]/55 hover:bg-[#1a1a1a] active:scale-[0.98] disabled:opacity-60"
+        >
+          <span className="material-symbols-outlined text-[16px] text-[#FF7F50]">
+            {locating ? 'progress_activity' : 'my_location'}
+          </span>
+          {locating ? 'Hľadám…' : userLocation ? 'Centrovať na mňa' : 'Zapnúť GPS'}
+        </button>
       </div>
     </div>
   );

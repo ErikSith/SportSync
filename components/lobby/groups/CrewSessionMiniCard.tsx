@@ -83,7 +83,7 @@ interface CrewSessionMiniCardProps {
   capacity: number;
 }
 
-/** Tiny session chip — horizontal row, RSVP + In/Out avatars. */
+/** Tiny session chip — RSVP + weekly pin (same row rolls forward). */
 export function CrewSessionMiniCard({
   groupId,
   activity,
@@ -93,6 +93,9 @@ export function CrewSessionMiniCard({
 }: CrewSessionMiniCardProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [repeatPending, setRepeatPending] = useState(false);
+  const [deletePending, setDeletePending] = useState(false);
+  const [pinnedLocal, setPinnedLocal] = useState(Boolean(activity.isPinned));
   const [status, setStatus] = useState<SessionRsvpStatus | null>(() =>
     initialStatus(viewerId, activity.goingUserIds ?? [], activity.declinedUserIds ?? []),
   );
@@ -107,20 +110,74 @@ export function CrewSessionMiniCard({
     setGoingLocal(activity.goingCount);
     setGoingIds(going);
     setDeclinedIds(declined);
+    setPinnedLocal(Boolean(activity.isPinned));
     setStatus(initialStatus(viewerId, going, declined));
-  }, [activity.goingCount, activity.goingUserIds, activity.declinedUserIds, viewerId]);
+  }, [
+    activity.goingCount,
+    activity.goingUserIds,
+    activity.declinedUserIds,
+    activity.isPinned,
+    viewerId,
+  ]);
 
   const cap = Math.max(capacity, 2);
   const going = Math.min(cap, Math.max(0, goingLocal));
   const pct = Math.round((going / cap) * 100);
   const place =
     activity.destinationName ?? activity.venueName ?? activity.locationNote ?? 'TBA';
+  const canDelete = activity.createdById === viewerId;
 
   const rsvpPeople = useMemo(() => {
-    const going = peopleFromIds(goingIds, members, 'going');
-    const declined = peopleFromIds(declinedIds, members, 'declined');
-    return [...going, ...declined].slice(0, 5);
+    const goingPeople = peopleFromIds(goingIds, members, 'going');
+    const declinedPeople = peopleFromIds(declinedIds, members, 'declined');
+    return [...goingPeople, ...declinedPeople].slice(0, 5);
   }, [goingIds, declinedIds, members]);
+
+  async function togglePin() {
+    setError(null);
+    setRepeatPending(true);
+    const next = !pinnedLocal;
+    setPinnedLocal(next);
+
+    try {
+      const res = await fetch(`/api/groups/${groupId}/sessions/${activity.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPinned: next }),
+      });
+      if (!res.ok) {
+        setPinnedLocal(!next);
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(body?.error ?? 'Nepodarilo sa pinnúť session');
+        return;
+      }
+      startTransition(() => router.refresh());
+    } finally {
+      setRepeatPending(false);
+    }
+  }
+
+  async function deleteSession() {
+    if (deletePending) return;
+    const ok = window.confirm('Odstrániť túto session?');
+    if (!ok) return;
+
+    setError(null);
+    setDeletePending(true);
+    try {
+      const res = await fetch(`/api/groups/${groupId}/sessions/${activity.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(body?.error ?? 'Nepodarilo sa odstrániť session');
+        return;
+      }
+      startTransition(() => router.refresh());
+    } finally {
+      setDeletePending(false);
+    }
+  }
 
   async function setRsvp(next: SessionRsvpStatus) {
     setError(null);
@@ -187,6 +244,51 @@ export function CrewSessionMiniCard({
 
   return (
     <article className="flex w-[140px] shrink-0 flex-col rounded-xl border border-white/[0.06] bg-[#1F1F1F] p-2">
+      <div className="mb-1 flex items-center justify-between gap-1">
+        {canDelete ? (
+          <button
+            type="button"
+            disabled={deletePending}
+            onClick={() => void deleteSession()}
+            title="Odstrániť session"
+            aria-label="Odstrániť session"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#2A2A2A] text-gray-500 transition hover:bg-red-500/15 hover:text-red-400 active:scale-95 disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-[14px]" aria-hidden>
+              delete
+            </span>
+          </button>
+        ) : (
+          <span className="h-6 w-6 shrink-0" aria-hidden />
+        )}
+
+        <button
+          type="button"
+          disabled={repeatPending}
+          onClick={() => void togglePin()}
+          title={
+            pinnedLocal
+              ? 'Zrušiť pin — session sa už nebude opakovať'
+              : 'Pinnúť — rovnaký termín každý týždeň'
+          }
+          aria-label={pinnedLocal ? 'Zrušiť týždenný pin' : 'Pinnúť na každý týždeň'}
+          aria-pressed={pinnedLocal}
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-50 ${
+            pinnedLocal
+              ? 'bg-[#FF5722]/20 text-[#FF7F50]'
+              : 'bg-[#2A2A2A] text-gray-500 hover:text-[#FF7F50]'
+          }`}
+        >
+          <span
+            className="material-symbols-outlined text-[14px]"
+            style={pinnedLocal ? { fontVariationSettings: "'FILL' 1" } : undefined}
+            aria-hidden
+          >
+            autorenew
+          </span>
+        </button>
+      </div>
+
       <p className="truncate text-[11px] font-bold leading-tight text-white">{activity.title}</p>
       <p className="mt-1 truncate text-[9px] text-gray-400">{formatSessionWhen(activity.scheduledAt)}</p>
       <p className="truncate text-[9px] text-gray-500">{place}</p>

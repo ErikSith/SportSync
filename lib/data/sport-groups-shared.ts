@@ -75,6 +75,7 @@ export interface GroupActivityData {
   scheduledAt: Date;
   locationNote: string | null;
   lobbyId: string | null;
+  createdById: string;
   createdByName: string;
   destinationName: string | null;
   destinationAddress: string | null;
@@ -84,6 +85,8 @@ export interface GroupActivityData {
   eventId: string | null;
   eventTitle: string | null;
   goingCount: number;
+  /** Sticky weekly pin — same session rolls to next week after the day passes. */
+  isPinned: boolean;
   /** User ids who RSVP'd going (for avatar stacks on mini cards). */
   goingUserIds: string[];
   /** User ids who RSVP'd declined. */
@@ -283,6 +286,7 @@ function groupActivityFromCard(group: GroupCardData): GroupActivityData | null {
     scheduledAt: group.nextActivityAt,
     locationNote: c.locationNote,
     lobbyId: null,
+    createdById: '',
     createdByName: '',
     destinationName: c.destinationName,
     destinationAddress: c.destinationAddress,
@@ -292,6 +296,7 @@ function groupActivityFromCard(group: GroupCardData): GroupActivityData | null {
     eventId: c.eventId,
     eventTitle: null,
     goingCount: c.goingCount,
+    isPinned: false,
     goingUserIds: [],
     declinedUserIds: [],
   };

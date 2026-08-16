@@ -14,6 +14,7 @@ const updateSessionSchema = z.object({
   eventId: z.string().uuid().optional().nullable(),
   openToMercenaries: z.boolean().optional(),
   spotsNeeded: z.number().int().min(2).max(30).optional().nullable(),
+  isPinned: z.boolean().optional(),
 });
 
 export async function GET(_request: Request, { params }: { params: { id: string; sessionId: string } }) {
@@ -66,6 +67,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (input.eventId !== undefined) updates.event_id = input.eventId;
   if (input.openToMercenaries !== undefined) updates.open_to_mercenaries = input.openToMercenaries;
   if (input.spotsNeeded !== undefined) updates.spots_needed = input.spotsNeeded;
+  if (input.isPinned !== undefined) updates.is_pinned = input.isPinned;
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
@@ -79,6 +81,59 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(_request: Request, { params }: { params: { id: string; sessionId: string } }) {
+  const supabase = await createClient();
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from('sport_group_members')
+    .select('role')
+    .eq('group_id', params.id)
+    .eq('user_id', auth.user.id)
+    .maybeSingle();
+
+  if (membershipError || !membership) {
+    return NextResponse.json({ error: 'Group not found' }, { status: 404 });
+  }
+
+  const { data: activity, error: activityError } = await supabase
+    .from('sport_group_activities')
+    .select('id, created_by_id')
+    .eq('id', params.sessionId)
+    .eq('group_id', params.id)
+    .maybeSingle();
+
+  if (activityError || !activity) {
+    return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+  }
+
+  if (activity.created_by_id !== auth.user.id) {
+    return NextResponse.json({ error: 'Only the creator can delete this session' }, { status: 403 });
+  }
+
+  const { data: deleted, error: deleteError } = await supabase
+    .from('sport_group_activities')
+    .delete()
+    .eq('id', params.sessionId)
+    .eq('group_id', params.id)
+    .eq('created_by_id', auth.user.id)
+    .select('id')
+    .maybeSingle();
+
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+  }
+
+  if (!deleted) {
+    return NextResponse.json({ error: 'Could not delete session' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

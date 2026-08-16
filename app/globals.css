@@ -216,6 +216,52 @@ body {
     0 12px 28px rgba(0, 0, 0, 0.6);
 }
 
+.leaflet-div-icon.ss-user-loc {
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+.ss-user-loc__pulse {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ss-user-loc__pulse::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: rgba(255, 87, 34, 0.28);
+  animation: ss-user-pulse 1.8s ease-out infinite;
+}
+
+.ss-user-loc__dot {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #ff5722;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.35), 0 6px 14px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes ss-user-pulse {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
 .marker-cluster {
   background-color: transparent !important;
 }

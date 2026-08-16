@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type {
   GearClaimData,
   GearItem,
@@ -15,6 +16,7 @@ import type {
 } from '@/lib/data/sport-groups-shared';
 import { buildLeaderboard } from '@/lib/data/sport-groups-shared';
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { nextOccurrence } from '@/lib/utils/schedule';
 
 export type {
   GearClaimData,
@@ -71,6 +73,7 @@ interface ActivityRow {
   scheduled_at: string;
   location_note: string | null;
   lobby_id: string | null;
+  created_by_id?: string;
   destination_name: string | null;
   destination_address: string | null;
   parking_note: string | null;
@@ -80,6 +83,7 @@ interface ActivityRow {
   open_to_mercenaries?: boolean | null;
   spots_needed?: number | null;
   mercenary_lobby_id?: string | null;
+  is_pinned?: boolean | null;
   profiles: ProfileSnippet | ProfileSnippet[] | null;
   sport_group_activity_rsvps?: RsvpRow[];
   venues?: { id: string; name: string } | Array<{ id: string; name: string }> | null;
@@ -188,6 +192,7 @@ function mapActivity(row: ActivityRow): GroupActivityData {
     scheduledAt: new Date(row.scheduled_at),
     locationNote: row.location_note,
     lobbyId: row.lobby_id,
+    createdById: row.created_by_id ?? creator?.id ?? '',
     createdByName: creator?.full_name ?? creator?.username ?? 'Crew member',
     destinationName: row.destination_name,
     destinationAddress: row.destination_address,
@@ -197,6 +202,7 @@ function mapActivity(row: ActivityRow): GroupActivityData {
     eventId: row.event_id ?? event?.id ?? null,
     eventTitle: event?.title ?? null,
     goingCount: countGoing(rsvps),
+    isPinned: Boolean(row.is_pinned),
     goingUserIds: rsvpUserIds(rsvps, 'going'),
     declinedUserIds: rsvpUserIds(rsvps, 'declined'),
   };
@@ -304,6 +310,57 @@ export async function getMyGroups(profileId: string): Promise<GroupCardData[]> {
   );
 }
 
+function timeOfDayFromDate(date: Date): string {
+  const h = String(date.getHours()).padStart(2, '0');
+  const m = String(date.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+/**
+ * Pinned sessions stay as one row. The calendar day after `scheduled_at`,
+ * roll them to the next weekly occurrence and clear RSVPs/gear.
+ */
+async function rollPinnedExpiredSessions(groupId: string): Promise<void> {
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return;
+  }
+
+  const { data: pinned } = await admin
+    .from('sport_group_activities')
+    .select('id, scheduled_at')
+    .eq('group_id', groupId)
+    .eq('is_pinned', true);
+
+  if (!pinned?.length) return;
+
+  const now = new Date();
+
+  for (const row of pinned) {
+    const scheduled = new Date(row.scheduled_at);
+    if (Number.isNaN(scheduled.getTime())) continue;
+
+    // Reset starting at local midnight the day after the session date.
+    const resetAt = new Date(scheduled);
+    resetAt.setDate(resetAt.getDate() + 1);
+    resetAt.setHours(0, 0, 0, 0);
+    if (now < resetAt) continue;
+
+    const nextAt = nextOccurrence(scheduled.getDay(), timeOfDayFromDate(scheduled), now);
+
+    await admin
+      .from('sport_group_activities')
+      .update({ scheduled_at: nextAt.toISOString() })
+      .eq('id', row.id)
+      .eq('group_id', groupId);
+
+    await admin.from('sport_group_activity_rsvps').delete().eq('activity_id', row.id);
+    await admin.from('sport_group_activity_gear_claims').delete().eq('activity_id', row.id);
+  }
+}
+
 export async function getGroupById(id: string, viewerId: string): Promise<GroupDetailData | null> {
   const supabase = await createClient();
 
@@ -315,6 +372,8 @@ export async function getGroupById(id: string, viewerId: string): Promise<GroupD
     .maybeSingle();
 
   if (memberError || !membership) return null;
+
+  await rollPinnedExpiredSessions(id);
 
   const { data, error } = await supabase
     .from('sport_groups')
@@ -341,10 +400,12 @@ export async function getGroupById(id: string, viewerId: string): Promise<GroupD
         scheduled_at,
         location_note,
         lobby_id,
+        created_by_id,
         destination_name,
         destination_address,
         parking_note,
-        profiles!sport_group_activities_created_by_id_fkey ( full_name, username ),
+        is_pinned,
+        profiles!sport_group_activities_created_by_id_fkey ( id, full_name, username ),
         sport_group_activity_rsvps ( user_id, status, paid )
       )
     `,
@@ -651,10 +712,12 @@ export async function getGroupActivities(groupId: string): Promise<GroupActivity
       scheduled_at,
       location_note,
       lobby_id,
+      created_by_id,
       destination_name,
       destination_address,
       parking_note,
-      profiles!sport_group_activities_created_by_id_fkey ( full_name, username ),
+      is_pinned,
+      profiles!sport_group_activities_created_by_id_fkey ( id, full_name, username ),
       sport_group_activity_rsvps ( user_id, status, paid )
     `,
     )

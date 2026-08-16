@@ -690,6 +690,9 @@ model SportGroupActivity {
   mercenaryLobbyId   String?    @map("mercenary_lobby_id") @db.Uuid
   mercenaryLobby     Lobby?     @relation("ActivityMercenaryLobby", fields: [mercenaryLobbyId], references: [id])
 
+  /// Pinned weekly slot — same row rolls `scheduledAt` forward after the session day.
+  isPinned           Boolean    @default(false) @map("is_pinned")
+
   rsvps       SportGroupActivityRsvp[]
   walletTransactions SportGroupWalletTransaction[]
   gearClaims  SportGroupActivityGearClaim[]

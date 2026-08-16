@@ -5,17 +5,29 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, ChevronLeft, Link2, Share2, UserPlus, Users } from 'lucide-react';
+import {
+  Activity,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Link2,
+  PenLine,
+  Share2,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import type { GroupCardData } from '@/lib/data/sport-groups-shared';
 import { LOBBY_SPORTS, type LobbySport } from '@/lib/constants/sports';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 
 type WizardStep = 0 | 1 | 2;
 type ModalView = 'hub' | 'wizard';
+type DetailPhase = 'name' | 'sport' | 'description';
 
 interface CreateCrewDraft {
   name: string;
-  sport: LobbySport;
+  sport: LobbySport | '';
   description: string;
   groupId?: string;
   inviteCode?: string;
@@ -24,7 +36,7 @@ interface CreateCrewDraft {
 
 const EMPTY_DRAFT: CreateCrewDraft = {
   name: '',
-  sport: LOBBY_SPORTS[1],
+  sport: '',
   description: '',
   invitedUsernames: [],
 };
@@ -48,8 +60,6 @@ const chipOn = 'border-white/18 bg-white/[0.05] text-white';
 const scrollRow =
   'flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain hide-scrollbar touch-pan-x py-0.5';
 const sectionLabel = 'font-label-caps text-[9px] uppercase tracking-[0.14em] text-tertiary';
-const inputClass =
-  'w-full rounded-lg border border-outline-variant/40 bg-surface-container px-3 py-2 font-body-md text-sm text-on-surface focus:border-primary-container focus:outline-none';
 
 const panelMotion = {
   initial: { opacity: 0, y: 6 },
@@ -80,6 +90,55 @@ function createErrorMessage(error: string | undefined): string {
   }
 }
 
+function StepChip({
+  icon: Icon,
+  label,
+  active,
+  done,
+  disabled,
+  onClick,
+}: {
+  icon: typeof Activity;
+  label: string | null;
+  active: boolean;
+  done: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 transition-all duration-200 active:scale-[0.98]',
+        active
+          ? 'border-primary-container/35 bg-primary-container/10 text-white'
+          : done
+            ? 'border-white/12 bg-white/[0.03] text-zinc-300'
+            : 'border-white/8 text-zinc-500 hover:border-white/14 hover:text-zinc-400',
+        disabled ? 'cursor-not-allowed opacity-35' : '',
+      ].join(' ')}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+      {done && label ? (
+        <span className="truncate font-label-caps text-[8px] uppercase tracking-[0.08em]">{label}</span>
+      ) : null}
+    </button>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <span className="font-label-caps text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+        {label}
+      </span>
+      <span className="truncate text-right font-body-sm text-sm text-zinc-200">{value}</span>
+    </div>
+  );
+}
+
 interface CreateCrewModalProps {
   open: boolean;
   onClose: () => void;
@@ -97,10 +156,14 @@ export function CreateCrewModal({
   preferWizard = false,
 }: CreateCrewModalProps) {
   const titleId = useId();
+  const nameId = useId();
+  const descId = useId();
+  const usernameId = useId();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [view, setView] = useState<ModalView>('hub');
   const [step, setStep] = useState<WizardStep>(0);
+  const [detailPhase, setDetailPhase] = useState<DetailPhase | null>('name');
   const [draft, setDraft] = useState<CreateCrewDraft>(EMPTY_DRAFT);
   const [createState, setCreateState] = useState<'idle' | 'submitting'>('idle');
   const [createError, setCreateError] = useState<string | null>(null);
@@ -116,6 +179,7 @@ export function CreateCrewModal({
     if (!open) return;
     setView(preferWizard || groups.length === 0 ? 'wizard' : 'hub');
     setStep(0);
+    setDetailPhase('name');
     setDraft(EMPTY_DRAFT);
     setCreateState('idle');
     setCreateError(null);
@@ -134,6 +198,10 @@ export function CreateCrewModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (step !== 0) setDetailPhase(null);
+  }, [step]);
+
   const invitePath =
     draft.inviteCode != null ? `/lobby/groups/join/${draft.inviteCode}` : '';
   const inviteUrl =
@@ -141,18 +209,25 @@ export function CreateCrewModal({
       ? `${window.location.origin}${invitePath}`
       : invitePath;
 
+  function patch(partial: Partial<CreateCrewDraft>) {
+    setDraft((d) => ({ ...d, ...partial }));
+  }
+
   function startWizard() {
     setView('wizard');
     setStep(0);
+    setDetailPhase('name');
     setDraft(EMPTY_DRAFT);
     setCreateError(null);
   }
 
-  async function handleCreate() {
-    if (!draft.name.trim()) {
-      setCreateError('Zadaj názov crew.');
-      return;
-    }
+  function canNextBasics() {
+    return Boolean(draft.name.trim() && draft.sport);
+  }
+
+  async function handleCreateAndContinue() {
+    if (!canNextBasics() || createState === 'submitting') return;
+    if (!draft.sport) return;
 
     setCreateState('submitting');
     setCreateError(null);
@@ -251,8 +326,8 @@ export function CreateCrewModal({
     router.push(`/lobby/groups/${draft.groupId}`);
   }
 
-  const wizardTitle =
-    step === 0 ? 'Vytvor crew' : step === 1 ? 'Pozvi kamarátov' : 'Crew je pripravená';
+  const headerTitle =
+    view === 'hub' ? 'CREW' : step === 0 ? 'Vytvorenie crew' : step === 1 ? 'Pozvi kamarátov' : 'Hotovo';
 
   if (!mounted) return null;
 
@@ -274,17 +349,14 @@ export function CreateCrewModal({
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 16, opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="glass-panel relative z-[101] flex max-h-[min(88dvh,560px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10"
+            className="glass-panel relative z-[101] flex max-h-[min(88dvh,620px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative shrink-0 border-b border-white/5 px-5 pb-3 pt-5 text-center">
-              {view === 'wizard' && (step === 2 || (step === 0 && groups.length > 0)) ? (
+              {view === 'wizard' && groups.length > 0 && step === 0 ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (step === 2) setStep(1);
-                    else setView('hub');
-                  }}
+                  onClick={() => setView('hub')}
                   className="absolute left-3 top-3 text-on-surface-variant transition-colors hover:text-primary"
                   aria-label="Späť"
                 >
@@ -299,24 +371,36 @@ export function CreateCrewModal({
               >
                 <span className="material-symbols-outlined text-[22px]">close</span>
               </button>
-              <p className="font-label-caps text-[10px] uppercase tracking-[0.18em] text-secondary">
+              <p className="font-label-caps text-[10px] uppercase tracking-[0.18em] text-primary-container">
                 My Crew
               </p>
-              <h2 id={titleId} className="mt-1 font-headline-md text-[20px] text-on-surface">
-                {view === 'hub' ? 'CREW' : wizardTitle.toUpperCase()}
+              <h2 id={titleId} className="mt-0.5 font-headline-md text-[20px] text-on-surface">
+                {headerTitle}
               </h2>
-              <p className="mt-1 font-body-md text-xs text-on-surface-variant">
-                {view === 'hub'
-                  ? 'Uzavretý tím pre pravidelné hry s kamarátmi.'
-                  : step === 1
-                    ? 'Pošli link — nech si stiahnu SportSync a pripoja sa.'
-                    : step === 2
-                      ? 'Ďalšiu aktivitu naplánuješ v crew hube.'
-                      : 'Len ľudia s tvojím linkom sa môžu pripojiť.'}
-              </p>
+              {view === 'wizard' ? (
+                <>
+                  <p className="mt-1 font-label-caps text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+                    Krok {step + 1} / 3
+                  </p>
+                  <div className="mx-auto mt-3 flex max-w-[12rem] gap-1">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className={`h-0.5 flex-1 rounded-full transition-colors ${
+                          i <= step ? 'bg-primary-container/80' : 'bg-white/10'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="mt-1 font-body-md text-xs text-on-surface-variant">
+                  Uzavretý tím pre pravidelné hry s kamarátmi.
+                </p>
+              )}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
               {view === 'hub' ? (
                 <div className="space-y-4">
                   {groups.length > 0 ? (
@@ -328,13 +412,20 @@ export function CreateCrewModal({
                             key={group.id}
                             href={`/lobby/groups/${group.id}`}
                             onClick={onClose}
-                            className="flex items-center justify-between rounded-xl border border-white/10 bg-transparent px-3 py-2.5 transition hover:border-white/18 hover:bg-white/[0.03]"
+                            className="flex items-center justify-between rounded-2xl border border-white/10 bg-transparent px-3.5 py-3.5 transition-colors hover:border-white/16 hover:bg-white/[0.02]"
                           >
-                            <span className="truncate font-body-sm text-sm text-white">{group.name}</span>
-                            <span className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.1em] text-zinc-500">
-                              {group.memberCount}{' '}
-                              {group.memberCount === 1 ? 'člen' : group.memberCount < 5 ? 'členovia' : 'členov'}
-                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate font-body-sm text-sm text-white">{group.name}</p>
+                              <p className="mt-0.5 font-body-sm text-xs text-zinc-500">
+                                {group.memberCount}{' '}
+                                {group.memberCount === 1
+                                  ? 'člen'
+                                  : group.memberCount < 5
+                                    ? 'členovia'
+                                    : 'členov'}
+                              </p>
+                            </div>
+                            <Users className="h-4 w-4 shrink-0 text-zinc-500" strokeWidth={1.75} />
                           </Link>
                         ))}
                       </div>
@@ -344,285 +435,328 @@ export function CreateCrewModal({
                   <button
                     type="button"
                     onClick={startWizard}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary-container/25 bg-primary-container/10 py-3.5 font-label-caps text-[10px] uppercase tracking-[0.12em] text-white transition hover:border-primary-container/35 hover:bg-primary-container/15 active:scale-[0.98]"
+                    className="flex w-full items-center gap-3 rounded-2xl border border-primary-container/30 bg-primary-container/8 px-3.5 py-3.5 text-left transition-colors hover:border-primary-container/40"
                   >
-                    <Users className="h-4 w-4 text-primary-container" strokeWidth={1.75} />
-                    Vytvoriť novú crew
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary-container/25 bg-primary-container/10 text-primary-container">
+                      <Users className="h-4 w-4" strokeWidth={1.75} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-body-sm text-sm text-white">Vytvoriť novú crew</p>
+                      <p className="mt-0.5 font-body-sm text-xs text-zinc-500">
+                        Len ľudia s tvojím linkom sa môžu pripojiť
+                      </p>
+                    </div>
                   </button>
                 </div>
-              ) : (
-                <>
-                  <div className={`${scrollRow} mb-4`}>
-                    {(['Základ', 'Pozvania', 'Hotovo'] as const).map((label, i) => {
-                      const idx = i as WizardStep;
-                      const active = step === idx;
-                      const done = step > idx;
-                      return (
-                        <span
-                          key={label}
-                          className={[
-                            chip,
-                            active ? chipOn : done ? 'border-white/12 bg-white/[0.03] text-zinc-300' : chipIdle,
-                          ].join(' ')}
-                        >
-                          {done ? <Check className="h-3 w-3" strokeWidth={2} /> : null}
-                          {label}
-                        </span>
-                      );
-                    })}
+              ) : null}
+
+              {view === 'wizard' && step === 0 ? (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Postup vyplnenia">
+                    <StepChip
+                      icon={PenLine}
+                      label={draft.name.trim() || null}
+                      active={detailPhase === 'name'}
+                      done={Boolean(draft.name.trim())}
+                      onClick={() =>
+                        setDetailPhase((phase) => (phase === 'name' ? null : 'name'))
+                      }
+                    />
+                    {draft.name.trim() ? (
+                      <StepChip
+                        icon={Activity}
+                        label={draft.sport ? SPORT_LABELS_SK[draft.sport] : null}
+                        active={detailPhase === 'sport'}
+                        done={Boolean(draft.sport)}
+                        onClick={() =>
+                          setDetailPhase((phase) => (phase === 'sport' ? null : 'sport'))
+                        }
+                      />
+                    ) : null}
+                    {draft.name.trim() && draft.sport ? (
+                      <StepChip
+                        icon={FileText}
+                        label={draft.description.trim() ? 'Popis' : null}
+                        active={detailPhase === 'description'}
+                        done={Boolean(draft.description.trim())}
+                        onClick={() =>
+                          setDetailPhase((phase) =>
+                            phase === 'description' ? null : 'description',
+                          )
+                        }
+                      />
+                    ) : null}
                   </div>
 
-                  <AnimatePresence mode="wait">
-                    {step === 0 ? (
-                      <motion.div key="step-0" {...panelMotion} className="space-y-4">
-                        <div className="space-y-1">
-                          <label className={sectionLabel} htmlFor="crew-name">
-                            Názov crew
-                          </label>
-                          <input
-                            id="crew-name"
-                            type="text"
-                            maxLength={80}
-                            value={draft.name}
-                            onChange={(e) => {
-                              setDraft((d) => ({ ...d, name: e.target.value }));
-                              if (createError) setCreateError(null);
-                            }}
-                            placeholder="Sobotná partia"
-                            className={inputClass}
-                          />
-                        </div>
+                  {!detailPhase && !draft.name.trim() ? (
+                    <p className="font-body-sm text-xs text-zinc-500">
+                      Klikni na ikonu a zadaj názov crew.
+                    </p>
+                  ) : null}
 
-                        <div className="space-y-1.5">
-                          <p className={sectionLabel}>Hlavný šport</p>
-                          <div className={scrollRow}>
-                            {LOBBY_SPORTS.map((sport) => (
+                  <AnimatePresence mode="wait">
+                    {detailPhase === 'name' ? (
+                      <motion.div key="name" className="space-y-2" {...panelMotion}>
+                        <p className={sectionLabel}>Ako sa crew volá?</p>
+                        <input
+                          id={nameId}
+                          type="text"
+                          maxLength={80}
+                          autoFocus
+                          value={draft.name}
+                          onChange={(e) => {
+                            patch({ name: e.target.value });
+                            if (createError) setCreateError(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && draft.name.trim()) {
+                              e.preventDefault();
+                              setDetailPhase(null);
+                            }
+                          }}
+                          placeholder="Sobotná partia"
+                          className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-[#FF5722]/45 focus:bg-white/[0.04]"
+                        />
+                      </motion.div>
+                    ) : null}
+
+                    {detailPhase === 'sport' ? (
+                      <motion.div key="sport" {...panelMotion}>
+                        <p className={`${sectionLabel} mb-2`}>Hlavný šport</p>
+                        <div className={scrollRow} role="list">
+                          {LOBBY_SPORTS.map((sport) => {
+                            const active = draft.sport === sport;
+                            return (
                               <button
                                 key={sport}
                                 type="button"
-                                onClick={() => setDraft((d) => ({ ...d, sport }))}
-                                className={[chip, draft.sport === sport ? chipOn : chipIdle].join(' ')}
+                                role="listitem"
+                                onClick={() => {
+                                  patch({ sport });
+                                  setDetailPhase(null);
+                                }}
+                                className={`${chip} ${active ? chipOn : chipIdle}`}
                               >
                                 {SPORT_LABELS_SK[sport]}
                               </button>
-                            ))}
-                          </div>
+                            );
+                          })}
                         </div>
-
-                        <div className="space-y-1">
-                          <label className={sectionLabel} htmlFor="crew-desc">
-                            Popis (voliteľné)
-                          </label>
-                          <textarea
-                            id="crew-desc"
-                            rows={2}
-                            maxLength={500}
-                            value={draft.description}
-                            onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-                            placeholder="Pravidelná padel partia v Bratislave — víkendy, nenáročná atmosféra."
-                            className={`${inputClass} resize-none`}
-                          />
-                        </div>
-
-                        {createError ? (
-                          <p className="font-body-md text-sm text-error">{createError}</p>
-                        ) : null}
                       </motion.div>
                     ) : null}
 
-                    {step === 1 ? (
-                      <motion.div key="step-1" {...panelMotion} className="space-y-5">
-                        <div className="space-y-2">
-                          <p className={sectionLabel}>Invite link</p>
-                          <div className="flex gap-2">
-                            <input
-                              readOnly
-                              value={inviteUrl}
-                              className={`${inputClass} truncate text-on-surface-variant`}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => void copyLink()}
-                              className="shrink-0 rounded-lg bg-primary-container px-3 py-2 font-label-caps text-[9px] uppercase tracking-[0.1em] text-white transition hover:brightness-110"
-                            >
-                              {copyState === 'copied' ? 'Skopírované' : 'Kopírovať'}
-                            </button>
-                          </div>
-                          {draft.inviteCode ? (
-                            <p className="font-body-sm text-xs text-on-surface-variant">
-                              Kód:{' '}
-                              <span className="font-mono tracking-widest text-secondary">{draft.inviteCode}</span>
-                            </p>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => void shareLink()}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl border border-secondary/30 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.1em] text-secondary transition hover:bg-secondary/10"
-                          >
-                            <Share2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                            Zdieľať pozvánku
-                          </button>
-                          <p className="font-body-sm text-[11px] leading-relaxed text-zinc-500">
-                            Kamarát otvorí link, stiahne si SportSync a pripojí sa do tvojej uzavretej crew.
-                          </p>
-                        </div>
-
-                        <form onSubmit={(e) => void handleInvite(e)} className="space-y-3">
-                          <div className="space-y-1">
-                            <label className={sectionLabel} htmlFor="crew-username">
-                              Pridať podľa mena
-                            </label>
-                            <div className="flex gap-2">
-                              <input
-                                id="crew-username"
-                                type="text"
-                                value={username}
-                                onChange={(e) => {
-                                  setUsername(e.target.value);
-                                  if (inviteState === 'error') setInviteState('idle');
-                                }}
-                                placeholder="username"
-                                className={inputClass}
-                              />
-                              <button
-                                type="submit"
-                                disabled={inviteState === 'submitting' || !username.trim()}
-                                className="shrink-0 rounded-lg border border-secondary px-3 py-2 font-label-caps text-[9px] uppercase tracking-[0.1em] text-secondary transition hover:bg-secondary/10 disabled:opacity-50"
-                              >
-                                {inviteState === 'submitting' ? '…' : 'Pozvať'}
-                              </button>
-                            </div>
-                          </div>
-
-                          {inviteError ? (
-                            <p className="font-body-md text-sm text-error">{inviteError}</p>
-                          ) : null}
-                          {inviteState === 'success' ? (
-                            <p className="font-body-md text-sm text-secondary">Hráč bol pridaný do crew!</p>
-                          ) : null}
-                        </form>
-
-                        {draft.invitedUsernames.length > 0 ? (
-                          <div className="space-y-1.5">
-                            <p className={sectionLabel}>Pozvaní</p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {draft.invitedUsernames.map((u) => (
-                                <span
-                                  key={u}
-                                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 font-body-sm text-xs text-zinc-300"
-                                >
-                                  <UserPlus className="h-3 w-3 text-secondary" strokeWidth={1.75} />
-                                  @{u}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-3 py-4 text-center">
-                            <Link2 className="mx-auto mb-2 h-4 w-4 text-zinc-500" strokeWidth={1.75} />
-                            <p className="font-body-sm text-xs text-zinc-500">
-                              Zatiaľ si sám — pošli link aspoň jednému kamarátovi.
-                            </p>
-                          </div>
-                        )}
-                      </motion.div>
-                    ) : null}
-
-                    {step === 2 ? (
-                      <motion.div key="step-2" {...panelMotion} className="space-y-4 text-center">
-                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary/30 bg-secondary/10">
-                          <Check className="h-7 w-7 text-secondary" strokeWidth={2} />
-                        </div>
-                        <div>
-                          <p className="font-headline-md text-lg text-on-surface">
-                            „{draft.name}" je pripravená
-                          </p>
-                          <p className="mt-1 font-body-md text-sm text-on-surface-variant">
-                            {SPORT_LABELS_SK[draft.sport]} ·{' '}
-                            {1 + draft.invitedUsernames.length}{' '}
-                            {1 + draft.invitedUsernames.length === 1
-                              ? 'člen'
-                              : 1 + draft.invitedUsernames.length < 5
-                                ? 'členovia'
-                                : 'členov'}
-                          </p>
-                        </div>
-                        <p className="font-body-sm text-xs leading-relaxed text-zinc-500">
-                          V crew hube môžeš naplánovať prvú aktivitu, nastaviť opakovaný termín alebo
-                          pozvať ďalších hráčov.
-                        </p>
+                    {detailPhase === 'description' ? (
+                      <motion.div key="description" className="space-y-2" {...panelMotion}>
+                        <p className={sectionLabel}>Popis (voliteľné)</p>
+                        <textarea
+                          id={descId}
+                          rows={3}
+                          maxLength={500}
+                          autoFocus
+                          value={draft.description}
+                          onChange={(e) => patch({ description: e.target.value })}
+                          placeholder="Pravidelná padel partia v Bratislave — víkendy, nenáročná atmosféra."
+                          className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-[#FF5722]/45 focus:bg-white/[0.04]"
+                        />
                       </motion.div>
                     ) : null}
                   </AnimatePresence>
-                </>
-              )}
+
+                  {createError ? (
+                    <p className="text-center text-[11px] text-error">{createError}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {view === 'wizard' && step === 1 ? (
+                <div className="space-y-5">
+                  <div className="space-y-2.5 rounded-2xl border border-white/10 bg-transparent px-4 py-4">
+                    <SummaryRow label="Názov" value={draft.name || '—'} />
+                    <SummaryRow
+                      label="Šport"
+                      value={draft.sport ? SPORT_LABELS_SK[draft.sport] : '—'}
+                    />
+                    {draft.description.trim() ? (
+                      <SummaryRow label="Popis" value={draft.description.trim()} />
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className={sectionLabel}>Invite link</p>
+                    <div className="flex gap-2">
+                      <input
+                        readOnly
+                        value={inviteUrl}
+                        className="min-w-0 flex-1 truncate rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-zinc-400 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void copyLink()}
+                        className="shrink-0 rounded-xl border border-primary-container/35 bg-primary-container/10 px-3 py-2 font-label-caps text-[9px] uppercase tracking-[0.1em] text-white transition hover:bg-primary-container/15"
+                      >
+                        {copyState === 'copied' ? 'OK' : 'Kopírovať'}
+                      </button>
+                    </div>
+                    {draft.inviteCode ? (
+                      <p className="px-1 text-[11px] text-zinc-500">
+                        Kód:{' '}
+                        <span className="font-mono tracking-widest text-zinc-300">
+                          {draft.inviteCode}
+                        </span>
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void shareLink()}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.1em] text-zinc-300 transition hover:border-white/16 hover:bg-white/[0.03]"
+                    >
+                      <Share2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      Zdieľať pozvánku
+                    </button>
+                  </div>
+
+                  <form onSubmit={(e) => void handleInvite(e)} className="space-y-2">
+                    <p className={sectionLabel}>Pridať podľa mena</p>
+                    <div className="flex gap-2">
+                      <input
+                        id={usernameId}
+                        type="text"
+                        value={username}
+                        onChange={(e) => {
+                          setUsername(e.target.value);
+                          if (inviteState === 'error') setInviteState('idle');
+                        }}
+                        placeholder="username"
+                        className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-[#FF5722]/45"
+                      />
+                      <button
+                        type="submit"
+                        disabled={inviteState === 'submitting' || !username.trim()}
+                        className="shrink-0 rounded-xl border border-primary-container/35 bg-primary-container/10 px-3 py-2 font-label-caps text-[9px] uppercase tracking-[0.1em] text-white transition hover:bg-primary-container/15 disabled:opacity-40"
+                      >
+                        {inviteState === 'submitting' ? '…' : 'Pozvať'}
+                      </button>
+                    </div>
+                    {inviteError ? <p className="text-[11px] text-error">{inviteError}</p> : null}
+                    {inviteState === 'success' ? (
+                      <p className="text-[11px] text-zinc-400">Hráč bol pridaný do crew.</p>
+                    ) : null}
+                  </form>
+
+                  {draft.invitedUsernames.length > 0 ? (
+                    <div className="space-y-1.5">
+                      <p className={sectionLabel}>Pozvaní</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {draft.invitedUsernames.map((u) => (
+                          <span
+                            key={u}
+                            className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-1.5 font-body-sm text-xs text-zinc-300"
+                          >
+                            <UserPlus className="h-3 w-3 text-primary-container" strokeWidth={1.75} />
+                            @{u}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-white/10 px-3 py-4 text-center">
+                      <Link2 className="mx-auto mb-2 h-4 w-4 text-zinc-500" strokeWidth={1.75} />
+                      <p className="font-body-sm text-xs text-zinc-500">
+                        Zatiaľ si sám — pošli link aspoň jednému kamarátovi.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {view === 'wizard' && step === 2 ? (
+                <div className="space-y-5">
+                  <div className="space-y-2.5 rounded-2xl border border-white/10 bg-transparent px-4 py-4">
+                    <SummaryRow label="Názov" value={draft.name || '—'} />
+                    <SummaryRow
+                      label="Šport"
+                      value={draft.sport ? SPORT_LABELS_SK[draft.sport] : '—'}
+                    />
+                    <SummaryRow
+                      label="Členovia"
+                      value={`${1 + draft.invitedUsernames.length}`}
+                    />
+                    {draft.inviteCode ? (
+                      <SummaryRow label="Kód" value={draft.inviteCode} />
+                    ) : null}
+                  </div>
+                  <p className="text-center font-body-sm text-xs leading-relaxed text-zinc-500">
+                    V crew hube môžeš naplánovať prvú session alebo pozvať ďalších hráčov.
+                  </p>
+                </div>
+              ) : null}
             </div>
 
-            <div className="shrink-0 space-y-2 border-t border-white/5 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+            <div className="flex shrink-0 gap-2 border-t border-white/5 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
               {view === 'hub' ? (
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-full rounded-xl border border-outline/30 py-3 font-label-caps text-[11px] text-on-surface-variant transition-colors hover:text-on-surface"
+                  className="flex-1 rounded-xl border border-outline/30 py-3 font-label-caps text-[11px] text-on-surface-variant transition-colors hover:text-on-surface"
                 >
                   Zavrieť
                 </button>
               ) : step === 0 ? (
-                <button
-                  type="button"
-                  disabled={createState === 'submitting' || !draft.name.trim()}
-                  onClick={() => void handleCreate()}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-container py-3 font-label-caps text-[10px] uppercase tracking-[0.12em] text-white transition active:scale-[0.98] disabled:opacity-50"
-                >
-                  {createState === 'submitting' ? (
-                    <>
-                      <span className="material-symbols-outlined animate-spin text-[16px]">
-                        progress_activity
-                      </span>
-                      Vytváram…
-                    </>
-                  ) : (
-                    <>
-                      Ďalej — pozvať kamarátov
-                      <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                    </>
-                  )}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 rounded-xl border border-outline/30 py-3 font-label-caps text-[11px] text-on-surface-variant transition-colors hover:text-on-surface"
+                  >
+                    Zrušiť
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canNextBasics() || createState === 'submitting'}
+                    onClick={() => void handleCreateAndContinue()}
+                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-primary-container/35 bg-primary-container/10 py-3 font-label-caps text-[11px] text-white transition-all hover:border-primary-container/50 hover:bg-primary-container/15 active:scale-[0.98] disabled:opacity-40"
+                  >
+                    {createState === 'submitting' ? 'Vytváram…' : 'Ďalej'}
+                    {createState !== 'submitting' ? (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    ) : null}
+                  </button>
+                </>
               ) : step === 1 ? (
-                <div className="flex gap-2">
+                <>
                   <button
                     type="button"
                     onClick={() => setStep(2)}
-                    className="flex-1 rounded-xl border border-outline/30 py-3 font-label-caps text-[10px] uppercase tracking-[0.1em] text-on-surface-variant transition-colors hover:text-on-surface"
+                    className="flex-1 rounded-xl border border-outline/30 py-3 font-label-caps text-[11px] text-on-surface-variant transition-colors hover:text-on-surface"
                   >
                     Preskočiť
                   </button>
                   <button
                     type="button"
                     onClick={() => setStep(2)}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary-container py-3 font-label-caps text-[10px] uppercase tracking-[0.1em] text-white transition active:scale-[0.98]"
+                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-primary-container/35 bg-primary-container/15 py-3 font-label-caps text-[11px] text-white transition-all hover:border-primary-container/50 hover:bg-primary-container/20 active:scale-[0.98]"
                   >
                     Hotovo
                     <Check className="h-3.5 w-3.5" strokeWidth={2} />
                   </button>
-                </div>
+                </>
               ) : (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={openCrewHub}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary-container py-3 font-label-caps text-[10px] uppercase tracking-[0.1em] text-white transition active:scale-[0.98]"
-                  >
-                    Otvoriť crew hub
-                  </button>
+                <>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="flex-1 rounded-xl border border-outline/30 py-3 font-label-caps text-[10px] uppercase tracking-[0.1em] text-on-surface-variant transition-colors hover:text-on-surface"
+                    className="flex-1 rounded-xl border border-outline/30 py-3 font-label-caps text-[11px] text-on-surface-variant transition-colors hover:text-on-surface"
                   >
                     Zavrieť
                   </button>
-                </div>
+                  <button
+                    type="button"
+                    onClick={openCrewHub}
+                    className="flex-1 rounded-xl border border-primary-container/35 bg-primary-container/15 py-3 font-label-caps text-[11px] text-white transition-all hover:border-primary-container/50 hover:bg-primary-container/20 active:scale-[0.98]"
+                  >
+                    Otvoriť crew
+                  </button>
+                </>
               )}
             </div>
           </motion.div>

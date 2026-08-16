@@ -126,7 +126,14 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
             </Suspense>
 
             {mappable.length > 0 ? (
-              <VenueDiscoveryMapClient venues={filtered} />
+              <VenueDiscoveryMapClient
+                venues={filtered}
+                userLocation={
+                  profile.latitude != null && profile.longitude != null
+                    ? { latitude: profile.latitude, longitude: profile.longitude }
+                    : null
+                }
+              />
             ) : (
               <div className="rounded-2xl border border-[#FF5722]/25 bg-[#121212] p-8 text-center space-y-2">
                 <span className="material-symbols-outlined text-[#FF5722] text-3xl">pin_drop</span>

@@ -21,6 +21,12 @@ const VenueDiscoveryMap = dynamic(
   },
 );
 
-export function VenueDiscoveryMapClient({ venues }: { venues: VenueCardData[] }) {
-  return <VenueDiscoveryMap venues={venues} />;
+export function VenueDiscoveryMapClient({
+  venues,
+  userLocation = null,
+}: {
+  venues: VenueCardData[];
+  userLocation?: { latitude: number; longitude: number } | null;
+}) {
+  return <VenueDiscoveryMap venues={venues} userLocation={userLocation} />;
 }

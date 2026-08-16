@@ -94,7 +94,7 @@ export function CrewHubModal({
 
   const now = Date.now();
   const upcomingSessions = group.activities
-    .filter((a) => asDate(a.scheduledAt).getTime() >= now)
+    .filter((a) => a.isPinned || asDate(a.scheduledAt).getTime() >= now)
     .sort((a, b) => asDate(a.scheduledAt).getTime() - asDate(b.scheduledAt).getTime())
     .slice(0, 8);
 
