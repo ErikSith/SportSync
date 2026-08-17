@@ -60,8 +60,7 @@ export default function CreateLobbyPage() {
 
     if (res.status === 401) {
       setFormState('idle');
-      router.push('/login?redirectTo=/lobby/create');
-      setError('Najprv sa prihlás, potom môžeš vytvoriť lobby.');
+      router.push('/lobby');
       return;
     }
 

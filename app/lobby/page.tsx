@@ -146,7 +146,6 @@ export default async function LobbyPage() {
         venues={venues}
         initialMatches={initialMatches}
         groups={JSON.parse(JSON.stringify(groups)) as typeof groups}
-        isGuest={viewer.isGuest}
       />
     </>
   );

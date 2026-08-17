@@ -36,12 +36,12 @@ export function LobbyPageView({
   venues = [],
   initialMatches,
   groups = [],
-  isGuest = false,
 }: {
   city?: string;
   venues?: HomeFilterVenue[];
   initialMatches?: MatchCardData[];
   groups?: GroupCardData[];
+  /** Kept for later auth — create lobby is open without registration for now. */
   isGuest?: boolean;
 }) {
   const router = useRouter();
@@ -58,10 +58,6 @@ export function LobbyPageView({
   }
 
   function openCreateLobby() {
-    if (isGuest) {
-      router.push('/login?redirectTo=/lobby');
-      return;
-    }
     setLobbyModalOpen(true);
   }
   const [matches] = useState<MatchCardData[]>(
@@ -137,8 +133,10 @@ export function LobbyPageView({
     } | null;
 
     if (res.status === 401) {
-      router.push('/login?redirectTo=/lobby');
-      throw new Error('Najprv sa prihlás, potom môžeš vytvoriť lobby.');
+      // Registration comes later — still show the created lobby as a local preview.
+      setLobbyModalOpen(false);
+      setPreview(draftToLobbyPreview(draft, `preview-${crypto.randomUUID()}`, city));
+      return;
     }
 
     if (!res.ok || !body?.lobbyId) {
