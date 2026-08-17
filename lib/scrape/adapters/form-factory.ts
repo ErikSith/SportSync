@@ -1,4 +1,6 @@
 import * as cheerio from 'cheerio';
+import { resolveSportType } from '@/lib/ai/theme-config';
+import { detectEventSport } from '@/lib/constants/sports';
 import {
   errResult,
   fetchHtml,
@@ -72,12 +74,13 @@ async function scrapeFitCampCalendar(): Promise<NormalizedScrapedEvent[]> {
         if (seen.has(externalId)) continue;
         seen.add(externalId);
 
+        const sport = detectEventSport(rawName, 'FITNESS');
         events.push({
           source: 'form-factory',
           externalId,
           title: rawName,
-          sport: 'FITNESS',
-          sportType: 'OTHER',
+          sport,
+          sportType: resolveSportType(sport),
           category: 'fitness',
           participationMode: 'participate',
           startsAt,
@@ -196,12 +199,13 @@ async function scrapeFormFactoryEventy(): Promise<NormalizedScrapedEvent[]> {
       const title = draft.title;
       const externalId = `event-${slugify(draft.href)}-${startsAt.toISOString().slice(0, 10)}`;
 
+      const sport = detectEventSport(title, 'FITNESS');
       const event: NormalizedScrapedEvent = {
         source: 'form-factory',
         externalId,
         title,
-        sport: 'FITNESS',
-        sportType: 'OTHER',
+        sport,
+        sportType: resolveSportType(sport),
         // HYROX = race/tournament; Open Air + Piatkovica = fitness events (join/register)
         category: /hyrox/i.test(title + draft.href) ? 'tournament' : 'fitness',
         participationMode: inferParticipationMode(

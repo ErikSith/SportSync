@@ -297,13 +297,13 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                 ))}
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-white/10 px-4 py-3">
-                <p className="truncate font-label-caps text-[10px] uppercase tracking-[0.12em] text-zinc-600">
+              <div className="space-y-2.5 border-t border-white/10 px-4 py-3">
+                <p className="font-label-caps text-[10px] uppercase tracking-[0.14em] text-zinc-500">
                   {preview.formatLabel || 'Open match'}
                   {preview.mercenaryMode ? (
                     <>
-                      <span className="text-white/20"> · </span>
-                      <span className="text-[#FF5722]">Merc +1</span>
+                      <span className="text-white/15"> · </span>
+                      Merc +1
                     </>
                   ) : null}
                 </p>
@@ -312,7 +312,7 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                     venueId={preview.venueId}
                     venueName={preview.venueName}
                     websiteUrl={preview.websiteUrl}
-                    compact
+                    quiet
                   />
                 ) : null}
               </div>

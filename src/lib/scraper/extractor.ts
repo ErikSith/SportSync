@@ -8,21 +8,30 @@ import {
   ScrapedEventListSchema,
   type ScrapedEvent,
 } from './types';
+import { isListingNoise } from '@/lib/feed/group-class';
 
 /**
- * Prefer Gemini 1.5 Flash as specified; fall back to rolling Flash aliases
- * when 1.5 is retired or 404s on the current API key.
+ * gemini-2.0-flash was shut down 2026-06-01. gemini-flash-latest currently
+ * aliases gemini-3.7-flash (Free Tier ~20 RPD). Pin a stable high-throughput
+ * Flash instead — never rolling "-latest" aliases.
  */
-export const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
 
 export const GEMINI_MODEL_FALLBACKS = [
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-latest',
-  'gemini-flash-latest',
-  'gemini-flash-lite-latest',
-  'gemini-2.0-flash',
+  'gemini-3.5-flash',
+  'gemini-3.6-flash',
   'gemini-2.5-flash',
 ] as const;
+
+/** Newest Flash aliases with tight Free-Tier daily caps — never auto-select. */
+const BLOCKED_GEMINI_MODELS = new Set([
+  'gemini-flash-latest',
+  'gemini-3.7-flash',
+  'gemini-flash-lite-latest',
+]);
+
+const QUOTA_RETRY_BASE_MS = 10_000;
+const MAX_MODEL_ATTEMPTS = 3;
 
 /** Mirrors ScrapedEventListSchema for Gemini structured output. */
 const RESPONSE_SCHEMA: ResponseSchema = {
@@ -36,17 +45,20 @@ const RESPONSE_SCHEMA: ResponseSchema = {
           title: { type: SchemaType.STRING },
           sportType: { type: SchemaType.STRING },
           isTournament: { type: SchemaType.BOOLEAN },
+          isGroupClass: { type: SchemaType.BOOLEAN },
           startTime: { type: SchemaType.STRING },
           endTime: { type: SchemaType.STRING },
           locationName: { type: SchemaType.STRING },
           priceText: { type: SchemaType.STRING },
           description: { type: SchemaType.STRING },
           originalUrl: { type: SchemaType.STRING },
+          forKids: { type: SchemaType.BOOLEAN },
         },
         required: [
           'title',
           'sportType',
           'isTournament',
+          'isGroupClass',
           'startTime',
           'locationName',
           'originalUrl',
@@ -103,12 +115,20 @@ PRAVIDLÁ PRE EXTRAKCIU:
 4. Miesto konania (locationName) musí byť presný názov športoviska alebo adresa uvedená priamo pri danej akcii.
 
 Pravidlá:
-- Ignoruj marketing, navigáciu, cookies, footer, opakujúce sa menu, cenníky bez času.
-- Ak stránka obsahuje TÝŽDENNÝ ROZVRH (Pondelok/Utorok/... alebo Po/Ut/... + čas + názov aktivity),
-  vygeneruj konkrétne lekcie na najbližších 7 dní od kotevného dátumu vyššie. Každý slot = 1 event so startTime v ISO 8601.
-  Tieto sloty sú SKUPINOVÉ CVIČENIA na športovisku (nie unikátne eventy) — isTournament = false.
+- Ignoruj marketing, navigáciu, cookies, footer, opakujúce sa menu.
+- NEEXTRAHUJ cenníky prenájmu kurtov/ihrísk, otváracie hodiny, „objednajte si kurt“,
+  ani časové pásma cien (Pondelok–Piatok 07:00–14:00 = cenník, nie event).
+- Ak stránka obsahuje TÝŽDENNÝ ROZVRH (Pondelok/Utorok/... alebo Po/Ut/... + čas + názov AKTIVITY),
+  vygeneruj konkrétne lekcie na najbližších 7 dní od kotevného dátumu vyššie. Každý slot = 1 záznam so startTime v ISO 8601.
+  Tieto sloty sú SKUPINOVÉ LEKCIE (isGroupClass = true, isTournament = false) — nie unikátne eventy.
+- KLASIFIKÁCIA (povinná pri každom zázname):
+  • isTournament = true: jednorazový turnaj/súťaž (cup, championship, liga, open ako turnaj, trophy).
+  • isGroupClass = true: niečo, čo sa STÁLE OPAKUJE na tom istom športovisku v obvykle rovnakom čase
+    (týždenný rozvrh, akademia, náborové tréningy, footwork, joga, HIIT, skupinové cvičenie, online tréningový program).
+  • isGroupClass = false a isTournament = false: jednorazový event s vlastným názvom
+    (workshop, exhibícia, otvorenie, koncert, jednorazový zápas).
 - Unikátny EVENT/turnaj = jednorazové podujatie s vlastným názvom (cup, open, marathon, workshop, zápas).
-- Bežný názov lekcie (Pilates, HIIT, Box, Yoga, Kickbox…) = skupinová lekcia, nie unikátny event.
+- Bežný názov lekcie (Pilates, HIIT, Box, Yoga, Kickbox, footwork, nábor, akademia…) = skupinová lekcia, nie unikátny event.
 - Ak sú uvedené konkrétne dátumy (deň.mesiac.rok / ISO), použi ich.
 - startTime (a endTime) musia byť ISO 8601 s offsetom Bratislavy (+02:00 alebo +01:00).
 - locationName ber len z hlavného obsahu (adresa / názov športoviska pri udalosti), nie z menu ani footera.
@@ -116,6 +136,8 @@ Pravidlá:
   (rezervácia, booking, prihláška, lístky), ak je na stránke uvedený. Inak použi: ${pageUrl}
 - Nikdy nevymýšľaj URL. originalUrl musí patriť organizátorovi / rezervačnému systému.
 - description max 2 krátke vety; priceText len ak je cena uvedená.
+- forKids = true LEN keď je aktivita VYSLOVENE pre deti: „pre deti“, detský/detská, Kidstown, detské plávanie, mini tenis, U6–U12, bábätká, rodič + dieťa.
+  NIE junior/mládež/ITF do 18 rokov. NIE bežný dospelácky tréning len preto, že deti môžu prísť.
 - isTournament = true pre turnaje, súťaže, championshipy, cup, open (turnaj), liga, trophy, kvalifikáciu.
   Tieto záznamy idú do tabuľky Tournament (nie Event).
 - isTournament = false pre tréningy, lekcie, rekreačné zápasy a týždenný rozvrh.
@@ -147,16 +169,31 @@ function isQuotaError(err: unknown): boolean {
     /\b429\b/.test(msg) ||
     /quota/i.test(msg) ||
     /rate.?limit/i.test(msg) ||
-    /Too Many Requests/i.test(msg)
+    /Too Many Requests/i.test(msg) ||
+    /RESOURCE_EXHAUSTED/i.test(msg)
+  );
+}
+
+function isTransientError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    isQuotaError(err) ||
+    /\b503\b/.test(msg) ||
+    /\b500\b/.test(msg) ||
+    /high demand/i.test(msg) ||
+    /overloaded/i.test(msg) ||
+    /try again later/i.test(msg) ||
+    /UNAVAILABLE/i.test(msg)
   );
 }
 
 function resolveModelCandidates(): string[] {
-  const preferred = process.env.GEMINI_MODEL?.trim();
-  const ordered = preferred
-    ? [preferred, ...GEMINI_MODEL_FALLBACKS]
-    : [...GEMINI_MODEL_FALLBACKS];
-  return [...new Set(ordered.filter(Boolean))];
+  const preferred = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+  const ordered = [preferred, ...GEMINI_MODEL_FALLBACKS];
+  const unique = [...new Set(ordered.filter(Boolean))];
+  const allowed = unique.filter((name) => !BLOCKED_GEMINI_MODELS.has(name));
+  if (allowed.length === 0) return [DEFAULT_GEMINI_MODEL];
+  return allowed;
 }
 
 function getModel(
@@ -184,23 +221,58 @@ async function generateWithFallback(
   let lastError: unknown;
 
   for (const modelName of candidates) {
-    try {
-      const model = getModel(genAI, modelName, systemInstruction);
-      const result = await model.generateContent(userPrompt);
-      const raw = result.response.text();
-      if (modelName !== candidates[0]) {
-        console.warn(`[scraper.extractor] fell back to model ${modelName}`);
+    for (let attempt = 1; attempt <= MAX_MODEL_ATTEMPTS; attempt++) {
+      try {
+        const model = getModel(genAI, modelName, systemInstruction);
+        const result = await model.generateContent(userPrompt);
+        const raw = result.response.text();
+        if (modelName !== candidates[0] || attempt > 1) {
+          console.warn(
+            `[scraper.extractor] using ${modelName} (attempt ${attempt})`,
+          );
+        }
+        return { raw, model: modelName };
+      } catch (err) {
+        lastError = err;
+
+        // 429 / quota / RESOURCE_EXHAUSTED: retry the same model, never switch.
+        if (isQuotaError(err)) {
+          if (attempt < MAX_MODEL_ATTEMPTS) {
+            const waitMs = QUOTA_RETRY_BASE_MS * 2 ** (attempt - 1);
+            console.warn(
+              `[scraper.extractor] ${modelName} quota/429 (${attempt}/${MAX_MODEL_ATTEMPTS}) — retry in ${waitMs}ms`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, waitMs));
+            continue;
+          }
+          console.warn(
+            `[scraper.extractor] ${modelName} quota exhausted after ${MAX_MODEL_ATTEMPTS} attempts — not switching models`,
+          );
+          throw err instanceof Error
+            ? err
+            : new Error(`Gemini quota exhausted: ${String(err)}`);
+        }
+
+        if (isTransientError(err) && attempt < MAX_MODEL_ATTEMPTS) {
+          const waitMs = 4000 * 2 ** (attempt - 1);
+          console.warn(
+            `[scraper.extractor] ${modelName} busy (${attempt}/${MAX_MODEL_ATTEMPTS}) — retry in ${waitMs}ms`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          continue;
+        }
+
+        // 404 / retired model only — try the next quality Flash alias.
+        if (isModelUnavailableError(err)) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(
+            `[scraper.extractor] model ${modelName} unavailable (${msg.slice(0, 160)}) — trying next`,
+          );
+          break;
+        }
+
+        throw err;
       }
-      return { raw, model: modelName };
-    } catch (err) {
-      lastError = err;
-      if (isModelUnavailableError(err) || isQuotaError(err)) {
-        console.warn(
-          `[scraper.extractor] model ${modelName} unavailable/quota — trying next`,
-        );
-        continue;
-      }
-      throw err;
     }
   }
 
@@ -256,7 +328,13 @@ export async function extractEventsFromText(
     }))
     .filter((e) => {
       const t = Date.parse(e.startTime);
-      return Number.isFinite(t) && t >= now && e.title.length >= 3;
+      if (!Number.isFinite(t) || t < now || e.title.length < 3) return false;
+      return !isListingNoise({
+        title: e.title,
+        description: e.description,
+        sourceUrl: e.originalUrl,
+        ticketUrl: pageUrl,
+      });
     });
 }
 
@@ -289,6 +367,7 @@ function coerceOriginalUrls(parsed: unknown, pageUrl: string): unknown {
           typeof row.originalUrl === 'string' ? row.originalUrl : null,
           pageUrl,
         ),
+        isGroupClass: row.isGroupClass === true || row.isGroupClass === 'true',
       };
     }),
   };

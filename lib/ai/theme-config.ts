@@ -97,10 +97,11 @@ export function resolveSportType(sport: string): SportTypeKey {
     s === 'ATLETIKA' ||
     s === 'ATHLETICS' ||
     s === 'SWIMMING' ||
-    s === 'SURFING'
+    s === 'SURFING' ||
+    s === 'CLIMBING'
   )
     return 'ATLETIKA';
-  // FITNESS, HOCKEY, HANDBALL, COMBAT, SQUASH, VOLLEYBALL, OTHER → brand coral
+  // FITNESS, YOGA, HOCKEY, HANDBALL, COMBAT, SQUASH, VOLLEYBALL, BOWLING, OTHER → brand coral
   return 'OTHER';
 }
 

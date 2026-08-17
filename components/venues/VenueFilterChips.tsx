@@ -6,7 +6,6 @@ import { EVENT_SPORTS, sportDisplayLabel } from '@/lib/constants/sports';
 
 interface VenueFilterChipsProps {
   selectedSports?: string[];
-  availableSports?: string[];
 }
 
 const CHIP =
@@ -17,15 +16,11 @@ const CHIP_IDLE =
 
 export function VenueFilterChips({
   selectedSports = [],
-  availableSports,
 }: VenueFilterChipsProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const sportKeys =
-    availableSports && availableSports.length > 0
-      ? availableSports.map((s) => s.toUpperCase())
-      : [...EVENT_SPORTS];
+  const sportKeys = [...EVENT_SPORTS];
 
   const selected = new Set(selectedSports.map((s) => s.toUpperCase()));
 

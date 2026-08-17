@@ -148,6 +148,7 @@ model Profile {
   groupMemberStats       SportGroupMemberStat[]  @relation("GroupMemberStatUser")
   groupGearClaims        SportGroupActivityGearClaim[] @relation("GroupGearClaimUser")
   groupRecurringSchedulesCreated SportGroupRecurringSchedule[] @relation("GroupRecurringScheduleCreatedBy")
+  groupMessagesAuthored  SportGroupMessage[]     @relation("GroupMessagesAuthored")
   goals                  UserGoal[]
   eventResults           EventResult[]
   eventReports           EventReport[]
@@ -639,6 +640,7 @@ model SportGroup {
 
   members    SportGroupMember[]
   activities SportGroupActivity[]
+  messages   SportGroupMessage[]
 
   wallet              SportGroupWallet?
   walletTransactions  SportGroupWalletTransaction[]
@@ -647,6 +649,20 @@ model SportGroup {
 
   @@index([ownerId])
   @@map("sport_groups")
+}
+
+/// Private Locker Room chat for a crew (members only).
+model SportGroupMessage {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId   String     @map("group_id") @db.Uuid
+  group     SportGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  authorId  String     @map("author_id") @db.Uuid
+  author    Profile    @relation("GroupMessagesAuthored", fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([groupId, createdAt(sort: Desc)])
+  @@map("sport_group_messages")
 }
 
 model SportGroupMember {

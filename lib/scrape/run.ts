@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { SPORT_TYPE_THEMES } from '@/lib/ai/theme-config';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { aggregatorNotice, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
+import { detectExplicitKidsAudience } from '@/lib/events/for-kids';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import { scrapeTextListing } from '@/lib/scrape/adapters/_text-listing';
 import { SCRAPING_SOURCES } from '@/lib/scrape/scraping-sources';
@@ -262,7 +263,7 @@ async function upsertEvents(
     const { data: byExternal } = await supabase
       .from('events')
       .select(
-        'id, title, description, sport, sport_type, starts_at, price_cents, capacity, registered_count, venue_id, source_url, ticket_url, source_name, is_aggregated, cover_url, participation_mode',
+        'id, title, description, sport, sport_type, starts_at, price_cents, capacity, registered_count, venue_id, source_url, ticket_url, source_name, is_aggregated, cover_url, participation_mode, for_kids',
       )
       .eq('source', event.source)
       .eq('external_id', event.externalId)
@@ -291,7 +292,15 @@ async function upsertEvents(
       }
     }
 
-    const forKids = Boolean(event.forKids);
+    const forKids = detectExplicitKidsAudience({
+      title: event.title,
+      description,
+      sourceUrl: event.sourceUrl,
+      venueName: venue?.name ?? event.locationName,
+      sourceName,
+      locationName: event.locationName,
+      forKids: event.forKids,
+    });
 
     // Compare factual fields first — avoid Cover Factory / write when nothing changed
     if (existing?.id) {
@@ -306,6 +315,8 @@ async function upsertEvents(
         strEq(existing.source_url, event.sourceUrl ?? null) &&
         strEq(existing.ticket_url, event.ticketUrl ?? null) &&
         strEq(existing.participation_mode, event.participationMode) &&
+        (!hasForKids ||
+          Boolean((existing as { for_kids?: boolean | null }).for_kids) === forKids) &&
         Boolean(existing.is_aggregated) === SCRAPE_ETHICS.isAggregatedRedirector;
 
       if (same) {

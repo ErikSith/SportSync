@@ -112,7 +112,7 @@ export async function fetchActiveEventsSafe(
 ): Promise<EventCardData[]> {
   const lat = options.lat != null && Number.isFinite(options.lat) ? options.lat : 48.1486;
   const lng = options.lng != null && Number.isFinite(options.lng) ? options.lng : 17.1077;
-  const limit = options.limit ?? 120;
+  const limit = options.limit ?? 400;
   const requireUpcoming = options.requireUpcoming !== false;
 
   try {

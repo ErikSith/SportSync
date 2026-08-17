@@ -9,7 +9,7 @@ export { parseEventsFeedTab } from '@/lib/feed/events-feed-tab';
 
 const TABS: Array<{ key: EventsFeedTab; label: string }> = [
   { key: 'matches', label: 'Eventy & Zápasy' },
-  { key: 'schedules', label: 'Rozpisy & Lekcie' },
+  { key: 'schedules', label: 'Skupinové lekcie' },
 ];
 
 interface EventsFeedSplitTabsProps {

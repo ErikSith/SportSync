@@ -18,29 +18,17 @@ import type { EventsFeedTab } from '@/lib/feed/events-feed-tab';
 
 interface EventsFeedProps {
   events: EventCardData[];
-  /** Unfiltered feed — used to build sport chips from card badges. */
+  /** Unfiltered feed — kept for callers; sport chips use the full catalog. */
   allEvents?: EventCardData[];
   mode: ParticipationMode;
   typeFilter: EventType | 'ALL';
   selectedSports?: string[];
   /** YYYY-MM-DD keys with events — calendar day dots. */
   eventDayKeys?: string[];
-  /** Split Feed tab: matches (Eventy) vs schedules (Rozpisy). */
+  /** Split Feed tab: matches (Eventy) vs group lessons (Skupinové lekcie). */
   feedTab?: EventsFeedTab;
   emptyTitle: string;
   emptySubtitle: string;
-}
-
-function sportsFromEvents(events: EventCardData[]): string[] {
-  const seen = new Set<string>();
-  const ordered: string[] = [];
-  for (const event of events) {
-    const key = event.sport.toUpperCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    ordered.push(key);
-  }
-  return ordered;
 }
 
 function SectionHeader({
@@ -102,11 +90,11 @@ function SchedulesOverviewHeader({ groups }: { groups: VenueScheduleGroup[] }) {
         <div className="mb-1 flex items-center gap-2">
           <span className="h-px w-6 bg-white/20" />
           <h2 className="font-headline-md text-[15px] font-semibold tracking-wide text-white">
-            Rozpisy & Lekcie
+            Skupinové lekcie
           </h2>
         </div>
         <p className="pl-8 font-body-md text-xs text-zinc-400">
-          Skupinové lekcie zoskupené podľa miesta a dňa
+          Opakované skupinové cvičenia podľa miesta a dňa
         </p>
       </div>
       <span className="inline-flex shrink-0 items-center rounded-full border border-white/10 bg-zinc-900/40 px-3 py-1.5 font-label-caps text-[10px] tracking-wide text-zinc-400">
@@ -124,7 +112,7 @@ function VenueSchedulesStack({ groups }: { groups: GroupedVenueSchedule[] }) {
       <SchedulesOverviewHeader groups={groups} />
       <div
         role="list"
-        aria-label="Rozpisy a lekcie"
+        aria-label="Skupinové lekcie"
         className="flex flex-col gap-2.5"
       >
         {groups.map((group, index) => (
@@ -197,7 +185,7 @@ function dedupeEvents(events: EventCardData[]): EventCardData[] {
 
 export function EventsFeed({
   events,
-  allEvents,
+  allEvents: _allEvents,
   mode,
   typeFilter,
   selectedSports = [],
@@ -208,14 +196,12 @@ export function EventsFeed({
 }: EventsFeedProps) {
   const participate = events.filter((e) => e.participationMode === 'participate');
   const spectator = events.filter((e) => e.participationMode === 'spectator');
-  const availableSports = sportsFromEvents(allEvents ?? events);
 
   const filterBar = (
     <EventFiltersBar
       mode={mode}
       typeFilter={typeFilter}
       selectedSports={selectedSports}
-      availableSports={availableSports}
       eventDayKeys={eventDayKeys}
     />
   );
@@ -310,8 +296,8 @@ export function EventsFeed({
   const schedulesEmpty = showSchedules && playerFeed.venueGroupedSchedules.length === 0;
   const hasScheduleGroups = playerFeed.venueGroupedSchedules.length > 0;
 
-  // After scrape, Form Factory–style lessons live only on Schedules. Don't strand
-  // the default Matches tab on a blank empty-state when rozpisy exist.
+  // After scrape, repeating group lessons live only on Skupinové lekcie. Don't
+  // strand the default Eventy tab on a blank empty-state when lessons exist.
   const revealSchedulesOnEmptyMatches = matchesEmpty && hasScheduleGroups;
 
   if (playerGrid.length === 0) {
@@ -335,7 +321,7 @@ export function EventsFeed({
             revealSchedulesOnEmptyMatches ? null : (
               <EmptyState
                 title="Žiadne eventy ani zápasy v okolí."
-                subtitle="Komunitné zápasy a jednorazové eventy sa tu zobrazia, keď ich niekto vytvorí. Lekcie zo štúdií sú v tabe Rozpisy & Lekcie."
+                subtitle="Komunitné zápasy a jednorazové eventy sa tu zobrazia, keď ich niekto vytvorí. Opakované cvičenia zo športovísk sú v tabe Skupinové lekcie."
               />
             )
           ) : (
@@ -359,8 +345,8 @@ export function EventsFeed({
           <VenueSchedulesStack groups={playerFeed.venueGroupedSchedules} />
         ) : schedulesEmpty ? (
           <EmptyState
-            title="Žiadne rozpisy ani lekcie v okolí."
-            subtitle="Skupinové lekcie zo štúdií (Form Factory a pod.) sa tu zobrazia podľa dňa."
+            title="Žiadne skupinové lekcie v okolí."
+            subtitle="Opakované skupinové cvičenia zo športovísk sa tu zobrazia podľa dňa."
           />
         ) : null)}
     </div>

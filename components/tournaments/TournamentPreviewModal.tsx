@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Calendar, Clock, MapPin, Trophy, Users, X } from 'lucide-react';
 import type { TournamentCardData } from '@/lib/data/tournaments';
+import { tournamentParticipationMode } from '@/lib/tournament-participation';
 import { lobbyTierLabel } from '@/lib/utils/lobby';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
@@ -103,6 +104,7 @@ export function TournamentPreviewModal({
     tournament.status === 'REGISTRATION_OPEN' &&
     !deadlinePassed &&
     !isFull;
+  const isSpectatorCup = tournamentParticipationMode(tournament) === 'spectator';
   const venue =
     tournament.venueName && tournament.venueCity
       ? `${tournament.venueName} · ${tournament.venueCity}`
@@ -288,14 +290,25 @@ export function TournamentPreviewModal({
                 backgroundColor: '#100e0b',
               }}
             >
-              {isAggregated && externalUrl ? (
+              {externalUrl ? (
                 <TournamentExternalCta
                   tournamentId={tournament.id}
                   sourceUrl={externalUrl}
                   sourceName={resolvedSourceName}
                   variant="compact"
-                  label="Registrovať sa na oficiálnej stránke ↗"
+                  label={
+                    isSpectatorCup
+                      ? 'Vstupenky / sledovať ↗'
+                      : 'Registrovať sa na oficiálnej stránke ↗'
+                  }
                 />
+              ) : isSpectatorCup ? (
+                <a
+                  href={`/tournaments/${tournament.id}`}
+                  className="flex w-full items-center justify-center rounded-xl border border-[#c4a035]/30 bg-[#c4a035]/12 py-3.5 font-label-caps text-[12px] uppercase tracking-[0.16em] text-[#e8d59a] transition-colors hover:bg-[#c4a035]/18"
+                >
+                  Sledovať turnaj
+                </a>
               ) : (
                 <RegisterButton
                   tournamentId={tournament.id}

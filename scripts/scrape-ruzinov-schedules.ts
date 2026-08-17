@@ -10,6 +10,7 @@ import { createAdminClient } from '../lib/supabase/admin';
 import { extractEventsFromText } from '../src/lib/scraper/extractor';
 import { fetchCleanText, sleep } from '../src/lib/scraper/fetcher';
 import { upsertScrapedEvents } from '../src/lib/scraper/db-service';
+import { shouldForceGroupClassFromUrl } from '../lib/feed/group-class';
 
 const URLS = [
   'http://www.fighting.sk/rozvrh',
@@ -64,7 +65,7 @@ async function main() {
           latitude: venue?.lat,
           longitude: venue?.lng,
           scrapePageUrl: url,
-          forceGroupClass: /\/(rozvrh|schedule|trening|tréning|lekci|class|skupinov)/i.test(url),
+          forceGroupClass: shouldForceGroupClassFromUrl(url),
         });
         upsert.created += stats.created;
         upsert.updated += stats.updated;

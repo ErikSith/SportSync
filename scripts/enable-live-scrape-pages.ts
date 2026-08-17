@@ -3,6 +3,7 @@
  * enable URLs that respond with HTTP 2xx. Polite delays; no Gemini calls.
  *
  * Usage:
+ *   npx tsx scripts/enable-live-scrape-pages.ts --all --limit 2500
  *   npx tsx scripts/enable-live-scrape-pages.ts --borough ruzinov --limit 120
  *   npx tsx scripts/enable-live-scrape-pages.ts --borough ruzinov --dry-run --limit 40
  */
@@ -18,17 +19,23 @@ const DELAY_MS = { min: 1500, max: 3500 } as const;
 
 function parseArgs(argv: string[]) {
   const dryRun = argv.includes('--dry-run') || argv.includes('-n');
+  const allBoroughs = argv.includes('--all');
   const boroughIdx = argv.findIndex((a) => a === '--borough' || a === '-b');
   const limitIdx = argv.findIndex((a) => a === '--limit' || a === '-l');
   const kindsIdx = argv.findIndex((a) => a === '--kinds');
-  const borough =
+  const rawBorough =
     boroughIdx >= 0 && argv[boroughIdx + 1]
       ? argv[boroughIdx + 1]!.toLowerCase()
-      : 'ruzinov';
+      : allBoroughs
+        ? null
+        : 'ruzinov';
+  const borough = rawBorough === 'all' ? null : rawBorough;
   const limit =
     limitIdx >= 0 && argv[limitIdx + 1]
       ? Number(argv[limitIdx + 1])
-      : 100;
+      : borough
+        ? 100
+        : 2500;
   const kinds =
     kindsIdx >= 0 && argv[kindsIdx + 1]
       ? argv[kindsIdx + 1]!.split(',').map((k) => k.trim()).filter(Boolean)
@@ -50,7 +57,7 @@ function pauseMs(): number {
 
 async function probe(url: string): Promise<{ ok: boolean; status: number; finalUrl: string }> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000);
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
     const res = await fetch(url, {
       method: 'GET',
@@ -92,23 +99,47 @@ async function main() {
   const opts = parseArgs(process.argv.slice(2));
   const supabase = createAdminClient();
 
-  let q = supabase
-    .from('venue_scrape_pages')
-    .select('id, url, kind, borough, enabled')
-    .eq('enabled', false)
-    .in('kind', opts.kinds)
-    .order('kind', { ascending: true })
-    .limit(opts.limit);
+  const pages: Array<{
+    id: string;
+    url: string;
+    kind: string;
+    borough: string | null;
+    enabled: boolean;
+  }> = [];
+  const pageSize = 1000;
+  let from = 0;
+  while (pages.length < opts.limit) {
+    const take = Math.min(pageSize, opts.limit - pages.length);
+    let q = supabase
+      .from('venue_scrape_pages')
+      .select('id, url, kind, borough, enabled, last_status')
+      .eq('enabled', false)
+      .in('kind', opts.kinds)
+      .or('last_status.is.null,last_status.not.like.probe:dead%')
+      .order('kind', { ascending: true })
+      .range(from, from + take - 1);
 
-  if (opts.borough) q = q.eq('borough', opts.borough);
+    if (opts.borough) q = q.eq('borough', opts.borough);
 
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
-
-  const pages = data ?? [];
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    const batch = data ?? [];
+    if (batch.length === 0) break;
+    pages.push(
+      ...batch.map((row) => ({
+        id: row.id as string,
+        url: row.url as string,
+        kind: row.kind as string,
+        borough: (row.borough as string | null) ?? null,
+        enabled: Boolean(row.enabled),
+      })),
+    );
+    if (batch.length < take) break;
+    from += batch.length;
+  }
   console.log(
     `[enable-live] probing ${pages.length} disabled page(s)${
-      opts.borough ? ` [${opts.borough}]` : ''
+      opts.borough ? ` [${opts.borough}]` : ' [all Bratislava]'
     }${opts.dryRun ? ' (dry-run)' : ''}…`,
   );
 

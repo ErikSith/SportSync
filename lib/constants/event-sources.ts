@@ -34,7 +34,7 @@ export const SOURCE_DISPLAY_NAMES: Record<ScrapeAdapterId, string> = {
 };
 
 export function sourceDisplayName(source: string | null | undefined, fallback?: string | null): string {
-  if (fallback?.trim()) return fallback.trim();
+  if (fallback?.trim() && !/web\s*\(gemini\)/i.test(fallback)) return fallback.trim();
   if (!source) return 'Oficiálny web športoviska';
   return SOURCE_DISPLAY_NAMES[source as ScrapeAdapterId] ?? 'Oficiálny web športoviska';
 }

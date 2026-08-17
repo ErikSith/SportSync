@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 
 interface LobbyActionsProps {
   lobbyId: string;
@@ -49,6 +50,7 @@ export function LobbyActions({
 
   const isFull = status === 'full' || spotsFilled >= spotsTotal;
   const needsPlayers = !isFull;
+  const venueSite = toVenueHomepageUrl(websiteUrl);
 
   async function join() {
     setError(null);
@@ -207,15 +209,15 @@ export function LobbyActions({
       >
         {!compact ? (
           <div className="hidden md:flex md:flex-wrap md:items-center md:gap-3">
-            {websiteUrl ? (
+            {venueSite ? (
               <a
-                href={websiteUrl}
+                href={venueSite}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg border border-[#FF5722]/35 bg-[#FF5722]/15 px-3 py-2 font-label-caps text-[10px] uppercase tracking-wide text-[#FF5722] transition hover:bg-[#FF5722]/25"
               >
                 <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-                Rezervovať kurt
+                Web športoviska
               </a>
             ) : null}
             {venueId ? (
@@ -226,7 +228,7 @@ export function LobbyActions({
                 <span className="material-symbols-outlined text-[18px]">stadium</span>
                 {venueName ?? 'Športovisko'}
               </Link>
-            ) : !websiteUrl ? (
+            ) : !venueSite ? (
               <p className="font-body-md text-sm text-on-surface-variant">
                 Rezerváciu kurtu dohodnite priamo so športoviskom.
               </p>

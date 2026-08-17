@@ -9,11 +9,6 @@ interface EventFilterChipsProps {
   typeFilter: EventType | 'ALL';
   /** Sports currently selected in the URL (?sport=FITNESS,FOOTBALL). */
   selectedSports?: string[];
-  /**
-   * Sports that appear on the current feed cards.
-   * When provided, only those chips are shown — keeps the row short.
-   */
-  availableSports?: string[];
 }
 
 const TYPE_CHIPS: Array<{ key: EventType | 'ALL'; label: string; icon: string }> = [
@@ -34,15 +29,11 @@ const CHIP_IDLE =
 export function EventFilterChips({
   typeFilter,
   selectedSports = [],
-  availableSports,
 }: EventFilterChipsProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const sportKeys =
-    availableSports && availableSports.length > 0
-      ? availableSports.map((s) => s.toUpperCase())
-      : [...EVENT_SPORTS];
+  const sportKeys = [...EVENT_SPORTS];
 
   const selected = new Set(selectedSports.map((s) => s.toUpperCase()));
 

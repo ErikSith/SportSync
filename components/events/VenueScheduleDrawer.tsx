@@ -12,6 +12,7 @@ import {
   type GroupedVenueSchedule,
 } from '@/lib/feed/aggregate-routine-lessons';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
+import { displayVenueName } from '@/lib/venues/listing-url';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { EventExternalCta } from '@/components/events/EventExternalCta';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
@@ -164,7 +165,10 @@ export function VenueScheduleDrawer({ group, open, onClose }: VenueScheduleDrawe
                                 <EventExternalCta
                                   eventId={lesson.id}
                                   sourceUrl={externalUrl}
-                                  sourceName={sourceDisplayName(lesson.source, lesson.sourceName)}
+                                  sourceName={displayVenueName(
+                                    lesson.venueName ?? group.venueName,
+                                    sourceDisplayName(lesson.source, lesson.sourceName),
+                                  )}
                                   variant="compact"
                                   label="Rezervovať ↗"
                                 />

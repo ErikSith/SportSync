@@ -8,6 +8,7 @@ import {
   parseTimeOnDate,
   slugify,
 } from '@/lib/scrape/fetch';
+import { detectExplicitKidsAudience } from '@/lib/events/for-kids';
 import { tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import type { AdapterResult, NormalizedScrapedEvent, ParticipationMode } from '@/lib/scrape/types';
 import type { SportTypeKey } from '@/lib/ai/theme-config';
@@ -600,11 +601,11 @@ function extractEntryNote(
 }
 
 function detectForKids(url: string, title: string, intro: string, body: string): boolean {
-  if (/kidstown/i.test(url)) return true;
-  const blob = `${title} ${intro} ${body}`.slice(0, 2000);
-  return /pre deti|deti od\s*\d|detsk[éea]|škola korčuľ|skola korcul|letn[aá] škola|letna skola|kidstown|zumba\s*kid|j[oó]ga\s+pre\s+deti|rodinn[aá]\s+yoga|pre\s+mal[yý]ch\s+aj\s+ve[lľ]k[yý]ch|fitness\s*&\s*fun/i.test(
-    blob,
-  );
+  return detectExplicitKidsAudience({
+    title,
+    description: `${intro} ${body}`.slice(0, 2000),
+    sourceUrl: url,
+  });
 }
 
 function classifyParticipation(

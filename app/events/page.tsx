@@ -197,7 +197,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
 
   try {
     const [venuesResult, feedResult] = await Promise.all([
-      getVenuesForHomeFilter(city, 40),
+      getVenuesForHomeFilter(city, 200),
       loadEventsFeed({ hasGps, needsGpsPrompt, location, typeFilter }),
     ]);
     filterVenues = venuesResult;

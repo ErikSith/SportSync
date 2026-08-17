@@ -83,7 +83,7 @@ export function EventRegisterButton({
     } | null;
     if (body?.externalUrl) {
       trackSignal('event.external_redirect', { eventId });
-      window.location.assign(body.externalUrl);
+      window.open(body.externalUrl, '_blank', 'noopener,noreferrer');
       return;
     }
     if (!res.ok) {

@@ -2,6 +2,7 @@ import { formatLobbyLabel } from '@/lib/constants/lobbies';
 import { sportDisplayLabel } from '@/lib/constants/sports';
 import type { LobbyDetailData } from '@/lib/data/lobbies';
 import { isVenueUuid } from '@/lib/lobby-create';
+import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 import { lobbyTierLabel } from '@/lib/utils/lobby';
 import {
   LOBBY_TYPE_LABELS,
@@ -74,8 +75,8 @@ export function matchCardToLobbyPreview(match: MatchCardData): LobbyPreviewData 
     isJoined: false,
     mercenaryMode: match.type === LobbyType.SINGLE_PLAYER_1,
     status: statusFromSpots(match.playersFilled, match.playersTotal),
-    venueId: null,
-    websiteUrl: null,
+    venueId: match.venueId ?? null,
+    websiteUrl: match.websiteUrl ?? null,
     distanceKm: match.distanceKm > 0 ? match.distanceKm : null,
     priceLabel:
       match.pricePerPersonEur != null && match.pricePerPersonEur > 0
@@ -175,7 +176,7 @@ export function draftToLobbyPreview(
     mercenaryMode: draft.type === LobbyType.SINGLE_PLAYER_1,
     status: 'open',
     venueId: isVenueUuid(draft.venueId) ? draft.venueId : null,
-    websiteUrl: null,
+    websiteUrl: toVenueHomepageUrl(draft.websiteUrl),
     distanceKm: null,
     priceLabel: 'Free',
   };

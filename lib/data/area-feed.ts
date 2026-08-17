@@ -5,7 +5,6 @@
 
 import {
   findDistrictById,
-  isBratislavaCity,
   matchesFeedArea,
   type ResolvedFeedLocation,
 } from '@/lib/cities';
@@ -101,7 +100,8 @@ export async function getEventsForArea(input: {
             lat: event.latitude,
             lng: event.longitude,
             city: event.city,
-            textParts: [event.venueName, event.title, event.description],
+            title: event.title,
+            textParts: [event.venueName],
           }),
         );
         if (filtered.length > 0) {
@@ -191,29 +191,28 @@ export async function getTournamentsForArea(input: {
 
   if (location.area === 'bratislava') {
     const all = await getUpcomingTournaments({});
-    return all.filter(
-      (t) =>
-        isBratislavaCity(t.venueCity) ||
-        matchesFeedArea(location, {
-          lat: t.venueLatitude,
-          lng: t.venueLongitude,
-          city: t.venueCity,
-          textParts: [t.venueName, t.venueAddress, t.name],
-        }),
+    return all.filter((t) =>
+      matchesFeedArea(location, {
+        lat: t.venueLatitude,
+        lng: t.venueLongitude,
+        city: t.venueCity,
+        title: t.name,
+        textParts: [t.venueName, t.venueAddress],
+      }),
     );
   }
 
   if (location.area === 'near_me') {
     const all = await getUpcomingTournaments({});
-    const nearby = all.filter((t) =>
+    return all.filter((t) =>
       matchesFeedArea(location, {
         lat: t.venueLatitude,
         lng: t.venueLongitude,
         city: t.venueCity,
-        textParts: [t.venueName, t.venueAddress, t.name],
+        title: t.name,
+        textParts: [t.venueName, t.venueAddress],
       }),
     );
-    return nearby.length > 0 ? nearby : all;
   }
 
   const venueIds = await getVenueIdsForDistrict(location.area);
@@ -229,7 +228,8 @@ export async function getTournamentsForArea(input: {
       lat: t.venueLatitude,
       lng: t.venueLongitude,
       city: t.venueCity,
-      textParts: [t.venueName, t.venueAddress, t.name],
+      title: t.name,
+      textParts: [t.venueName, t.venueAddress],
     }),
   );
 }

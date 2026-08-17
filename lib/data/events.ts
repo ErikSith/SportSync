@@ -240,7 +240,7 @@ async function fetchOfficialEventsMissingCoords(
     .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
     .or('latitude.is.null,longitude.is.null')
     .order('starts_at', { ascending: true })
-    .limit(80);
+    .limit(400);
 
   if (bounds) {
     request = request.lte('starts_at', bounds.to.toISOString());
@@ -286,7 +286,7 @@ async function findWithinRadius(query: EventFeedQuery, radiusKm: number): Promis
     .gte('longitude', box.minLng)
     .lte('longitude', box.maxLng)
     .order('starts_at', { ascending: true })
-    .limit(80);
+    .limit(400);
 
   if (bounds) {
     request = request.lte('starts_at', bounds.to.toISOString());
@@ -367,7 +367,7 @@ export async function getCityEventsFeed(
     .ilike('city', city)
     .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
     .order('starts_at', { ascending: true })
-    .limit(80);
+    .limit(400);
 
   if (bounds) {
     request = request.lte('starts_at', bounds.to.toISOString());
@@ -439,7 +439,7 @@ export async function getEventsAtVenuesFeed(query: {
     .in('venue_id', query.venueIds)
     .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
     .order('starts_at', { ascending: true })
-    .limit(80);
+    .limit(400);
 
   if (bounds) {
     request = request.lte('starts_at', bounds.to.toISOString());
@@ -610,38 +610,30 @@ function resolveOrganizer(profiles: EventDetailRow['profiles']): OrganizerSnippe
   return Array.isArray(profiles) ? (profiles[0] ?? null) : profiles;
 }
 
-/** Single official/community event with venue and organizer details. */
-export async function getEventById(id: string): Promise<EventDetailData | null> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from('events')
-    .select(
-      `
+const EVENT_DETAIL_SELECT = `
       *,
       venues ( name, address, city ),
       profiles!events_organizer_id_fkey ( full_name, username ),
       event_sponsors ( id, name, logo_url, website_url, tier )
-    `,
-    )
-    .eq('id', id)
-    .maybeSingle();
+    `;
 
-  if (error || !data) {
-    if (error && process.env.NODE_ENV !== 'production') console.error('[events.getEventById]', error.message);
-    return null;
-  }
-
+function mapEventDetail(data: unknown): EventDetailData {
   const row = data as EventDetailRow & {
-  photos?: string[] | null;
-  participation_mode?: string | null;
-  ticket_url?: string | null;
-  source_url?: string | null;
-  source_name?: string | null;
-  source?: string | null;
-  is_aggregated?: boolean | null;
-  event_sponsors?: Array<{ id: string; name: string; logo_url: string | null; website_url: string | null; tier: string }> | null;
-};
+    photos?: string[] | null;
+    participation_mode?: string | null;
+    ticket_url?: string | null;
+    source_url?: string | null;
+    source_name?: string | null;
+    source?: string | null;
+    is_aggregated?: boolean | null;
+    event_sponsors?: Array<{
+      id: string;
+      name: string;
+      logo_url: string | null;
+      website_url: string | null;
+      tier: string;
+    }> | null;
+  };
   const venue = resolveVenue(row.venues);
   const organizer = resolveOrganizer(row.profiles);
 
@@ -677,7 +669,7 @@ export async function getEventById(id: string): Promise<EventDetailData | null> 
     venueName: venue?.name ?? null,
     venueAddress: venue?.address ?? null,
     venueCity: venue?.city ?? null,
-    organizerId: row.organizer_id as string,
+    organizerId: (row.organizer_id as string | null) ?? '',
     organizerName: organizer?.full_name ?? organizer?.username ?? 'Unknown',
     photos: row.photos ?? [],
     sponsors,
@@ -690,4 +682,31 @@ export async function getEventById(id: string): Promise<EventDetailData | null> 
     source: row.source ?? null,
     isAggregated: Boolean(row.is_aggregated),
   };
+}
+
+/** Single official/community event with venue and organizer details. */
+export async function getEventById(id: string): Promise<EventDetailData | null> {
+  const supabase = await createClient();
+
+  const run = (select: string) =>
+    supabase.from('events').select(select).eq('id', id).maybeSingle();
+
+  let { data, error } = await run(EVENT_DETAIL_SELECT);
+
+  // Join/RLS on profiles or sponsors can fail for scraped rows — retry bare.
+  if (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[events.getEventById] embed query', error.message);
+    }
+    ({ data, error } = await run('*'));
+  }
+
+  if (error || !data) {
+    if (error && process.env.NODE_ENV !== 'production') {
+      console.error('[events.getEventById]', error.message);
+    }
+    return null;
+  }
+
+  return mapEventDetail(data);
 }

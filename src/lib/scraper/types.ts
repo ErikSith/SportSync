@@ -10,6 +10,13 @@ export const ScrapedEventSchema = z.object({
     .describe(
       'True ak ide o turnaj/súťaž, False ak ide o tréning alebo rekreačnú lekciu',
     ),
+  isGroupClass: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'True ak ide o opakovanú skupinovú lekciu/tréning na tom istom športovisku v obvykle rovnakom čase',
+    ),
   startTime: z
     .string()
     .describe(
@@ -35,6 +42,13 @@ export const ScrapedEventSchema = z.object({
     .string()
     .url()
     .describe('Priama URL adresa zdroja/rezervačného systému'),
+  forKids: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'True len ak je aktivita vyslovene pre deti (pre deti, detský, Kidstown, mini, U6–U12). Nie junior/ITF do 18.',
+    ),
 });
 
 export type ScrapedEvent = z.infer<typeof ScrapedEventSchema>;
@@ -67,6 +81,11 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
             description:
               'True ak ide o turnaj/súťaž, False ak ide o tréning alebo rekreačnú lekciu',
           },
+          isGroupClass: {
+            type: 'boolean',
+            description:
+              'True ak ide o opakovanú skupinovú lekciu/tréning na tom istom športovisku v obvykle rovnakom čase',
+          },
           startTime: {
             type: 'string',
             description:
@@ -96,11 +115,17 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
             description:
               'Priama URL adresa zdroja/rezervačného systému',
           },
+          forKids: {
+            type: 'boolean',
+            description:
+              'True len ak je aktivita vyslovene pre deti (pre deti, detský, Kidstown, mini, U6–U12). Nie junior/ITF do 18.',
+          },
         },
         required: [
           'title',
           'sportType',
           'isTournament',
+          'isGroupClass',
           'startTime',
           'locationName',
           'originalUrl',

@@ -53,6 +53,12 @@ export function toAppDateKey(date: Date, timeZone: string = APP_TIMEZONE): strin
   return `${p.year}-${pad2(p.month)}-${pad2(p.day)}`;
 }
 
+/** Midnight at the start of the current Bratislava calendar day. */
+export function startOfAppDay(now = new Date(), timeZone: string = APP_TIMEZONE): Date {
+  const p = readZonedParts(now, timeZone);
+  return zonedLocalDateTime(p.year, p.month - 1, p.day, 0, 0, 0, timeZone);
+}
+
 /** Next Bratislava calendar day after `dateKey` (YYYY-MM-DD). */
 export function addAppCalendarDays(dateKey: string, days: number): string {
   const [y, m, d] = dateKey.split('-').map(Number);

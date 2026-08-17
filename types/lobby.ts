@@ -27,7 +27,18 @@ export type LobbySportKey =
   | 'squash'
   | 'running'
   | 'volleyball'
-  | 'hockey';
+  | 'hockey'
+  | 'handball'
+  | 'cycling'
+  | 'golf'
+  | 'fitness'
+  | 'yoga'
+  | 'combat'
+  | 'swimming'
+  | 'surfing'
+  | 'table_tennis'
+  | 'climbing'
+  | 'bowling';
 
 export type LobbyFilterTab = 'ALL' | LobbyType;
 
@@ -70,6 +81,10 @@ export interface MatchCardData {
   dateLabel: string;
   timeLabel: string;
   venueName: string;
+  /** Real venues UUID when this match is tied to a catalog venue. */
+  venueId?: string | null;
+  /** Official booking / website URL from venues.website_url. */
+  websiteUrl?: string | null;
   distanceKm: number;
   playersFilled: number;
   playersTotal: number;
@@ -110,6 +125,8 @@ export interface CreateLobbyDraft {
   venue: string;
   /** Real venues UUID when picked from catalog; null for free-text / fallback. */
   venueId: string | null;
+  /** Official venue homepage copied from the catalog for the lobby CTA. */
+  websiteUrl: string | null;
   spotsNeeded: number;
   skillLevel: SkillLevel;
   aiPrompt: string;
@@ -136,6 +153,7 @@ export const EMPTY_CREATE_DRAFT: CreateLobbyDraft = {
   time: '18:00',
   venue: 'Park 21',
   venueId: null,
+  websiteUrl: null,
   spotsNeeded: 1,
   skillLevel: 'INTERMEDIATE',
   aiPrompt: '',

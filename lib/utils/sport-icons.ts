@@ -19,6 +19,8 @@ export const SPORT_ICONS: Record<string, string> = {
   COMBAT: 'sports_mma',
   MMA: 'sports_mma',
   TABLE_TENNIS: 'sports_tennis',
+  CLIMBING: 'hiking',
+  BOWLING: 'sports',
   OTHER: 'sports',
 };
 
@@ -36,10 +38,13 @@ export const SPORT_COLORS: Record<string, string> = {
   SWIMMING: '#67e8f9',
   SURFING: '#22d3ee',
   FITNESS: '#fb7185',
+  YOGA: '#c4b5fd',
   HOCKEY: '#7dd3fc',
   HANDBALL: '#fdba74',
   COMBAT: '#f87171',
   TABLE_TENNIS: '#facc15',
+  CLIMBING: '#fdba74',
+  BOWLING: '#fde68a',
   OTHER: '#e9c349',
 };
 

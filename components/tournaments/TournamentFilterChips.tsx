@@ -9,8 +9,6 @@ export type TournamentStatusFilter = 'upcoming' | 'open' | 'live' | 'ALL';
 interface TournamentFilterChipsProps {
   statusFilter?: TournamentStatusFilter;
   selectedSports?: string[];
-  /** Sports present on current tournament cards — keeps the row short. */
-  availableSports?: string[];
 }
 
 const STATUS_CHIPS: Array<{ key: TournamentStatusFilter; label: string }> = [
@@ -30,15 +28,11 @@ const CHIP_IDLE =
 export function TournamentFilterChips({
   statusFilter = 'upcoming',
   selectedSports = [],
-  availableSports,
 }: TournamentFilterChipsProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const sportKeys =
-    availableSports && availableSports.length > 0
-      ? availableSports.map((s) => s.toUpperCase())
-      : [...EVENT_SPORTS];
+  const sportKeys = [...EVENT_SPORTS];
 
   const selected = new Set(selectedSports.map((s) => s.toUpperCase()));
 

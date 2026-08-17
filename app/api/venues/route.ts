@@ -49,11 +49,11 @@ export async function GET(request: Request) {
     let q = supabase
       .from('venues')
       .select(
-        'id, name, description, city, sports, address, latitude, longitude, verified, cover_url, created_at',
+        'id, name, description, city, sports, address, latitude, longitude, verified, website_url, created_at',
       )
       .order('verified', { ascending: false })
       .order('created_at', { ascending: false })
-      .limit(30);
+      .limit(250);
 
     if (sportParam) {
       q = q.contains('sports', [sportParam]);

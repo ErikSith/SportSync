@@ -39,12 +39,14 @@ export function canonicalScrapeSport(alias: ScrapeSportAlias | string): EventSpo
       return 'COMBAT';
     case 'WATER_SPORTS':
       return 'SWIMMING';
-    case 'BOWLING':
     case 'DARTS':
-    case 'CLIMBING':
       return 'OTHER';
+    case 'BOWLING':
+      return 'BOWLING';
+    case 'CLIMBING':
+      return 'CLIMBING';
     case 'YOGA':
-      return 'FITNESS';
+      return 'YOGA';
     default:
       return (key as EventSport) || 'OTHER';
   }

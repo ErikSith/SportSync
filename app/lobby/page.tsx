@@ -59,6 +59,8 @@ function lobbyToMatchCard(lobby: LobbyCardData): MatchCardData {
     dateLabel,
     timeLabel,
     venueName: lobby.venueName ?? lobby.city,
+    venueId: lobby.venueId,
+    websiteUrl: lobby.websiteUrl,
     city: lobby.city,
     distanceKm: lobby.distanceKm,
     playersFilled: lobby.spotsFilled,

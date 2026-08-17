@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { resolveSportType } from '@/lib/ai/theme-config';
+import { detectEventSport, isEventSport } from '@/lib/constants/sports';
 import {
   errResult,
   fetchHtml,
@@ -10,6 +11,7 @@ import {
   slugify,
 } from '@/lib/scrape/fetch';
 import { scrapingSourceByAdapter } from '@/lib/scrape/scraping-sources';
+import { tagScrapedEventKids } from '@/lib/events/for-kids';
 import { tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import type {
   AdapterResult,
@@ -54,7 +56,9 @@ export async function scrapeTextListing(config: TextListingConfig): Promise<Adap
       for (const event of [...fromLd, ...fromDom]) {
         if (seen.has(event.externalId)) continue;
         seen.add(event.externalId);
-        events.push(tagScrapedEventLocation(withSourceLocation(event, config)));
+        events.push(
+          tagScrapedEventKids(tagScrapedEventLocation(withSourceLocation(event, config))),
+        );
       }
     }
 
@@ -114,13 +118,14 @@ function extractJsonLdEvents(
 
       const href = String(obj.url ?? pageUrl);
       const externalId = slugify(`${config.source}-${href}-${startsAt.toISOString().slice(0, 10)}`);
+      const sport = resolveListingSport(title, config.sport);
 
       out.push({
         source: config.source,
         externalId,
         title: title.slice(0, 120),
-        sport: config.sport,
-        sportType: resolveSportType(config.sport),
+        sport,
+        sportType: resolveSportType(sport),
         category: classifyCategory(title, desc, config.defaultCategory ?? 'fitness'),
         participationMode: config.participationMode ?? 'participate',
         startsAt,
@@ -205,12 +210,13 @@ function extractDomEvents(
       seen.add(externalId);
 
       const priceCents = parsePriceCents(text);
+      const sport = resolveListingSport(title, config.sport);
       out.push({
         source: config.source,
         externalId,
         title: title.slice(0, 120),
-        sport: config.sport,
-        sportType: resolveSportType(config.sport),
+        sport,
+        sportType: resolveSportType(sport),
         category: classifyCategory(title, text, config.defaultCategory ?? 'fitness'),
         participationMode: config.participationMode ?? 'participate',
         startsAt,
@@ -241,12 +247,13 @@ function extractDomEvents(
       const externalId = slugify(`${config.source}-${href}-${startsAtBase.toISOString().slice(0, 10)}`);
       if (seen.has(externalId)) return;
       seen.add(externalId);
+      const sport = resolveListingSport(title, config.sport);
       out.push({
         source: config.source,
         externalId,
         title: title.slice(0, 120),
-        sport: config.sport,
-        sportType: resolveSportType(config.sport),
+        sport,
+        sportType: resolveSportType(sport),
         category: classifyCategory(title, parentText, config.defaultCategory ?? 'fitness'),
         participationMode: config.participationMode ?? 'participate',
         startsAt: startsAtBase,
@@ -278,6 +285,10 @@ function withSourceLocation(
     requiresAiGraphic: true,
     coverUrl: null,
   };
+}
+
+function resolveListingSport(title: string, fallback: string) {
+  return detectEventSport(title, isEventSport(fallback) ? fallback : 'OTHER');
 }
 
 function classifyCategory(

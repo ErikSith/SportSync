@@ -1,17 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useMemo, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Eye, X } from 'lucide-react';
 import type { EventType } from '@/lib/constants/events';
 import type { ParticipationMode } from '@/lib/data/events';
+import { EVENT_SPORTS, sportDisplayLabel } from '@/lib/constants/sports';
+import { parseFeedArea, type FeedAreaId } from '@/lib/cities';
 import {
-  sportDisplayLabel,
-  sportPlayGroupForSport,
-  SPORT_PLAY_GROUPS,
-  type SportPlayGroupId,
-} from '@/lib/constants/sports';
+  BRATISLAVA_BOROUGHS,
+  type BratislavaDistrict,
+} from '@/lib/scrape/bratislava-location';
+import {
+  parseHomeFeedFilters,
+  saveHomeFeedFiltersToStorage,
+} from '@/lib/home-feed-filters';
 import {
   EVENT_AUDIENCE_OPTIONS,
   parseEventAudience,
@@ -34,11 +38,10 @@ interface EventFiltersBarProps {
   mode: ParticipationMode;
   typeFilter: EventType | 'ALL';
   selectedSports?: string[];
-  availableSports?: string[];
   eventDayKeys?: string[];
 }
 
-type FilterPanel = 'when' | 'sport' | null;
+type FilterPanel = 'when' | 'where' | 'sport' | null;
 
 const DATE_PRESETS: Array<{ key: Exclude<DatePreset, 'all' | 'custom'>; label: string }> = [
   { key: 'today', label: 'Dnes' },
@@ -46,11 +49,29 @@ const DATE_PRESETS: Array<{ key: Exclude<DatePreset, 'all' | 'custom'>; label: s
   { key: 'weekend', label: 'Víkend' },
 ];
 
+const OKRES_ORDER: BratislavaDistrict[] = [
+  'Bratislava I',
+  'Bratislava II',
+  'Bratislava III',
+  'Bratislava IV',
+  'Bratislava V',
+];
+
+const BOROUGHS_BY_OKRES = OKRES_ORDER.map((okres) => ({
+  okres,
+  boroughs: BRATISLAVA_BOROUGHS.filter((b) => b.district === okres),
+}));
+
+function whereSummary(area: FeedAreaId): string {
+  if (area === 'bratislava') return 'Kdekoľvek';
+  if (area === 'near_me') return 'Blízko mňa';
+  return BRATISLAVA_BOROUGHS.find((b) => b.slug === area)?.borough ?? 'Kdekoľvek';
+}
+
 export function EventFiltersBar({
   mode,
   typeFilter: _typeFilter,
   selectedSports = [],
-  availableSports,
   eventDayKeys = [],
 }: EventFiltersBarProps) {
   const router = useRouter();
@@ -58,9 +79,7 @@ export function EventFiltersBar({
   const searchParams = useSearchParams();
   const [modePending, startModeTransition] = useTransition();
   const isSpectator = mode === 'spectator';
-  const otherInputRef = useRef<HTMLInputElement>(null);
   const [openPanel, setOpenPanel] = useState<FilterPanel>(null);
-  const [sportGroup, setSportGroup] = useState<SportPlayGroupId | null>(null);
 
   const range = useMemo(
     () =>
@@ -78,56 +97,14 @@ export function EventFiltersBar({
   );
   const queryFromUrl = (searchParams.get('q') ?? '').trim();
   const audience = parseEventAudience(searchParams.get('audience'));
-
-  const availableSportSet = useMemo(
-    () => new Set((availableSports ?? []).map((s) => s.toUpperCase()).filter(Boolean)),
-    [availableSports],
-  );
-
-  const playGroups = useMemo(() => {
-    return SPORT_PLAY_GROUPS.map((group) => {
-      const sports = group.sports.filter(
-        (s) =>
-          availableSportSet.size === 0 ||
-          availableSportSet.has(s) ||
-          selected.has(s),
-      );
-      return { ...group, sports };
-    }).filter((g) => g.sports.length > 0 || availableSportSet.size === 0);
-  }, [availableSportSet, selected]);
-
-  // Keep group open when a selected sport belongs to it.
-  useEffect(() => {
-    if (queryFromUrl) {
-      setSportGroup('body');
-      return;
-    }
-    if (selected.size === 0) return;
-    const first = [...selected][0];
-    if (!first) return;
-    const group = sportPlayGroupForSport(first);
-    if (group) setSportGroup(group.id);
-  }, [selected, queryFromUrl]);
+  const area = parseFeedArea(searchParams.get('area'));
 
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [otherOpen, setOtherOpen] = useState(() => queryFromUrl.length > 0);
-  const [otherDraft, setOtherDraft] = useState(queryFromUrl);
   const [draft, setDraft] = useState<EventDateRange>(range);
   const [cursor, setCursor] = useState(() => {
     const anchor = parseDateKey(range.from ?? toDateKey(new Date())) ?? new Date();
     return { year: anchor.getFullYear(), month: anchor.getMonth() };
   });
-
-  useEffect(() => {
-    setOtherDraft(queryFromUrl);
-    if (queryFromUrl) setOtherOpen(true);
-  }, [queryFromUrl]);
-
-  useEffect(() => {
-    if (!otherOpen || openPanel !== 'sport') return;
-    const id = window.setTimeout(() => otherInputRef.current?.focus(), 40);
-    return () => window.clearTimeout(id);
-  }, [otherOpen, openPanel]);
 
   const replaceParams = useCallback(
     (mutate: (params: URLSearchParams) => void) => {
@@ -161,38 +138,38 @@ export function EventFiltersBar({
     [replaceParams],
   );
 
+  const persistArea = useCallback(
+    (next: FeedAreaId) => {
+      const current = parseHomeFeedFilters({
+        sport: searchParams.get('sport') ?? undefined,
+        venues: searchParams.get('venues') ?? undefined,
+        type: searchParams.get('type') ?? undefined,
+        area: next,
+      });
+      saveHomeFeedFiltersToStorage({ ...current, area: next });
+    },
+    [searchParams],
+  );
+
+  const setArea = useCallback(
+    (next: FeedAreaId) => {
+      persistArea(next);
+      replaceParams((params) => {
+        if (next === 'bratislava') params.delete('area');
+        else params.set('area', next);
+      });
+    },
+    [persistArea, replaceParams],
+  );
+
   const clearSportsAndQuery = useCallback(() => {
     replaceParams((params) => {
       params.delete('sport');
       params.delete('q');
     });
-    setOtherDraft('');
-    setOtherOpen(false);
-    setSportGroup(null);
   }, [replaceParams]);
 
-  const selectSportGroup = useCallback(
-    (groupId: SportPlayGroupId) => {
-      const group = SPORT_PLAY_GROUPS.find((g) => g.id === groupId);
-      if (!group) return;
-      setSportGroup(groupId);
-      setOtherOpen(false);
-      setOtherDraft('');
-      // Soft-scope: all sports in the group until user picks one.
-      const sports =
-        availableSportSet.size === 0
-          ? [...group.sports]
-          : group.sports.filter((s) => availableSportSet.has(s));
-      const next = sports.length > 0 ? sports : [...group.sports];
-      replaceParams((params) => {
-        params.delete('q');
-        params.set('sport', next.join(','));
-      });
-    },
-    [availableSportSet, replaceParams],
-  );
-
-  const selectPrimarySport = useCallback(
+  const toggleSport = useCallback(
     (sport: string) => {
       const upper = sport.toUpperCase();
       replaceParams((params) => {
@@ -203,40 +180,19 @@ export function EventFiltersBar({
             .map((s) => s.trim().toUpperCase())
             .filter(Boolean),
         );
-        // Toggle off if this single sport is the only selection.
-        if (current.size === 1 && current.has(upper)) {
-          params.delete('sport');
-        } else {
-          params.set('sport', upper);
+        if (current.has(upper)) current.delete(upper);
+        else current.add(upper);
+        if (current.size === 0) params.delete('sport');
+        else {
+          params.set(
+            'sport',
+            EVENT_SPORTS.filter((s) => current.has(s)).join(','),
+          );
         }
       });
-      setOtherDraft('');
-      setOtherOpen(false);
     },
     [replaceParams],
   );
-
-  const applyOtherQuery = useCallback(
-    (raw: string) => {
-      const value = raw.trim();
-      replaceParams((params) => {
-        params.delete('sport');
-        if (!value) params.delete('q');
-        else params.set('q', value);
-      });
-    },
-    [replaceParams],
-  );
-
-  useEffect(() => {
-    if (!otherOpen || openPanel !== 'sport') return;
-    const handle = window.setTimeout(() => {
-      const next = otherDraft.trim();
-      if (next === queryFromUrl) return;
-      applyOtherQuery(otherDraft);
-    }, 350);
-    return () => window.clearTimeout(handle);
-  }, [otherDraft, otherOpen, openPanel, queryFromUrl, applyOtherQuery]);
 
   const pushRange = useCallback(
     (next: EventDateRange) => {
@@ -294,10 +250,6 @@ export function EventFiltersBar({
     });
   };
 
-  const activePlayGroup = sportGroup
-    ? playGroups.find((g) => g.id === sportGroup) ?? null
-    : null;
-
   const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString('sk-SK', {
     month: 'long',
     year: 'numeric',
@@ -308,7 +260,6 @@ export function EventFiltersBar({
   const draftTo = draft.to ?? draft.from;
   const dateActive = preset !== 'all';
   const customActive = preset === 'custom';
-  const otherActive = otherOpen || queryFromUrl.length > 0;
   const allSportsActive = selected.size === 0 && !queryFromUrl;
 
   const whenSummary =
@@ -326,8 +277,10 @@ export function EventFiltersBar({
     : selected.size === 1
       ? sportDisplayLabel([...selected][0]!)
       : selected.size > 1
-        ? sportPlayGroupForSport([...selected][0]!)?.label ?? `${selected.size} športy`
+        ? `${selected.size} športy`
         : 'Športy';
+  const areaSummary = whereSummary(area);
+  const areaActive = area !== 'bratislava';
 
   const chip =
     'inline-flex shrink-0 items-center rounded-xl border px-3 py-2 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 active:scale-[0.98] whitespace-nowrap';
@@ -372,14 +325,21 @@ export function EventFiltersBar({
   };
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-2.5" data-event-filters-bar="v8-two-tabs">
-      {/* 2 summary tabs — when + sports */}
+    <div className="flex w-full min-w-0 flex-col gap-2.5" data-event-filters-bar="v9-where-tab">
+      {/* 3 summary tabs — when + where + sports */}
       <div
-        className="grid min-w-0 grid-cols-2 items-stretch gap-0 rounded-2xl border border-white/10 bg-transparent p-1 transition-colors duration-200"
+        className="grid min-w-0 grid-cols-3 items-stretch gap-0 rounded-2xl border border-white/10 bg-transparent p-1 transition-colors duration-200"
         role="toolbar"
         aria-label="Filtre"
       >
         {archTab({ id: 'when', label: whenSummary, filtered: dateActive })}
+        <div className="relative min-w-0">
+          <span
+            className="pointer-events-none absolute inset-y-1.5 left-0 w-px bg-white/10"
+            aria-hidden
+          />
+          {archTab({ id: 'where', label: areaSummary, filtered: areaActive })}
+        </div>
         <div className="relative min-w-0">
           <span
             className="pointer-events-none absolute inset-y-1.5 left-0 w-px bg-white/10"
@@ -567,175 +527,81 @@ export function EventFiltersBar({
                 </>
               ) : null}
 
-              {openPanel === 'sport' ? (
-                <div className="space-y-2.5" data-sport-filter="play-groups-v1">
-                  <AnimatePresence initial={false} mode="wait">
-                    {!activePlayGroup ? (
-                      <motion.div
-                        key="groups"
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -8 }}
-                        transition={{ duration: 0.18 }}
-                        className="space-y-2"
+              {openPanel === 'where' ? (
+                <div className="space-y-3" data-area-filter="bratislava-boroughs-v1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="list" aria-label="Rozsah">
+                    <button
+                      type="button"
+                      onClick={() => setArea('bratislava')}
+                      className={`${chip} ${area === 'bratislava' ? chipOn : chipIdle}`}
+                    >
+                      Kdekoľvek
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setArea('near_me')}
+                      className={`${chip} ${area === 'near_me' ? chipOn : chipIdle}`}
+                    >
+                      Blízko mňa
+                    </button>
+                  </div>
+                  {BOROUGHS_BY_OKRES.map((group) => (
+                    <div key={group.okres} className="space-y-1.5">
+                      <p className="font-label-caps text-[8px] uppercase tracking-[0.14em] text-tertiary">
+                        {group.okres}
+                      </p>
+                      <div
+                        className="flex min-w-0 flex-wrap items-center gap-1.5"
+                        role="list"
+                        aria-label={group.okres}
                       >
-                        <div className={scrollRow} role="list" aria-label="Ako hráš">
-                          <button
-                            type="button"
-                            onClick={clearSportsAndQuery}
-                            className={`${chip} ${allSportsActive ? chipOn : chipIdle}`}
-                          >
-                            Všetky
-                          </button>
-                          {playGroups.map((group) => {
-                            const groupSet = new Set<string>(group.sports);
-                            const active =
-                              !queryFromUrl &&
-                              selected.size > 0 &&
-                              [...selected].every((s) => groupSet.has(s));
-                            return (
-                              <button
-                                key={group.id}
-                                type="button"
-                                onClick={() => selectSportGroup(group.id)}
-                                className={`${chip} ${active ? chipOn : chipIdle}`}
-                                title={group.hint}
-                              >
-                                {group.label}
-                              </button>
-                            );
-                          })}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSportGroup('body');
-                              setOtherOpen(true);
-                            }}
-                            className={`${chip} ${otherActive && selected.size === 0 ? chipOn : chipIdle}`}
-                          >
-                            Other
-                          </button>
-                        </div>
-                        <p className="px-0.5 font-body-md text-[11px] text-on-surface-variant">
-                          Vyber, čím hráš — potom konkrétny šport.
-                        </p>
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key={activePlayGroup.id}
-                        initial={{ opacity: 0, x: 8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 8 }}
-                        transition={{ duration: 0.18 }}
-                        className="space-y-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSportGroup(null);
-                              clearSportsAndQuery();
-                            }}
-                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 text-on-surface-variant transition-colors hover:border-white/18 hover:bg-white/[0.03] hover:text-white"
-                            aria-label="Späť na kategórie"
-                          >
-                            <ChevronLeft className="h-4 w-4" strokeWidth={2} />
-                          </button>
-                          <div className="min-w-0">
-                            <p className="font-label-caps text-[9px] uppercase tracking-[0.12em] text-white">
-                              {activePlayGroup.label}
-                            </p>
-                            <p className="font-body-md text-[11px] text-on-surface-variant">
-                              {activePlayGroup.hint}
-                            </p>
-                          </div>
-                        </div>
+                        {group.boroughs.map((borough) => {
+                          const active = area === borough.slug;
+                          return (
+                            <button
+                              key={borough.slug}
+                              type="button"
+                              onClick={() => setArea(borough.slug)}
+                              className={`${chip} ${active ? chipOn : chipIdle}`}
+                            >
+                              {borough.borough}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
 
-                        <div
-                          className={scrollRow}
-                          role="list"
-                          aria-label={`Športy — ${activePlayGroup.label}`}
+              {openPanel === 'sport' ? (
+                <div className="space-y-2.5" data-sport-filter="flat-catalog-v1">
+                  <div
+                    className="flex min-w-0 flex-wrap items-center gap-1.5"
+                    role="list"
+                    aria-label="Športy"
+                  >
+                    <button
+                      type="button"
+                      onClick={clearSportsAndQuery}
+                      className={`${chip} ${allSportsActive ? chipOn : chipIdle}`}
+                    >
+                      Všetky
+                    </button>
+                    {EVENT_SPORTS.map((sport) => {
+                      const active = selected.has(sport) && !queryFromUrl;
+                      return (
+                        <button
+                          key={sport}
+                          type="button"
+                          onClick={() => toggleSport(sport)}
+                          className={`${chip} ${active ? chipOn : chipIdle}`}
                         >
-                          {(() => {
-                            const relevant = activePlayGroup.sports.filter(
-                              (s) => availableSportSet.size === 0 || availableSportSet.has(s),
-                            );
-                            const groupAllActive =
-                              !queryFromUrl &&
-                              relevant.length > 0 &&
-                              selected.size === relevant.length &&
-                              relevant.every((s) => selected.has(s));
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => selectSportGroup(activePlayGroup.id)}
-                                className={`${chip} ${groupAllActive ? chipOn : chipIdle}`}
-                              >
-                                Celá skupina
-                              </button>
-                            );
-                          })()}
-                          {activePlayGroup.sports.map((sport) => {
-                            const active =
-                              selected.has(sport) && selected.size === 1 && !queryFromUrl;
-                            return (
-                              <button
-                                key={sport}
-                                type="button"
-                                onClick={() => selectPrimarySport(sport)}
-                                className={`${chip} ${active ? chipOn : chipIdle}`}
-                              >
-                                {sportDisplayLabel(sport)}
-                              </button>
-                            );
-                          })}
-                          {activePlayGroup.id === 'body' ? (
-                            otherOpen ? (
-                              <input
-                                ref={otherInputRef}
-                                type="text"
-                                value={otherDraft}
-                                onChange={(e) => setOtherDraft(e.target.value)}
-                                onBlur={() => {
-                                  applyOtherQuery(otherDraft);
-                                  if (!otherDraft.trim() && !queryFromUrl) setOtherOpen(false);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    applyOtherQuery(otherDraft);
-                                    otherInputRef.current?.blur();
-                                  }
-                                  if (e.key === 'Escape') {
-                                    e.preventDefault();
-                                    if (!queryFromUrl) {
-                                      setOtherDraft('');
-                                      setOtherOpen(false);
-                                    } else {
-                                      setOtherDraft(queryFromUrl);
-                                      setOtherOpen(false);
-                                    }
-                                  }
-                                }}
-                                placeholder="Other…"
-                                aria-label="Other šport"
-                                className={`${chip} ${chipOn} w-[6.5rem] max-w-[40vw] cursor-text normal-case tracking-normal outline-none placeholder:uppercase placeholder:tracking-[0.12em] sm:w-[8rem]`}
-                              />
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setOtherOpen(true)}
-                                className={`${chip} ${otherActive ? chipOn : chipIdle} max-w-[10rem] truncate`}
-                                title={queryFromUrl || 'Other'}
-                              >
-                                {queryFromUrl || 'Other'}
-                              </button>
-                            )
-                          ) : null}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                          {sportDisplayLabel(sport)}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               ) : null}
             </div>

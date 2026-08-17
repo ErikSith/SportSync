@@ -11,6 +11,7 @@ import type {
   ScraperUpsertStats,
   ScraperUrlResult,
 } from './types';
+import { shouldForceGroupClassFromUrl } from '@/lib/feed/group-class';
 
 export interface VenueScrapeTarget {
   url: string;
@@ -117,11 +118,12 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
     push(venue.websiteUrl, venue);
     for (const page of venue.scrapePages) {
       const kind = page.kind.toLowerCase();
-      push(
-        page.url,
-        venue,
-        kind === 'schedule' || kind === 'rozvrh' || kind === 'classes',
-      );
+      const forceGroupClass =
+        kind === 'schedule' ||
+        kind === 'rozvrh' ||
+        kind === 'classes' ||
+        (kind !== 'tournaments' && shouldForceGroupClassFromUrl(page.url));
+      push(page.url, venue, forceGroupClass);
     }
   }
 
@@ -169,7 +171,7 @@ async function resolveTargets(options: RunScraperOptions): Promise<VenueScrapeTa
 }
 
 /**
- * Walk venue websites: fetch clean text → Gemini 1.5 Flash extract → Prisma upsert.
+ * Walk venue websites: fetch clean text → Gemini 2.0 Flash extract → Prisma upsert.
  * Between URLs: randomized 3–5s pause. Failures on one URL do not abort the run.
  */
 export async function runGeminiScraper(
@@ -236,7 +238,7 @@ export async function runGeminiScraper(
     for (const e of preview) {
       console.log(
         `  • ${e.startTime} | ${e.sportType} | ${e.title} @ ${e.locationName}${
-          e.isTournament ? ' [tournament]' : ''
+          e.isTournament ? ' [tournament]' : e.isGroupClass ? ' [lesson]' : ''
         }`,
       );
     }

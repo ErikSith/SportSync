@@ -28,9 +28,16 @@ import {
   LobbyType,
   SKILL_LEVEL_LABELS,
 } from '@/types/lobby';
+import { isVenueUuid, mapSportLabelToLobbySport } from '@/lib/lobby-create';
+import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import {
+  EVENT_SPORT_KEYWORDS,
+  LOBBY_SPORTS,
+  sportDisplayLabel,
+} from '@/lib/constants/sports';
 
-const SPORTS = ['Padel', 'Tenis', 'Futbal', 'Basketbal', 'Squash', 'Running', 'Volleyball', 'Hockey'];
+const SPORTS = LOBBY_SPORTS.map((sport) => sportDisplayLabel(sport));
 const FALLBACK_VENUES: HomeFilterVenue[] = [
   { id: 'fallback-park-21', name: 'Park 21', city: 'Bratislava', sports: [] },
   { id: 'fallback-aurial', name: 'Aurial Padel', city: 'Bratislava', sports: ['PADEL'] },
@@ -40,17 +47,6 @@ const FALLBACK_VENUES: HomeFilterVenue[] = [
 ];
 const SPOT_OPTIONS = [1, 2, 3, 4, 5] as const;
 const VENUE_SUGGESTION_LIMIT = 3;
-
-const SPORT_QUERY_KEYS: Record<string, string[]> = {
-  Padel: ['padel', 'PADEL'],
-  Tenis: ['tenis', 'tennis', 'TENNIS'],
-  Futbal: ['futbal', 'football', 'soccer', 'FOOTBALL'],
-  Basketbal: ['basket', 'basketball', 'BASKETBALL'],
-  Squash: ['squash', 'SQUASH'],
-  Running: ['run', 'running', 'beh', 'RUNNING'],
-  Volleyball: ['volley', 'volejbal', 'VOLLEYBALL'],
-  Hockey: ['hokej', 'hockey', 'HOCKEY'],
-};
 
 function scoreVenueMatch(
   venue: HomeFilterVenue,
@@ -70,7 +66,10 @@ function scoreVenueMatch(
   else if (city.includes(query)) score = 15;
   else return 0;
 
-  const sportKeys = SPORT_QUERY_KEYS[selectedSport] ?? [];
+  const sportApi = mapSportLabelToLobbySport(selectedSport);
+  const sportKeys = sportApi
+    ? [sportApi, ...(EVENT_SPORT_KEYWORDS[sportApi] ?? [])]
+    : [];
   if (sportKeys.length > 0) {
     const sportHit = sports.some((sport) =>
       sportKeys.some((key) => sport.includes(key.toUpperCase())),
@@ -215,6 +214,7 @@ export function CreateLobbyModal({
       sport: '',
       venue: '',
       venueId: null,
+      websiteUrl: null,
     });
   }, [open]);
 
@@ -223,7 +223,7 @@ export function CreateLobbyModal({
     let cancelled = false;
     fetch('/api/venues?radius=50')
       .then((res) => res.json())
-      .then((payload: { venues?: Array<{ id: string; name: string; city: string; sports?: string[] | null }> }) => {
+      .then((payload: { venues?: Array<{ id: string; name: string; city: string; sports?: string[] | null; website_url?: string | null; websiteUrl?: string | null }> }) => {
         if (cancelled || !Array.isArray(payload.venues)) return;
         setFetchedVenues(
           payload.venues.map((v) => ({
@@ -231,6 +231,7 @@ export function CreateLobbyModal({
             name: v.name,
             city: v.city,
             sports: v.sports ?? [],
+            websiteUrl: toVenueHomepageUrl(v.websiteUrl ?? v.website_url),
           })),
         );
       })
@@ -275,7 +276,24 @@ export function CreateLobbyModal({
   function selectVenue(name: string, venueId: string | null = null) {
     const trimmed = name.trim();
     if (!trimmed) return;
-    patch({ venue: trimmed, venueId });
+
+    let resolvedId = venueId && isVenueUuid(venueId) ? venueId : null;
+    let websiteUrl: string | null = null;
+
+    if (resolvedId) {
+      const picked = catalogVenues.find((v) => v.id === resolvedId);
+      websiteUrl = toVenueHomepageUrl(picked?.websiteUrl);
+    } else {
+      const matches = catalogVenues.filter(
+        (v) => isVenueUuid(v.id) && v.name.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (matches.length === 1) {
+        resolvedId = matches[0]!.id;
+        websiteUrl = toVenueHomepageUrl(matches[0]!.websiteUrl);
+      }
+    }
+
+    patch({ venue: trimmed, venueId: resolvedId, websiteUrl });
     setVenueQuery('');
     setVenueHighlight(0);
     setDetailPhase(null);
@@ -558,6 +576,7 @@ export function CreateLobbyModal({
                             >
                               {suggestedVenues.map((venue, index) => {
                                 const active = index === venueHighlight;
+                                const inCatalog = isVenueUuid(venue.id);
                                 return (
                                   <button
                                     key={venue.id}
@@ -567,13 +586,20 @@ export function CreateLobbyModal({
                                     onMouseEnter={() => setVenueHighlight(index)}
                                     onClick={() => selectVenue(venue.name, venue.id)}
                                     className={[
-                                      'w-full truncate rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                                      'w-full rounded-lg px-3 py-2 text-left transition-colors',
                                       active
                                         ? 'bg-white/[0.07] text-white'
                                         : 'text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200',
                                     ].join(' ')}
                                   >
-                                    {venue.name}
+                                    <span className="block truncate text-sm">{venue.name}</span>
+                                    {inCatalog ? (
+                                      <span className="mt-0.5 block truncate text-[10px] text-zinc-500">
+                        {venue.websiteUrl
+                          ? 'V databáze · oficiálny web športoviska'
+                          : 'V databáze SportSync'}
+                                      </span>
+                                    ) : null}
                                   </button>
                                 );
                               })}
@@ -651,6 +677,16 @@ export function CreateLobbyModal({
                       value={formatLobbyScheduleSummary(draft.date, draft.time)}
                     />
                     <SummaryRow label="Kde" value={draft.venue || '—'} />
+                    {draft.venueId ? (
+                      <SummaryRow
+                        label="Rezervácia"
+                        value={
+                          draft.websiteUrl
+                            ? 'Link na web športoviska pôjde do lobby'
+                            : 'Športovisko v databáze · link doplníme, ak ho máme'
+                        }
+                      />
+                    ) : null}
                     <SummaryRow
                       label="Miesta"
                       value={`${draft.spotsNeeded} · ${SKILL_LEVEL_LABELS[draft.skillLevel]}`}

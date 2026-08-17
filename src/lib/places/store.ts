@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveBorough } from '@/lib/scrape/bratislava-location';
+import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 import {
   CANDIDATE_SCRAPE_PATHS,
   type DiscoveredPlace,
@@ -65,6 +66,7 @@ type VenueRow = {
   address: string | null;
   district: string | null;
   sports: string[] | null;
+  opening_hours?: Record<string, string> | null;
 };
 
 /**
@@ -86,7 +88,7 @@ export async function upsertDiscoveredVenues(
       const byPlace = await supabase
         .from('venues')
         .select(
-          'id, google_place_id, latitude, longitude, website_url, address, district, sports',
+          'id, google_place_id, latitude, longitude, website_url, address, district, sports, opening_hours',
         )
         .eq('google_place_id', place.googlePlaceId)
         .maybeSingle();
@@ -97,7 +99,7 @@ export async function upsertDiscoveredVenues(
         const byName = await supabase
           .from('venues')
           .select(
-            'id, google_place_id, latitude, longitude, website_url, address, district, sports',
+            'id, google_place_id, latitude, longitude, website_url, address, district, sports, opening_hours',
           )
           .eq('city', place.city)
           .ilike('name', place.name)
@@ -105,12 +107,13 @@ export async function upsertDiscoveredVenues(
         existing = (byName.data as VenueRow | null) ?? null;
       }
 
-      const sports =
-        place.sports.length > 0
-          ? place.sports
-          : existing?.sports?.length
-            ? existing.sports
-            : [];
+      const websiteUrl = toVenueHomepageUrl(place.websiteUrl);
+      const openingHours =
+        place.openingHours && Object.keys(place.openingHours).length > 0
+          ? place.openingHours
+          : null;
+
+      const sports = [...new Set([...(place.sports ?? []), ...(existing?.sports ?? [])])];
 
       if (!existing) {
         const { data: created, error } = await supabase
@@ -122,9 +125,10 @@ export async function upsertDiscoveredVenues(
             district: boroughSlug,
             latitude: place.latitude,
             longitude: place.longitude,
-            website_url: place.websiteUrl,
+            website_url: websiteUrl,
             google_place_id: place.googlePlaceId,
             sports,
+            opening_hours: openingHours ?? {},
             verified: false,
             description: place.primaryType
               ? `Objavené cez Google Places (${place.primaryType}).`
@@ -144,15 +148,17 @@ export async function upsertDiscoveredVenues(
 
       venueIds.set(place.googlePlaceId, existing.id);
 
+      const nextWebsite = websiteUrl ?? existing.website_url;
+      const nextHours = openingHours ?? existing.opening_hours ?? {};
       const same =
         existing.google_place_id === place.googlePlaceId &&
         existing.latitude === place.latitude &&
         existing.longitude === place.longitude &&
-        (existing.website_url ?? null) === (place.websiteUrl ?? null) &&
+        (existing.website_url ?? null) === (nextWebsite ?? null) &&
         (existing.address ?? null) === (place.address ?? null) &&
         (existing.district ?? null) === (boroughSlug ?? existing.district ?? null);
 
-      if (same) {
+      if (same && !openingHours) {
         stats.unchanged += 1;
         continue;
       }
@@ -160,13 +166,15 @@ export async function upsertDiscoveredVenues(
       const { error } = await supabase
         .from('venues')
         .update({
+          name: place.name,
           google_place_id: place.googlePlaceId,
           latitude: place.latitude,
           longitude: place.longitude,
-          website_url: place.websiteUrl ?? existing.website_url,
+          website_url: nextWebsite,
           address: place.address ?? existing.address,
           district: boroughSlug ?? existing.district,
           sports: sports.length ? sports : existing.sports,
+          opening_hours: nextHours,
         })
         .eq('id', existing.id);
 
@@ -398,8 +406,8 @@ export async function listEnabledScrapePages(opts: {
       'id, url, kind, borough, venue_id, venues ( id, name, latitude, longitude )',
     )
     .eq('enabled', true)
-    .order('updated_at', { ascending: false })
-    .limit(opts.limit ?? 80);
+    .order('last_scraped_at', { ascending: true, nullsFirst: true })
+    .limit(opts.limit ?? 250);
 
   if (opts.borough) q = q.eq('borough', opts.borough);
   if (opts.kinds?.length) q = q.in('kind', opts.kinds);

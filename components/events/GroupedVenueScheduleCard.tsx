@@ -12,7 +12,7 @@ import {
   type GroupedVenueSchedule,
 } from '@/lib/feed/aggregate-routine-lessons';
 import { getZonedParts } from '@/lib/datetime/bratislava';
-import { sourceDisplayName } from '@/lib/constants/event-sources';
+import { displayVenueName } from '@/lib/venues/listing-url';
 import { VenueScheduleDrawer } from '@/components/events/VenueScheduleDrawer';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
 
@@ -128,7 +128,9 @@ function TimeChipCarousel({
           <button
             type="button"
             onClick={() => onSelectLesson(lesson)}
-            className={`${CHIP_BASE} ${CHIP_IDLE} min-w-[5.25rem] max-w-[7rem] text-left`}
+            className={`${CHIP_BASE} ${CHIP_IDLE} min-w-[5.25rem] max-w-[7rem] text-left ${
+              asDate(lesson.startsAt).getTime() < Date.now() ? 'opacity-45' : ''
+            }`}
           >
             <span className="font-headline-md text-[15px] leading-none tracking-tight text-white">
               {formatLessonTime(lesson.startsAt)}
@@ -157,12 +159,14 @@ function TimeChipCarousel({
 
 function ClassSessionRow({
   session,
+  venueFallback,
   onSelect,
 }: {
   session: ClassSession;
+  venueFallback: string;
   onSelect: (session: ClassSession) => void;
 }) {
-  const host = sourceDisplayName(session.source, session.sourceName);
+  const host = displayVenueName(session.venueName, venueFallback);
   const spots = spotsLabel(session);
   const price = lessonPriceEuros(session);
   const priceText =
@@ -175,7 +179,9 @@ function ClassSessionRow({
     <button
       type="button"
       onClick={() => onSelect(session)}
-      className="group flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-transparent px-3 py-2.5 text-left transition-colors duration-200 hover:border-white/18 hover:bg-white/[0.03] active:bg-white/[0.05]"
+      className={`group flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-transparent px-3 py-2.5 text-left transition-colors duration-200 hover:border-white/18 hover:bg-white/[0.03] active:bg-white/[0.05] ${
+        startsAt.getTime() < Date.now() ? 'opacity-45' : ''
+      }`}
     >
       <time
         dateTime={startsAt.toISOString()}
@@ -228,7 +234,11 @@ function ClassSessionTimeline({
     <ul className="flex flex-col gap-1.5" aria-label={`Lekcie — ${group.venueName}`}>
       {group.lessons.map((session) => (
         <li key={session.id}>
-          <ClassSessionRow session={session} onSelect={onSelect} />
+          <ClassSessionRow
+            session={session}
+            venueFallback={group.venueName}
+            onSelect={onSelect}
+          />
         </li>
       ))}
     </ul>

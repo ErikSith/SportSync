@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { titleIsOutsideBratislava, isBratislavaCity } from '@/lib/cities';
 
 export interface TournamentCardData {
   id: string;
@@ -95,6 +96,12 @@ function resolveOrganizer(profiles: TournamentRow['profiles']): OrganizerSnippet
   return Array.isArray(profiles) ? (profiles[0] ?? null) : profiles;
 }
 
+function isBratislavaScopedTournament(row: TournamentRow): boolean {
+  if (titleIsOutsideBratislava(row.name)) return false;
+  if (row.city && !isBratislavaCity(row.city) && titleIsOutsideBratislava(row.city)) return false;
+  return true;
+}
+
 function isUpcomingTournamentRow(row: TournamentRow, now = new Date()): boolean {
   const starts = parseDbInstant(row.starts_at).getTime();
   const ends = row.ends_at ? parseDbInstant(row.ends_at).getTime() : null;
@@ -150,7 +157,7 @@ export async function getUpcomingTournaments(query: {
     .in('status', ['REGISTRATION_OPEN', 'IN_PROGRESS'])
     .or(`starts_at.gte."${graceIso}",ends_at.gte."${nowIso}"`)
     .order('starts_at', { ascending: true })
-    .limit(50);
+    .limit(150);
 
   if (query.sport && query.sport !== 'ALL') {
     request = request.ilike('sport', query.sport);
@@ -167,6 +174,7 @@ export async function getUpcomingTournaments(query: {
   return (data as TournamentRow[])
     .filter((row) => {
       if (!isUpcomingTournamentRow(row)) return false;
+      if (!isBratislavaScopedTournament(row)) return false;
       if (!search) return true;
       const venue = resolveVenue(row.venues);
       return (
@@ -208,7 +216,7 @@ export async function getUpcomingTournamentsAtVenues(
   }
 
   return (data as TournamentRow[])
-    .filter((row) => isUpcomingTournamentRow(row))
+    .filter((row) => isUpcomingTournamentRow(row) && isBratislavaScopedTournament(row))
     .map(mapTournamentRow);
 }
 

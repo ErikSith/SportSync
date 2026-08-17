@@ -2,7 +2,6 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { getVenuesForHomeFilter } from '@/lib/data/homepage';
-import type { VenueCardData } from '@/lib/data/venues';
 import { getVenuesForArea } from '@/lib/data/area-feed';
 import { VenueCard } from '@/components/venues/VenueCard';
 import { VenueFilterChips } from '@/components/venues/VenueFilterChips';
@@ -21,20 +20,6 @@ export const runtime = 'edge';
 
 interface VenuesPageProps {
   searchParams: { sport?: string; venues?: string; type?: string; area?: string };
-}
-
-function sportsFromVenues(venues: VenueCardData[]): string[] {
-  const seen = new Set<string>();
-  const ordered: string[] = [];
-  for (const venue of venues) {
-    for (const sport of venue.sports) {
-      const key = sport.toUpperCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      ordered.push(key);
-    }
-  }
-  return ordered;
 }
 
 export default async function VenuesPage({ searchParams }: VenuesPageProps) {
@@ -62,14 +47,13 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
     requestedArea === 'near_me' && (profile.latitude === null || profile.longitude === null);
 
   const [filterVenues, rawFeed] = await Promise.all([
-    getVenuesForHomeFilter(city, 40),
+    getVenuesForHomeFilter(city, 200),
     needsGpsPrompt
       ? Promise.resolve(null)
       : getVenuesForArea({ location }),
   ]);
 
   const allVenues = rawFeed?.venues ?? [];
-  const availableSports = sportsFromVenues(allVenues);
 
   const filtered = allVenues.filter((v) => {
     if (!matchesVenueSportsFilter(v.sports, feedFilters)) return false;
@@ -121,7 +105,6 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
             >
               <VenueFilterChips
                 selectedSports={feedFilters.sports}
-                availableSports={availableSports}
               />
             </Suspense>
 

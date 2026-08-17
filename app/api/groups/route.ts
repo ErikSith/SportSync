@@ -9,7 +9,7 @@ export const runtime = 'edge';
 
 const createGroupSchema = z.object({
   name: z.string().min(2).max(80),
-  sport: z.enum(LOBBY_SPORTS),
+  sport: z.enum(LOBBY_SPORTS).optional(),
   description: z.string().max(500).optional(),
 });
 
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
   }
 
   const input = parsed.data;
+  const sport = input.sport ?? 'FOOTBALL';
   let inviteCode = generateInviteCode();
   let groupId: string | null = null;
 
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
         owner_id: auth.user.id,
         name: input.name.trim(),
         description: input.description?.trim() || null,
-        sport: input.sport,
+        sport,
         invite_code: inviteCode,
       })
       .select('id')

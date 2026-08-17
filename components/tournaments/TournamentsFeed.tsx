@@ -1,4 +1,5 @@
 import type { TournamentCardData } from '@/lib/data/tournaments';
+import type { ParticipationMode } from '@/lib/data/events';
 import { TournamentFiltersBar } from '@/components/tournaments/TournamentFiltersBar';
 import { TournamentAtmosphereTab } from '@/components/tournaments/TournamentAtmosphereTab';
 import type { TournamentStatusFilter } from '@/components/tournaments/TournamentFilterChips';
@@ -7,22 +8,11 @@ interface TournamentsFeedProps {
   tournaments: TournamentCardData[];
   allTournaments?: TournamentCardData[];
   statusFilter: TournamentStatusFilter;
+  mode: ParticipationMode;
   selectedSports?: string[];
   eventDayKeys?: string[];
   emptyTitle: string;
   emptySubtitle: string;
-}
-
-function sportsFromTournaments(items: TournamentCardData[]): string[] {
-  const seen = new Set<string>();
-  const ordered: string[] = [];
-  for (const t of items) {
-    const key = t.sport.toUpperCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    ordered.push(key);
-  }
-  return ordered;
 }
 
 function countLabel(n: number): string {
@@ -31,21 +21,22 @@ function countLabel(n: number): string {
 
 export function TournamentsFeed({
   tournaments,
-  allTournaments,
+  allTournaments: _allTournaments,
   statusFilter,
+  mode,
   selectedSports = [],
   eventDayKeys = [],
   emptyTitle,
   emptySubtitle,
 }: TournamentsFeedProps) {
-  const availableSports = sportsFromTournaments(allTournaments ?? tournaments);
+  const isSpectator = mode === 'spectator';
 
   return (
     <div className="flex flex-col gap-5">
       <TournamentFiltersBar
         statusFilter={statusFilter}
+        mode={mode}
         selectedSports={selectedSports}
-        availableSports={availableSports}
         eventDayKeys={eventDayKeys}
       />
 
@@ -55,7 +46,7 @@ export function TournamentsFeed({
             className="material-symbols-outlined mb-3 text-[32px] text-secondary/70"
             style={{ fontVariationSettings: "'FILL' 1" }}
           >
-            emoji_events
+            {isSpectator ? 'visibility' : 'emoji_events'}
           </span>
           <p className="font-headline-md text-[16px] text-on-surface">{emptyTitle}</p>
           <p className="mt-2 font-body-md text-sm text-on-surface-variant">{emptySubtitle}</p>
@@ -67,11 +58,13 @@ export function TournamentsFeed({
               <div className="mb-1 flex items-center gap-2">
                 <span className="h-1 w-6 rounded-full bg-[#c4a035]" />
                 <h2 className="font-headline-md text-[15px] tracking-wide text-on-background">
-                  Open cups
+                  {isSpectator ? 'Watch cups' : 'Open cups'}
                 </h2>
               </div>
               <p className="pl-8 font-body-md text-xs text-on-surface-variant">
-                Brackets, entry fees and venues — compete for the title
+                {isSpectator
+                  ? 'Vstupenky a divácke spektákle — sleduj zo tribúny'
+                  : 'Otvorené prihlášky — zapoj sa ako hráč'}
               </p>
             </div>
             <span className="shrink-0 rounded-full border border-[#c4a035]/30 bg-[#c4a035]/10 px-2.5 py-1 font-label-caps text-[10px] uppercase tracking-wider text-[#e8d59a]">

@@ -1,10 +1,16 @@
 export const GROUP_SPORT_ICONS: Record<string, string> = {
   TENNIS: 'sports_tennis',
   PADEL: 'sports_tennis',
-  SQUASH: 'sports_martial_arts',
+  SQUASH: 'sports_tennis',
   RUNNING: 'run_circle',
   FOOTBALL: 'sports_soccer',
   BASKETBALL: 'sports_basketball',
+  YOGA: 'self_improvement',
+  COMBAT: 'sports_mma',
+  FITNESS: 'fitness_center',
+  SWIMMING: 'pool',
+  CLIMBING: 'hiking',
+  BOWLING: 'sports',
 };
 
 export type SessionRsvpStatus = 'pending' | 'going' | 'maybe' | 'declined';

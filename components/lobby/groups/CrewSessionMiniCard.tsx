@@ -47,7 +47,7 @@ function RsvpAvatarRing({ person }: { person: RsvpAvatar }) {
   return (
     <span
       title={title}
-      className={`relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ring-2 ${ring} ring-offset-1 ring-offset-[#1F1F1F]`}
+      className={`relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ring-2 ${ring} ring-offset-1 ring-offset-[#1F1F1F]`}
     >
       {person.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -231,11 +231,11 @@ export function CrewSessionMiniCard({
         aria-label={label}
         aria-pressed={active}
         onClick={() => void setRsvp(value)}
-        className={`flex h-7 flex-1 items-center justify-center rounded-lg transition active:scale-[0.96] disabled:opacity-50 ${
+        className={`flex h-6 flex-1 items-center justify-center rounded-md transition active:scale-[0.96] disabled:opacity-50 ${
           active ? 'bg-[#FF5722] text-white' : 'bg-[#2A2A2A] text-gray-400 hover:text-white'
         }`}
       >
-        <span className="material-symbols-outlined text-[14px]" aria-hidden>
+        <span className="material-symbols-outlined text-[13px]" aria-hidden>
           {icon}
         </span>
       </button>
@@ -243,87 +243,87 @@ export function CrewSessionMiniCard({
   }
 
   return (
-    <article className="flex w-[140px] shrink-0 flex-col rounded-xl border border-white/[0.06] bg-[#1F1F1F] p-2">
-      <div className="mb-1 flex items-center justify-between gap-1">
-        {canDelete ? (
+    <article className="flex aspect-square w-[132px] shrink-0 flex-col overflow-hidden rounded-xl border border-white/[0.06] bg-[#1F1F1F] p-1.5">
+      <div className="flex min-h-0 flex-1 gap-1">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-bold leading-tight text-white">{activity.title}</p>
+          <p className="mt-0.5 truncate text-[8px] text-gray-400">
+            {formatSessionWhen(activity.scheduledAt)}
+          </p>
+          <p className="truncate text-[8px] text-gray-500">{place}</p>
+
+          <div className="mt-1 flex items-center gap-1">
+            <span className="shrink-0 text-[8px] font-bold text-[#FF7F50]">
+              {going}
+              <span className="text-gray-500">/{cap}</span>
+            </span>
+            <div className="h-0.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[#121212]">
+              <div
+                className="h-full rounded-full bg-[#FF5722] transition-all"
+                style={{ width: `${Math.min(100, pct)}%` }}
+              />
+            </div>
+          </div>
+
+          {rsvpPeople.length > 0 ? (
+            <div className="mt-1 flex items-center -space-x-1.5">
+              {rsvpPeople.slice(0, 4).map((person) => (
+                <RsvpAvatarRing key={`${person.tone}-${person.id}`} person={person} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex shrink-0 flex-col items-center gap-0.5">
           <button
             type="button"
-            disabled={deletePending}
-            onClick={() => void deleteSession()}
-            title="Odstrániť session"
-            aria-label="Odstrániť session"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#2A2A2A] text-gray-500 transition hover:bg-red-500/15 hover:text-red-400 active:scale-95 disabled:opacity-50"
+            disabled={repeatPending}
+            onClick={() => void togglePin()}
+            title={
+              pinnedLocal
+                ? 'Zrušiť pin — session sa už nebude opakovať'
+                : 'Pinnúť — rovnaký termín každý týždeň'
+            }
+            aria-label={pinnedLocal ? 'Zrušiť týždenný pin' : 'Pinnúť na každý týždeň'}
+            aria-pressed={pinnedLocal}
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-50 ${
+              pinnedLocal
+                ? 'bg-[#FF5722]/20 text-[#FF7F50]'
+                : 'bg-[#2A2A2A] text-gray-500 hover:text-[#FF7F50]'
+            }`}
           >
-            <span className="material-symbols-outlined text-[14px]" aria-hidden>
-              delete
+            <span
+              className="material-symbols-outlined text-[12px]"
+              style={pinnedLocal ? { fontVariationSettings: "'FILL' 1" } : undefined}
+              aria-hidden
+            >
+              autorenew
             </span>
           </button>
-        ) : (
-          <span className="h-6 w-6 shrink-0" aria-hidden />
-        )}
 
-        <button
-          type="button"
-          disabled={repeatPending}
-          onClick={() => void togglePin()}
-          title={
-            pinnedLocal
-              ? 'Zrušiť pin — session sa už nebude opakovať'
-              : 'Pinnúť — rovnaký termín každý týždeň'
-          }
-          aria-label={pinnedLocal ? 'Zrušiť týždenný pin' : 'Pinnúť na každý týždeň'}
-          aria-pressed={pinnedLocal}
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-50 ${
-            pinnedLocal
-              ? 'bg-[#FF5722]/20 text-[#FF7F50]'
-              : 'bg-[#2A2A2A] text-gray-500 hover:text-[#FF7F50]'
-          }`}
-        >
-          <span
-            className="material-symbols-outlined text-[14px]"
-            style={pinnedLocal ? { fontVariationSettings: "'FILL' 1" } : undefined}
-            aria-hidden
-          >
-            autorenew
-          </span>
-        </button>
-      </div>
-
-      <p className="truncate text-[11px] font-bold leading-tight text-white">{activity.title}</p>
-      <p className="mt-1 truncate text-[9px] text-gray-400">{formatSessionWhen(activity.scheduledAt)}</p>
-      <p className="truncate text-[9px] text-gray-500">{place}</p>
-
-      <div className="mt-1.5 flex items-center justify-between gap-1">
-        <span className="text-[9px] font-bold text-[#FF7F50]">
-          {going}
-          <span className="text-gray-500">/{cap}</span>
-        </span>
-        <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[#121212]">
-          <div
-            className="h-full rounded-full bg-[#FF5722] transition-all"
-            style={{ width: `${Math.min(100, pct)}%` }}
-          />
+          {canDelete ? (
+            <button
+              type="button"
+              disabled={deletePending}
+              onClick={() => void deleteSession()}
+              title="Odstrániť session"
+              aria-label="Odstrániť session"
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2A2A2A] text-gray-500 transition hover:bg-red-500/15 hover:text-red-400 active:scale-95 disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[12px]" aria-hidden>
+                delete
+              </span>
+            </button>
+          ) : null}
         </div>
       </div>
 
-      <div className="mt-1.5 flex min-h-7 items-center">
-        {rsvpPeople.length > 0 ? (
-          <div className="flex items-center -space-x-1.5">
-            {rsvpPeople.map((person) => (
-              <RsvpAvatarRing key={`${person.tone}-${person.id}`} person={person} />
-            ))}
-          </div>
-        ) : (
-          <span className="text-[8px] text-gray-600">No RSVPs yet</span>
-        )}
-      </div>
-
-      <div className="mt-1.5 flex gap-0.5">
+      <div className="mt-1 flex shrink-0 gap-0.5">
         {chip('going', "I'm In", 'check')}
         {chip('declined', 'Out', 'close')}
         {chip('maybe', 'Maybe', 'help')}
       </div>
-      {error ? <p className="mt-0.5 text-[8px] text-red-400">{error}</p> : null}
+      {error ? <p className="mt-0.5 truncate text-[7px] text-red-400">{error}</p> : null}
     </article>
   );
 }

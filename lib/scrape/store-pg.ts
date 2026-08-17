@@ -3,6 +3,7 @@ import { SPORT_TYPE_THEMES } from '@/lib/ai/theme-config';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { resolveEventCover } from '@/lib/media/cover-factory';
 import { aggregatorNotice, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
+import { detectExplicitKidsAudience } from '@/lib/events/for-kids';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import {
   DEFAULT_COVERS,
@@ -222,7 +223,15 @@ export async function upsertEventsPg(
           [event.source, event.externalId],
         );
         const existing = existingRes.rows[0];
-        const forKids = Boolean(event.forKids);
+        const forKids = detectExplicitKidsAudience({
+          title: event.title,
+          description,
+          sourceUrl: event.sourceUrl,
+          venueName: venue?.name ?? event.locationName,
+          sourceName,
+          locationName: event.locationName,
+          forKids: event.forKids,
+        });
 
         if (!existing?.id) {
           const window = softMatchWindow(event.startsAt);

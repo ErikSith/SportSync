@@ -8,6 +8,7 @@ import {
   slugify,
 } from '@/lib/scrape/fetch';
 import type { AdapterResult, NormalizedScrapedEvent, ParticipationMode } from '@/lib/scrape/types';
+import { titleIsOutsideBratislava } from '@/lib/cities';
 
 const HOME_URL = 'https://www.stz.sk/';
 const TENIS_DOMA_URL = 'https://www.stz.sk/tenis-doma';
@@ -34,7 +35,6 @@ export async function scrapeStz(): Promise<AdapterResult> {
     const merged = dedupeByExternalId([
       ...parseNewsPage(homeHtml),
       ...parseNewsPage(tenisHtml),
-      ...parseCarouselSpectator(homeHtml),
     ]);
 
     return okResult('stz', merged.slice(0, 40));
@@ -70,7 +70,9 @@ function parseNewsPage(html: string): NormalizedScrapedEvent[] {
     if (startsAt.getTime() < Date.now() - 12 * 3600000) return;
 
     const participationMode = classifyParticipation(title, body, href);
-    const city = detectCity(combined);
+    const city = detectCity(title, body);
+    if (city !== 'Bratislava' || titleIsOutsideBratislava(title)) return;
+
     const absolute = absoluteUrl(href);
     const externalId = slugify(href.replace(/^https?:\/\//, '').replace(/\/+$/, ''));
 
@@ -89,49 +91,6 @@ function parseNewsPage(html: string): NormalizedScrapedEvent[] {
       coverUrl: null,
       sourceUrl: absolute,
       ticketUrl: extractTicketUrl(body) ?? absolute,
-    });
-  });
-
-  return events;
-}
-
-/** Top carousel / sidebar Davis Cup ticket promo */
-function parseCarouselSpectator(html: string): NormalizedScrapedEvent[] {
-  const $ = cheerio.load(html);
-  const events: NormalizedScrapedEvent[] = [];
-
-  $('a[href*="vstupenk"], a[title*="Vstupenk" i], a[title*="vstupenk" i]').each((_, el) => {
-    const $el = $(el);
-    const href = $el.attr('href') ?? '';
-    const title = ($el.attr('title') || $el.text()).replace(/\s+/g, ' ').trim();
-    if (!title || title.length < 8) return;
-    if (!/vstupenk|dc:\s*vstupenk/i.test(title)) return;
-    if (/detsk[yý]\s+davis/i.test(title)) return;
-
-    const parentText = $el.closest('li, .slide, .slider-text, div').text().replace(/\s+/g, ' ');
-    const startsAt =
-      extractEventStartsAt(`${title} ${parentText}`) ??
-      new Date(Date.UTC(2026, 8, 19, 12, 0, 0));
-
-    if (startsAt.getTime() < Date.now() - 12 * 3600000) return;
-
-    const absolute = absoluteUrl(href);
-    const externalId = slugify(`dc-tickets-${href}`);
-    events.push({
-      source: 'stz',
-      externalId,
-      title: title.slice(0, 120),
-      sport: 'TENNIS',
-      sportType: 'TENNIS',
-      category: 'match',
-      participationMode: 'spectator',
-      startsAt,
-      city: 'Košice',
-      venueKey: 'ntc-kosice',
-      description:
-        'Davis Cup — vstupenky pre divákov. NTC Košice. Zdroj: stz.sk / predpredaj.',
-      sourceUrl: absolute,
-      ticketUrl: 'https://predpredaj.zoznam.sk/sk/listky/davis-cup-slovensko-grecko-2026/',
     });
   });
 
@@ -187,27 +146,29 @@ function extractEventStartsAt(text: string): Date | null {
   return null;
 }
 
-function detectCity(text: string): string {
+function detectCity(title: string, body: string): string {
   const map: Array<[RegExp, string]> = [
-    [/ko[sš]ic/i, 'Košice'],
-    [/bratislav|slovan\s*ba|ntc\s*brat/i, 'Bratislava'],
-    [/[žz]ilin/i, 'Žilina'],
-    [/humenn/i, 'Humenné'],
+    [/bansk(?:ej|á|ou|a)\s+bystric/i, 'Banská Bystrica'],
     [/slovensk(?:ej|á)\s+[ľl]up/i, 'Slovenská Ľupča'],
+    [/humenn/i, 'Humenné'],
+    [/ko[sš]ic/i, 'Košice'],
+    [/[žz]ilin/i, 'Žilina'],
     [/pie[sš][tť]an/i, 'Piešťany'],
     [/poprad/i, 'Poprad'],
     [/nitra/i, 'Nitra'],
     [/trnav/i, 'Trnava'],
+    [/bratislav|slovan\s*ba|ntc\s*brat/i, 'Bratislava'],
   ];
   for (const [re, city] of map) {
-    if (re.test(text)) return city;
+    if (re.test(title)) return city;
+  }
+  for (const [re, city] of map) {
+    if (re.test(body)) return city;
   }
   return 'Bratislava';
 }
 
-function venueKeyFor(city: string, text: string): string {
-  if (/ntc\s*ko[sš]ice|popradsk/i.test(text) || city === 'Košice') return 'ntc-kosice';
-  if (/ntc/i.test(text) && city === 'Bratislava') return 'ntc-bratislava';
+function venueKeyFor(_city: string, _text: string): string {
   return 'ntc-bratislava';
 }
 

@@ -3,7 +3,12 @@ import Link from 'next/link';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { getVenuesForHomeFilter } from '@/lib/data/homepage';
 import { type TournamentCardData } from '@/lib/data/tournaments';
-import { getTournamentsForArea } from '@/lib/data/area-feed';
+import {
+  applyTournamentParticipationFilter,
+  mergeWatchOnlyCups,
+} from '@/lib/tournament-participation';
+import type { ParticipationMode } from '@/lib/data/events';
+import { getEventsForArea, getTournamentsForArea } from '@/lib/data/area-feed';
 import { canCreateTournament } from '@/lib/auth/tournament-access';
 import type { TournamentStatusFilter } from '@/components/tournaments/TournamentFilterChips';
 import { TournamentsFeed } from '@/components/tournaments/TournamentsFeed';
@@ -17,6 +22,11 @@ import {
   eventDayKeys,
   parseEventDateRange,
 } from '@/lib/event-date-filter';
+import {
+  applyEventAudienceFilter,
+  eventAudienceLabel,
+  parseEventAudience,
+} from '@/lib/event-audience-filter';
 
 export const runtime = 'edge';
 
@@ -26,9 +36,11 @@ interface TournamentsPageProps {
     venues?: string;
     type?: string;
     status?: string;
+    mode?: string;
     area?: string;
     from?: string;
     to?: string;
+    audience?: string;
   };
 }
 
@@ -38,6 +50,10 @@ function parseStatus(raw: string | undefined): TournamentStatusFilter {
   if (v === 'live') return 'live';
   if (v === 'all') return 'ALL';
   return 'upcoming';
+}
+
+function parseMode(raw: string | undefined): ParticipationMode {
+  return raw === 'spectator' ? 'spectator' : 'participate';
 }
 
 function matchesStatus(t: TournamentCardData, status: TournamentStatusFilter): boolean {
@@ -62,6 +78,7 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
   const city = profile.city ?? 'Bratislava';
   const feedFilters = parseHomeFeedFilters(searchParams);
   const statusFilter = parseStatus(searchParams.status);
+  const mode = parseMode(searchParams.mode);
   const requestedArea = parseFeedArea(searchParams.area ?? feedFilters.area);
   const location = resolveFeedLocation({
     areaRaw: requestedArea,
@@ -70,31 +87,52 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
     profileLng: profile.longitude,
   });
 
-  const [filterVenues, rawTournaments] = await Promise.all([
-    getVenuesForHomeFilter(city, 40),
+  const [filterVenues, listedTournaments, spectatorFeed] = await Promise.all([
+    getVenuesForHomeFilter(city, 200),
     getTournamentsForArea({ location }),
+    getEventsForArea({ location, participationMode: 'spectator' }),
   ]);
+  const rawTournaments = mergeWatchOnlyCups(listedTournaments, spectatorFeed.events);
 
   const byFeed = applyPlayerFeedFilters(rawTournaments, feedFilters, {
     sport: (t) => t.sport,
     venueId: (t) => t.venueId,
   });
   const byStatus = byFeed.filter((t) => matchesStatus(t, statusFilter));
+  const byMode = applyTournamentParticipationFilter(byStatus, mode);
+  const audience = parseEventAudience(searchParams.audience);
+  const byAudience = applyEventAudienceFilter(byMode, audience, (t) => ({
+    title: t.name,
+    description: t.description,
+    sourceUrl: t.sourceUrl ?? t.ticketUrl,
+    forKids: false,
+    venueName: t.venueName,
+    sourceName: t.source,
+  }));
   const dateRange = parseEventDateRange({
     from: searchParams.from,
     to: searchParams.to,
   });
-  const tournaments = applyEventDateRange(byStatus, dateRange, (t) => t.startsAt);
+  const tournaments = applyEventDateRange(byAudience, dateRange, (t) => t.startsAt);
   const dayKeys = [...eventDayKeys(rawTournaments.map((t) => t.startsAt))];
   const dateFilterActive = Boolean(dateRange.from);
+  const audienceFilterActive = audience !== 'all';
   const canCreate = canCreateTournament(profile.role);
 
   const emptyTitle = dateFilterActive
     ? 'V tieto dni žiadne cups.'
-    : 'No tournaments match these filters.';
+    : audienceFilterActive
+      ? `Žiadne cups pre „${eventAudienceLabel(audience)}“.`
+      : mode === 'spectator'
+        ? 'Žiadne cups na sledovanie.'
+        : 'Žiadne turnaje s otvorenou prihláškou.';
   const emptySubtitle = dateFilterActive
     ? 'Skús iný termín alebo zruš dátumový filter.'
-    : 'Try another sport or status — new cups are added regularly.';
+    : audienceFilterActive
+      ? 'Skús iný filter publika alebo zruš výber.'
+      : mode === 'spectator'
+        ? 'Vstupenky a divácke spektákle sa tu objavia, keď organizátori zverejnia termín. Na Hrať sú cups, do ktorých sa dá prihlásiť.'
+        : 'Skús iný šport alebo status — otvorené prihlášky pribúdajú priebežne. Na Sledovať sú turnaje len pre divákov.';
 
   return (
     <>
@@ -125,7 +163,7 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
           }
           subtitle={
             <p className="mt-1 max-w-md font-body-md text-sm text-on-surface-variant md:text-body-md">
-              Cups and brackets near you — entry fees, spots and venues at a glance.
+              Prihlášky na Hrať, vstupenky a tribúna na Sledovať.
             </p>
           }
           actions={
@@ -150,6 +188,7 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
           tournaments={tournaments}
           allTournaments={rawTournaments}
           statusFilter={statusFilter}
+          mode={mode}
           selectedSports={feedFilters.sports}
           eventDayKeys={dayKeys}
           emptyTitle={emptyTitle}

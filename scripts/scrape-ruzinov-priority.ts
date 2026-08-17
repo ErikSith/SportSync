@@ -10,6 +10,7 @@ import { createAdminClient } from '../lib/supabase/admin';
 import { extractEventsFromText } from '../src/lib/scraper/extractor';
 import { fetchCleanText, sleep } from '../src/lib/scraper/fetcher';
 import { upsertScrapedEvents } from '../src/lib/scraper/db-service';
+import { shouldForceGroupClassFromUrl } from '../lib/feed/group-class';
 
 const URLS = [
   'https://www.rskruzinov.sk/novinky/podujatia-na-mesiac-august-2026',
@@ -73,8 +74,7 @@ async function main() {
           longitude: venue?.lng,
           scrapePageUrl: url,
           forceGroupClass:
-            !events.some((e) => e.isTournament) &&
-            /\/(rozvrh|schedule|trening|tréning|lekci|class|skupinov)/i.test(url),
+            !events.some((e) => e.isTournament) && shouldForceGroupClassFromUrl(url),
         });
         upsert.created += stats.created;
         upsert.updated += stats.updated;

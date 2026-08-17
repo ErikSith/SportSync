@@ -77,3 +77,46 @@ export function dedupeEventsByIdentity<T extends IdentityDedupeable>(events: T[]
 
   return order.map((key) => byKey.get(key)!);
 }
+
+function significantTitleTokens(title: string): string[] {
+  return normalizeEventTitle(title)
+    .split(' ')
+    .filter((token) => token.length > 3);
+}
+
+export function titlesLookLikeSameClass(a: string, b: string): boolean {
+  const na = normalizeEventTitle(a);
+  const nb = normalizeEventTitle(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (na.length >= 10 && nb.length >= 10 && (na.includes(nb) || nb.includes(na))) return true;
+  const tokensA = new Set(significantTitleTokens(a));
+  const tokensB = significantTitleTokens(b);
+  if (tokensA.size === 0 || tokensB.length === 0) return false;
+  const shared = tokensB.filter((token) => tokensA.has(token)).length;
+  return shared >= Math.min(2, tokensA.size, tokensB.length);
+}
+
+/** Same venue + same minute + similar class name → keep one slot on the rozpis. */
+export function dedupeLessonsAtSameVenueSlot<T extends IdentityDedupeable>(lessons: T[]): T[] {
+  const unique = dedupeEventsByIdentity(lessons);
+  const result: T[] = [];
+
+  for (const lesson of unique) {
+    const minute = eventStartsAtMinuteKey(lesson.startsAt);
+    const venueKey = lesson.venueId || lesson.venueName || '';
+    const prevIdx = result.findIndex(
+      (other) =>
+        eventStartsAtMinuteKey(other.startsAt) === minute &&
+        (other.venueId || other.venueName || '') === venueKey &&
+        titlesLookLikeSameClass(other.title, lesson.title),
+    );
+    if (prevIdx === -1) {
+      result.push(lesson);
+      continue;
+    }
+    result[prevIdx] = preferIdentityEvent(result[prevIdx]!, lesson);
+  }
+
+  return result;
+}

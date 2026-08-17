@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
+import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 
 export { LOBBY_SPORTS, type LobbySport } from '@/lib/constants/sports';
 
@@ -31,6 +32,7 @@ export interface LobbyCardData {
   hostName: string;
   venueId: string | null;
   venueName: string | null;
+  websiteUrl: string | null;
   distanceKm: number;
   participants: LobbyParticipantPreview[];
   isJoined: boolean;
@@ -81,7 +83,7 @@ interface LobbyRow {
   latitude: number | null;
   longitude: number | null;
   profiles: ProfileSnippet | ProfileSnippet[] | null;
-  venues: { name: string } | { name: string }[] | null;
+  venues: { name: string; website_url?: string | null } | { name: string; website_url?: string | null }[] | null;
   lobby_participants: Array<{
     user_id: string;
     profiles: ProfileSnippet | null;
@@ -116,7 +118,7 @@ export { resolveTier as lobbyTierLabel };
 const LOBBY_CARD_SELECT = `
   *,
   profiles!lobbies_host_id_fkey ( id, full_name, username, avatar_url ),
-  venues ( name ),
+  venues ( name, website_url ),
   lobby_participants (
     user_id,
     profiles ( id, full_name, username, avatar_url )
@@ -155,6 +157,7 @@ function mapLobbyRowToCard(
     hostName: host?.full_name ?? host?.username ?? 'Unknown',
     venueId: lobby.venue_id ?? null,
     venueName: venue?.name ?? null,
+    websiteUrl: toVenueHomepageUrl(venue?.website_url),
     distanceKm: distance,
     participants: (lobby.lobby_participants ?? []).map((p) => {
       const user = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
@@ -438,7 +441,7 @@ export async function getLobbyById(id: string, viewerProfileId: string): Promise
           name: venueRow.name,
           address: venueRow.address,
           city: venueRow.city,
-          websiteUrl: venueRow.website_url ?? null,
+          websiteUrl: toVenueHomepageUrl(venueRow.website_url),
         }
       : null,
     participants,

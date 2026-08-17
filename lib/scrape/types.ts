@@ -146,7 +146,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['FITNESS'],
     latitude: 48.1562,
     longitude: 17.1475,
-    websiteUrl: 'https://fitcamp.formfactory.sk/calendar',
+    websiteUrl: 'https://fitcamp.formfactory.sk/',
     district: 'ruzinov',
   },
   {
@@ -157,7 +157,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['FITNESS'],
     latitude: 48.1405,
     longitude: 17.1338,
-    websiteUrl: 'https://www.formfactory.sk/eventy/',
+    websiteUrl: 'https://www.formfactory.sk/',
     district: 'petrzalka',
   },
   {
@@ -168,7 +168,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['FITNESS'],
     latitude: 48.1468,
     longitude: 17.1272,
-    websiteUrl: 'https://www.formfactory.sk/eventy/',
+    websiteUrl: 'https://www.formfactory.sk/',
     district: 'stare-mesto',
   },
   {
@@ -179,7 +179,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['FITNESS'],
     latitude: 48.1422,
     longitude: 17.1285,
-    websiteUrl: 'https://www.formfactory.sk/eventy/',
+    websiteUrl: 'https://www.formfactory.sk/',
     district: 'ruzinov',
   },
   {
@@ -190,7 +190,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['FITNESS'],
     latitude: 48.7164,
     longitude: 21.2611,
-    websiteUrl: 'https://www.formfactory.sk/eventy/',
+    websiteUrl: 'https://www.formfactory.sk/',
   },
   {
     key: 'form-factory-mirage',
@@ -200,7 +200,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['FITNESS'],
     latitude: 49.2231,
     longitude: 18.7394,
-    websiteUrl: 'https://www.formfactory.sk/eventy/',
+    websiteUrl: 'https://www.formfactory.sk/',
   },
   {
     key: 'form-factory-trencin',
@@ -210,7 +210,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['FITNESS'],
     latitude: 48.8945,
     longitude: 18.0444,
-    websiteUrl: 'https://www.formfactory.sk/eventy/',
+    websiteUrl: 'https://www.formfactory.sk/',
   },
   {
     key: 'form-factory-bpark',
@@ -220,7 +220,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['FITNESS'],
     latitude: 49.1215,
     longitude: 18.4478,
-    websiteUrl: 'https://www.formfactory.sk/eventy/',
+    websiteUrl: 'https://www.formfactory.sk/',
   },
   {
     key: 'aurial-padel',
@@ -230,7 +230,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['PADEL'],
     latitude: 48.1569,
     longitude: 17.1402,
-    websiteUrl: 'https://aurialpadel.sk/turnaje',
+    websiteUrl: 'https://aurialpadel.sk/',
     district: 'ruzinov',
   },
   {
@@ -241,7 +241,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['PADEL'],
     latitude: 48.2045,
     longitude: 17.1508,
-    websiteUrl: 'https://aurialpadel.sk/turnaje',
+    websiteUrl: 'https://aurialpadel.sk/',
     district: 'raca',
   },
   {
@@ -459,7 +459,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['FITNESS'],
     latitude: 48.1405,
     longitude: 17.1225,
-    websiteUrl: 'https://www.citylife.sk/tag/sport',
+    websiteUrl: 'https://www.citylife.sk/',
     district: 'stare-mesto',
   },
   {
@@ -470,7 +470,7 @@ export const VENUE_SEEDS: Array<{
     sports: ['FITNESS'],
     latitude: 48.1494,
     longitude: 17.1077,
-    websiteUrl: 'https://www.citylife.sk/tag/sport',
+    websiteUrl: 'https://www.citylife.sk/',
     district: 'stare-mesto',
   },
 ];

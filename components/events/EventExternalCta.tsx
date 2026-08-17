@@ -28,17 +28,22 @@ export function EventExternalCta({
       eventId,
       sourceName: sourceName ?? null,
     });
-    window.location.assign(sourceUrl);
   }
 
   return (
-    <button type="button" className={className} onClick={openOfficialSite}>
+    <a
+      href={sourceUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={className}
+      onClick={openOfficialSite}
+    >
       {label}
       {!compact && (
         <span className="material-symbols-outlined text-[20px]" aria-hidden>
           open_in_new
         </span>
       )}
-    </button>
+    </a>
   );
 }

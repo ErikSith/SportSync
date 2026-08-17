@@ -14,7 +14,8 @@ import {
 } from '@/lib/feed/aggregate-routine-lessons';
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
-import { activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { FEED_ACTIVE_GRACE_HOURS, activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 
 export { getProfileByAuthId, type Profile } from '@/lib/data/profile';
 import type { Profile } from '@/lib/data/profile';
@@ -158,6 +159,8 @@ export interface HomeFilterVenue {
   name: string;
   city: string;
   sports: string[];
+  /** Official venue site / booking page when known. */
+  websiteUrl?: string | null;
 }
 
 export interface FeaturedEventsResult {
@@ -245,7 +248,8 @@ function applyFeedFilters(events: EventCardData[], filters?: HomeFeedFilters): E
 function isStartingSoon(startsAt: Date, now: Date): boolean {
   const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() + STARTING_SOON_DAYS);
-  return startsAt >= now && startsAt <= cutoff;
+  const floor = new Date(now.getTime() - FEED_ACTIVE_GRACE_HOURS * 60 * 60 * 1000);
+  return startsAt >= floor && startsAt <= cutoff;
 }
 
 /** Flatten aggregated Coming up items back to EventCardData for the section prop. */
@@ -275,21 +279,23 @@ function mapHomeFilterVenue(venue: {
   name: string;
   city: string;
   sports: string[] | null;
+  website_url?: string | null;
 }): HomeFilterVenue {
   return {
     id: venue.id,
     name: venue.name,
     city: venue.city,
     sports: venue.sports ?? [],
+    websiteUrl: toVenueHomepageUrl(venue.website_url),
   };
 }
 
 /** Venues in the user's city for the homepage feed filter picker. */
-export async function getVenuesForHomeFilter(city: string, take = 12): Promise<HomeFilterVenue[]> {
+export async function getVenuesForHomeFilter(city: string, take = 80): Promise<HomeFilterVenue[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('venues')
-    .select('id, name, city, sports')
+    .select('id, name, city, sports, website_url')
     .ilike('city', city)
     .order('name', { ascending: true })
     .limit(take);
@@ -300,14 +306,22 @@ export async function getVenuesForHomeFilter(city: string, take = 12): Promise<H
   }
 
   return data.map((venue) =>
-    mapHomeFilterVenue(venue as { id: string; name: string; city: string; sports: string[] | null }),
+    mapHomeFilterVenue(
+      venue as {
+        id: string;
+        name: string;
+        city: string;
+        sports: string[] | null;
+        website_url?: string | null;
+      },
+    ),
   );
 }
 
 /** Full venue list for lobby create autocomplete (city first, then all venues). */
 export async function getVenuesForLobbyPicker(city: string, take = 250): Promise<HomeFilterVenue[]> {
   const supabase = await createClient();
-  const select = 'id, name, city, sports';
+  const select = 'id, name, city, sports, website_url';
 
   const cityRes = await supabase
     .from('venues')
@@ -336,7 +350,15 @@ export async function getVenuesForLobbyPicker(city: string, take = 250): Promise
   }
 
   return rows.map((venue) =>
-    mapHomeFilterVenue(venue as { id: string; name: string; city: string; sports: string[] | null }),
+    mapHomeFilterVenue(
+      venue as {
+        id: string;
+        name: string;
+        city: string;
+        sports: string[] | null;
+        website_url?: string | null;
+      },
+    ),
   );
 }
 
@@ -410,7 +432,7 @@ async function fetchEventCandidatePool(
       .gte('longitude', box.minLng)
       .lte('longitude', box.maxLng)
       .order('starts_at', { ascending: true })
-      .limit(50),
+      .limit(200),
     fetchOfficialEventsMissingCoordsPool(filters),
   ]);
 
@@ -445,7 +467,7 @@ async function fetchOfficialEventsMissingCoordsPool(
     .gte('starts_at', activeFeedSinceIso())
     .or('latitude.is.null,longitude.is.null')
     .order('starts_at', { ascending: true })
-    .limit(50);
+    .limit(200);
 
   if (error || !data) {
     if (error) console.error('[homepage.fetchOfficialEventsMissingCoordsPool]', error.message, error);
@@ -678,7 +700,8 @@ export async function getHomepageEventInspiration(
       lat: event.latitude,
       lng: event.longitude,
       city: event.city,
-      textParts: [event.venueName, event.title],
+      title: event.title,
+      textParts: [event.venueName],
     });
   };
 
@@ -767,7 +790,7 @@ async function fetchEventCandidatePoolByCity(
       .ilike('city', city)
       .gte('starts_at', activeFeedSinceIso())
       .order('starts_at', { ascending: true })
-      .limit(50),
+      .limit(200),
     fetchOfficialEventsMissingCoordsPool(filters),
   ]);
 

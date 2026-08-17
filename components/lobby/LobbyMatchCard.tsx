@@ -4,6 +4,7 @@ import { Clock, MapPin, Plus, Users } from 'lucide-react';
 import type { MatchCardData, PlayerAvatar } from '@/types/lobby';
 import { LobbyType } from '@/types/lobby';
 import { skillLabel } from '@/components/lobby/lobby-ui';
+import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 
 interface LobbyMatchCardProps {
   match: MatchCardData;
@@ -51,6 +52,7 @@ function OpenSlot({ label = '+' }: { label?: string }) {
 export function LobbyMatchCard({ match, onAction, busyId }: LobbyMatchCardProps) {
   const busy = busyId === match.id;
   const meta = typeMeta(match.type);
+  const venueSite = toVenueHomepageUrl(match.websiteUrl);
   const openSlots = Math.max(0, match.playersTotal - match.playersFilled);
   const title =
     match.type === LobbyType.TEAM_VS_TEAM
@@ -112,10 +114,21 @@ export function LobbyMatchCard({ match, onAction, busyId }: LobbyMatchCardProps)
           </p>
           <p className="flex items-center gap-2">
             <MapPin className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
-            <span className="truncate">
+            <span className="min-w-0 truncate">
               {match.venueName}
               {match.city ? ` · ${match.city}` : ''}
             </span>
+            {venueSite ? (
+              <a
+                href={venueSite}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.1em] text-[#FF5722] hover:underline"
+              >
+                Web
+              </a>
+            ) : null}
           </p>
           <p className="flex items-start gap-2 text-zinc-500">
             <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -154,7 +167,9 @@ export function LobbyMatchCard({ match, onAction, busyId }: LobbyMatchCardProps)
 
         {match.type === LobbyType.SINGLE_PLAYER_1 && (
           <p className="mt-3 text-[11px] leading-snug text-zinc-600">
-            Court booking and payment are handled at the venue.
+            {venueSite
+              ? 'Oficiálny web športoviska — SportSync je len stretávka hráčov.'
+              : 'Court booking and payment are handled at the venue.'}
           </p>
         )}
       </div>

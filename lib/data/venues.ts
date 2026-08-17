@@ -282,6 +282,10 @@ function mapVenueCard(row: VenueRow, distance: number): VenueCardData {
 }
 
 const ACTIVITY_PEEK_PER_VENUE = 4;
+const CITY_VENUE_LIMIT = 700;
+const DISTRICT_VENUE_LIMIT = 250;
+const NEARBY_VENUE_LIMIT = 250;
+const VENUE_ID_CHUNK = 80;
 
 interface ActivityRow {
   id: string;
@@ -300,31 +304,39 @@ async function attachVenueActivities(venues: VenueCardData[]): Promise<VenueCard
   const ids = venues.map((v) => v.id);
   const activeSince = activeFeedSinceIso();
   const supabase = await createClient();
+  const eventRows: ActivityRow[] = [];
+  const tournamentRows: ActivityRow[] = [];
 
-  const [eventsRes, tournamentsRes] = await Promise.all([
-    supabase
-      .from('events')
-      .select('id, venue_id, title, sport, starts_at, cover_url, status')
-      .in('venue_id', ids)
-      .in('status', ['open', 'live', 'full'])
-      .gte('starts_at', activeSince)
-      .order('starts_at', { ascending: true })
-      .limit(Math.min(200, ids.length * 8)),
-    supabase
-      .from('tournaments')
-      .select('id, venue_id, name, sport, starts_at, cover_url, status')
-      .in('venue_id', ids)
-      .in('status', ['REGISTRATION_OPEN', 'IN_PROGRESS'])
-      .gte('starts_at', activeSince)
-      .order('starts_at', { ascending: true })
-      .limit(Math.min(200, ids.length * 8)),
-  ]);
+  for (let i = 0; i < ids.length; i += VENUE_ID_CHUNK) {
+    const chunk = ids.slice(i, i + VENUE_ID_CHUNK);
+    const [eventsRes, tournamentsRes] = await Promise.all([
+      supabase
+        .from('events')
+        .select('id, venue_id, title, sport, starts_at, cover_url, status')
+        .in('venue_id', chunk)
+        .in('status', ['open', 'live', 'full'])
+        .gte('starts_at', activeSince)
+        .order('starts_at', { ascending: true })
+        .limit(Math.min(400, chunk.length * 8)),
+      supabase
+        .from('tournaments')
+        .select('id, venue_id, name, sport, starts_at, cover_url, status')
+        .in('venue_id', chunk)
+        .in('status', ['REGISTRATION_OPEN', 'IN_PROGRESS'])
+        .gte('starts_at', activeSince)
+        .order('starts_at', { ascending: true })
+        .limit(Math.min(200, chunk.length * 8)),
+    ]);
 
-  if (eventsRes.error && process.env.NODE_ENV !== 'production') {
-    console.error('[venues.attachVenueActivities.events]', eventsRes.error.message);
-  }
-  if (tournamentsRes.error && process.env.NODE_ENV !== 'production') {
-    console.error('[venues.attachVenueActivities.tournaments]', tournamentsRes.error.message);
+    if (eventsRes.error && process.env.NODE_ENV !== 'production') {
+      console.error('[venues.attachVenueActivities.events]', eventsRes.error.message);
+    }
+    if (tournamentsRes.error && process.env.NODE_ENV !== 'production') {
+      console.error('[venues.attachVenueActivities.tournaments]', tournamentsRes.error.message);
+    }
+
+    eventRows.push(...((eventsRes.data ?? []) as ActivityRow[]));
+    tournamentRows.push(...((tournamentsRes.data ?? []) as ActivityRow[]));
   }
 
   const byVenue = new Map<string, { events: VenueCardActivity[]; cups: VenueCardActivity[]; eventCount: number; tournamentCount: number }>();
@@ -332,7 +344,7 @@ async function attachVenueActivities(venues: VenueCardData[]): Promise<VenueCard
     byVenue.set(id, { events: [], cups: [], eventCount: 0, tournamentCount: 0 });
   }
 
-  for (const row of (eventsRes.data ?? []) as ActivityRow[]) {
+  for (const row of eventRows) {
     const bucket = byVenue.get(row.venue_id);
     if (!bucket) continue;
     bucket.eventCount += 1;
@@ -347,7 +359,7 @@ async function attachVenueActivities(venues: VenueCardData[]): Promise<VenueCard
     });
   }
 
-  for (const row of (tournamentsRes.data ?? []) as ActivityRow[]) {
+  for (const row of tournamentRows) {
     const bucket = byVenue.get(row.venue_id);
     if (!bucket) continue;
     bucket.tournamentCount += 1;
@@ -393,7 +405,7 @@ async function findWithinRadius(query: VenueFeedQuery, radiusKm: number): Promis
     .gte('longitude', box.minLng)
     .lte('longitude', box.maxLng)
     .order('name', { ascending: true })
-    .limit(50);
+    .limit(NEARBY_VENUE_LIMIT);
 
   if (error || !data) {
     if (error && process.env.NODE_ENV !== 'production') console.error('[venues.getNearbyVenuesFeed]', error.message);
@@ -421,6 +433,15 @@ async function findWithinRadius(query: VenueFeedQuery, radiusKm: number): Promis
     })
     .sort((a, b) => a.distanceKm - b.distanceKm)
     .map(({ venue, distanceKm: d }) => mapVenueCard(venue, d));
+}
+
+function rankVenuesByActivity(venues: VenueCardData[]): VenueCardData[] {
+  return [...venues].sort((a, b) => {
+    const activeA = a.eventCount + a.tournamentCount;
+    const activeB = b.eventCount + b.tournamentCount;
+    if (activeB !== activeA) return activeB - activeA;
+    return a.name.localeCompare(b.name, 'sk');
+  });
 }
 
 /** Nearby venue feed with 20km → 50km fallback (unless radius overridden). */
@@ -471,7 +492,7 @@ export async function getCityVenuesFeed(query: {
     )
     .ilike('city', `%${city}%`)
     .order('name', { ascending: true })
-    .limit(80);
+    .limit(CITY_VENUE_LIMIT);
 
   if (error || !data) {
     if (error && process.env.NODE_ENV !== 'production') {
@@ -489,7 +510,7 @@ export async function getCityVenuesFeed(query: {
   });
 
   return {
-    venues: await attachVenueActivities(venues),
+    venues: rankVenuesByActivity(await attachVenueActivities(venues)),
     radiusKm: 0,
     showExtended: false,
   };
@@ -512,7 +533,7 @@ export async function getDistrictVenuesFeed(query: {
     )
     .eq('district', query.districtId)
     .order('name', { ascending: true })
-    .limit(80);
+    .limit(DISTRICT_VENUE_LIMIT);
 
   if (error || !data) {
     if (error && process.env.NODE_ENV !== 'production') {
@@ -530,7 +551,7 @@ export async function getDistrictVenuesFeed(query: {
   });
 
   return {
-    venues: await attachVenueActivities(venues),
+    venues: rankVenuesByActivity(await attachVenueActivities(venues)),
     radiusKm: 0,
     showExtended: false,
   };

@@ -1,24 +1,10 @@
-import { LOBBY_SPORTS, type LobbySport } from '@/lib/constants/sports';
+import { LOBBY_SPORTS, isLobbySport, sportDisplayLabel, type LobbySport } from '@/lib/constants/sports';
 import type { LobbyFormat } from '@/lib/constants/lobbies';
 import {
   LobbyType,
   type CreateLobbyDraft,
   type SkillLevel,
 } from '@/types/lobby';
-
-const SPORT_LABEL_TO_API: Record<string, LobbySport> = {
-  Padel: 'PADEL',
-  Tenis: 'TENNIS',
-  Tennis: 'TENNIS',
-  Futbal: 'FOOTBALL',
-  Football: 'FOOTBALL',
-  Basketbal: 'BASKETBALL',
-  Basketball: 'BASKETBALL',
-  Squash: 'SQUASH',
-  Running: 'RUNNING',
-  Volleyball: 'VOLLEYBALL',
-  Hockey: 'HOCKEY',
-};
 
 /** Map UI skill labels to approximate ELO stored on lobbies.skill_level. */
 const SKILL_TO_ELO: Record<SkillLevel, number> = {
@@ -32,12 +18,11 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function mapSportLabelToLobbySport(label: string): LobbySport | null {
-  const direct = SPORT_LABEL_TO_API[label.trim()];
-  if (direct) return direct;
-  const upper = label.trim().toUpperCase().replace(/\s+/g, '_');
-  return (LOBBY_SPORTS as readonly string[]).includes(upper)
-    ? (upper as LobbySport)
-    : null;
+  const trimmed = label.trim();
+  const byLabel = LOBBY_SPORTS.find((sport) => sportDisplayLabel(sport) === trimmed);
+  if (byLabel) return byLabel;
+  const upper = trimmed.toUpperCase().replace(/\s+/g, '_');
+  return isLobbySport(upper) ? upper : null;
 }
 
 export function mapLobbyTypeToFormat(type: LobbyType): LobbyFormat {

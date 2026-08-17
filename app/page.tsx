@@ -77,7 +77,7 @@ async function queryAllActiveEvents(
       .in('status', ['open', 'live'])
       .gte('starts_at', activeFeedSinceIso())
       .order('starts_at', { ascending: true })
-      .limit(120);
+      .limit(400);
 
     if (error) {
       console.error('Homepage Supabase query error (with venues):', error);
@@ -87,7 +87,7 @@ async function queryAllActiveEvents(
         .in('status', ['open', 'live'])
         .gte('starts_at', activeFeedSinceIso())
         .order('starts_at', { ascending: true })
-        .limit(120));
+        .limit(400));
     }
 
     // Date floor emptied the feed — load all open/live regardless of starts_at.
@@ -98,7 +98,7 @@ async function queryAllActiveEvents(
         .select('*')
         .in('status', ['open', 'live'])
         .order('starts_at', { ascending: true })
-        .limit(120));
+        .limit(400));
     }
 
     if (error) {

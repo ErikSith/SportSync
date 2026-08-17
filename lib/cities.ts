@@ -279,6 +279,21 @@ export function isBratislavaCity(city: string | null | undefined): boolean {
   return Boolean(city && city.toLowerCase().includes('bratislav'));
 }
 
+/**
+ * Other Slovak (and nearby) cities in a listing title.
+ * Scrapers often pin those rows to an NTC Bratislava venue — the title is the
+ * real location. SportSync feeds are Bratislava-only for now.
+ */
+const OUTSIDE_BRATISLAVA_PLACE =
+  /bansk(?:ej|á|ou|a)\s+bystric|slovensk(?:ej|á|ou|a)\s+[ľl]up[čc]|humenn|ko[sš]ic(?:e|iach|iam)?|pre[sš]ov|[žz]ilin|poprad|pie[sš][tť]an|tren[cč][ií]n|star(?:á|ej|ou|a)\s+tur[aá]|zvolen|prievidz|bardejov|michalov|kom[aá]rn|levic(?!\s+bratislav)|pov[aá]žsk(?:ej|á|a)\s+bystric|liptovsk|ru[zž]omberok|v\s+nitre|\bnitre\b|v\s+trnave|\btrnave\b|v\s+martine|dubn[ií]kom|beckov|soblahov/i;
+
+export function titleIsOutsideBratislava(title: string | null | undefined): boolean {
+  if (!title) return false;
+  const t = title.toLowerCase();
+  if (/bratislav/.test(t)) return false;
+  return OUTSIDE_BRATISLAVA_PLACE.test(t);
+}
+
 export function parseFeedArea(raw: string | null | undefined): FeedAreaId {
   if (!raw) return 'bratislava';
   const key = raw.toLowerCase().trim();
@@ -389,6 +404,8 @@ export interface FeedAreaMatchInput {
   lat?: number | null;
   lng?: number | null;
   city?: string | null;
+  /** Event/tournament title — used to reject out-of-city listings. */
+  title?: string | null;
   /** Venue name, address, title, etc. */
   textParts?: Array<string | null | undefined>;
 }
@@ -404,6 +421,7 @@ export function matchesFeedArea(
   const text = [item.city, ...(item.textParts ?? [])].filter(Boolean).join(' ').toLowerCase();
 
   if (location.area === 'bratislava') {
+    if (titleIsOutsideBratislava(item.title)) return false;
     if (isBratislavaCity(item.city) || text.includes('bratislav')) return true;
     if (item.lat != null && item.lng != null) {
       return distanceKm(location.lat, location.lng, item.lat, item.lng) <= BRATISLAVA_CITY_RADIUS_KM;
@@ -413,6 +431,7 @@ export function matchesFeedArea(
   }
 
   if (location.area === 'near_me') {
+    if (titleIsOutsideBratislava(item.title)) return false;
     if (item.lat != null && item.lng != null) {
       return distanceKm(location.lat, location.lng, item.lat, item.lng) <= location.radiusKm;
     }

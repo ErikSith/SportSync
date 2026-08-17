@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Search } from 'lucide-react';
 import type { HomeFilterVenue } from '@/lib/data/homepage';
 import type { GroupCardData } from '@/lib/data/sport-groups-shared';
@@ -282,31 +284,21 @@ function LobbyQuickActions({
   onOpenCrew: (preferWizard?: boolean) => void;
 }) {
   const router = useRouter();
+  const titleId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
-
-    function onPointerDown(event: MouseEvent | TouchEvent) {
-      const target = event.target as Node | null;
-      if (menuRef.current && target && !menuRef.current.contains(target)) {
-        setMenuOpen(false);
-      }
-    }
-
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') setMenuOpen(false);
     }
-
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('touchstart', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('touchstart', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
+    return () => document.removeEventListener('keydown', onKeyDown);
   }, [menuOpen]);
 
   function handleCrewClick() {
@@ -328,42 +320,42 @@ function LobbyQuickActions({
   }
 
   return (
-    <div
-      className="flex w-full min-w-0 items-stretch gap-0.5 rounded-2xl border border-white/10 bg-transparent p-1"
-      role="group"
-      aria-label="Vytvorenie lobby alebo crew"
-    >
-      <button
-        type="button"
-        onClick={onCreateLobby}
-        className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-primary-container/20 bg-primary-container/10 px-2 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] text-white transition-colors duration-200 hover:border-primary-container/30 hover:bg-primary-container/15 active:scale-[0.98] sm:px-3"
+    <>
+      <div
+        className="flex w-full min-w-0 items-stretch gap-0.5 rounded-2xl border border-white/10 bg-transparent p-1"
+        role="group"
+        aria-label="Vytvorenie lobby alebo crew"
       >
-        <span
-          className="material-symbols-outlined shrink-0 text-[16px] text-primary-container"
-          aria-hidden
+        <button
+          type="button"
+          onClick={onCreateLobby}
+          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-primary-container/20 bg-primary-container/10 px-2 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] text-white transition-colors duration-200 hover:border-primary-container/30 hover:bg-primary-container/15 active:scale-[0.98] sm:px-3"
         >
-          sports
-        </span>
-        <span className="truncate text-center leading-tight">Vytvorenie lobby</span>
-      </button>
+          <span
+            className="material-symbols-outlined shrink-0 text-[16px] text-primary-container"
+            aria-hidden
+          >
+            sports
+          </span>
+          <span className="truncate text-center leading-tight">Vytvorenie lobby</span>
+        </button>
 
-      <span className="my-1.5 w-px shrink-0 bg-white/10" aria-hidden />
+        <span className="my-1.5 w-px shrink-0 bg-white/10" aria-hidden />
 
-      <div ref={menuRef} className="relative min-w-0 flex-1">
         <button
           type="button"
           onClick={handleCrewClick}
           aria-expanded={menuOpen}
-          aria-haspopup="menu"
-          className={`flex w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 active:scale-[0.98] sm:px-3 ${
+          aria-haspopup="dialog"
+          className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 active:scale-[0.98] sm:px-3 ${
             menuOpen
-              ? 'border-[#FF5722]/35 bg-[#FF5722]/10 text-white'
+              ? 'border-primary-container/30 bg-primary-container/10 text-white'
               : 'border-transparent text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200'
           }`}
         >
           <span
             className={`material-symbols-outlined shrink-0 text-[16px] ${
-              menuOpen ? 'text-[#FF7F50]' : 'text-secondary'
+              menuOpen ? 'text-primary-container' : 'text-secondary'
             }`}
             aria-hidden
           >
@@ -378,7 +370,7 @@ function LobbyQuickActions({
           {groups.length > 0 ? (
             <span
               className={`material-symbols-outlined shrink-0 text-[14px] transition-transform ${
-                menuOpen ? 'rotate-180 text-[#FF7F50]' : 'text-zinc-500'
+                menuOpen ? 'rotate-180 text-primary-container' : 'text-zinc-500'
               }`}
               aria-hidden
             >
@@ -386,65 +378,108 @@ function LobbyQuickActions({
             </span>
           ) : null}
         </button>
+      </div>
 
-        {menuOpen && groups.length > 0 ? (
-          <div
-            role="menu"
-            aria-label="Tvoje crew"
-            className="absolute right-0 top-[calc(100%+6px)] z-50 w-[min(100vw-2rem,20rem)] overflow-hidden rounded-2xl border border-white/10 bg-[#1F1F1F] shadow-2xl shadow-black/50"
-          >
-            <div className="border-b border-white/5 px-3 py-2.5">
-              <p className="font-label-caps text-[9px] uppercase tracking-[0.14em] text-[#FF7F50]">
-                My Crew Hub
-              </p>
-              <p className="mt-0.5 text-[11px] text-gray-400">
-                Otvor existujúcu skupinu alebo vytvor novú
-              </p>
-            </div>
-
-            <ul className="max-h-64 overflow-y-auto py-1">
-              {groups.map((group) => (
-                <li key={group.id}>
+      {mounted
+        ? createPortal(
+            <AnimatePresence>
+              {menuOpen && groups.length > 0 ? (
+                <motion.div
+                  className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
                   <button
                     type="button"
-                    role="menuitem"
-                    onClick={() => goToCrew(group.id)}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-[#FF5722]/10"
+                    aria-label="Zavrieť"
+                    className="absolute inset-0"
+                    onClick={() => setMenuOpen(false)}
+                  />
+                  <motion.div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby={titleId}
+                    initial={{ y: 16, opacity: 0, scale: 0.98 }}
+                    animate={{ y: 0, opacity: 1, scale: 1 }}
+                    exit={{ y: 16, opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                    className="glass-panel relative z-[101] flex max-h-[min(88dvh,620px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#262626] text-[#FF7F50]">
-                      <span className="material-symbols-outlined text-[18px]">groups</span>
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold text-white">{group.name}</span>
-                      <span className="block truncate text-[11px] text-gray-400">
-                        {sportDisplayLabel(group.sport)} · {group.memberCount}{' '}
-                        {group.memberCount === 1 ? 'člen' : 'členov'}
-                        {group.isOwner ? ' · Admin' : ''}
-                      </span>
-                    </span>
-                    <span className="material-symbols-outlined shrink-0 text-[18px] text-gray-500">
-                      chevron_right
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    <div className="relative shrink-0 border-b border-white/5 px-5 pb-3 pt-5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setMenuOpen(false)}
+                        className="absolute right-3 top-3 text-on-surface-variant transition-colors hover:text-primary"
+                        aria-label="Zavrieť"
+                      >
+                        <span className="material-symbols-outlined text-[22px]">close</span>
+                      </button>
+                      <p className="font-label-caps text-[10px] uppercase tracking-[0.18em] text-primary-container">
+                        Crew
+                      </p>
+                      <h2
+                        id={titleId}
+                        className="mt-0.5 font-headline-md text-[20px] text-on-surface"
+                      >
+                        My Crew Hub
+                      </h2>
+                      <p className="mt-1 font-label-caps text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+                        Otvor skupinu alebo vytvor novú
+                      </p>
+                    </div>
 
-            <div className="border-t border-white/5 p-1.5">
-              <button
-                type="button"
-                role="menuitem"
-                onClick={createNewCrew}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#FF5722] px-3 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] text-white transition hover:brightness-110 active:scale-[0.98]"
-              >
-                <span className="text-sm leading-none">+</span>
-                Vytvoriť novú crew
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
+                    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-5">
+                      {groups.map((group) => (
+                        <button
+                          key={group.id}
+                          type="button"
+                          onClick={() => goToCrew(group.id)}
+                          className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-transparent px-3.5 py-3.5 text-left transition-colors duration-200 hover:border-white/16 hover:bg-white/[0.02]"
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-transparent text-zinc-500">
+                            <span className="material-symbols-outlined text-[18px]">groups</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-body-sm text-sm text-white">{group.name}</p>
+                            <p className="mt-0.5 truncate font-body-sm text-xs text-zinc-500">
+                              {sportDisplayLabel(group.sport)} · {group.memberCount}{' '}
+                              {group.memberCount === 1 ? 'člen' : 'členov'}
+                              {group.isOwner ? ' · Admin' : ''}
+                            </p>
+                          </div>
+                          <span className="material-symbols-outlined shrink-0 text-[18px] text-zinc-500">
+                            chevron_right
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex shrink-0 gap-2 border-t border-white/5 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+                      <button
+                        type="button"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex-1 rounded-xl border border-outline/30 py-3 font-label-caps text-[11px] text-on-surface-variant transition-colors hover:text-on-surface"
+                      >
+                        Zrušiť
+                      </button>
+                      <button
+                        type="button"
+                        onClick={createNewCrew}
+                        className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-primary-container/35 bg-primary-container/10 py-3 font-label-caps text-[11px] text-white transition-all hover:border-primary-container/50 hover:bg-primary-container/15 active:scale-[0.98]"
+                      >
+                        + Vytvoriť crew
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
 

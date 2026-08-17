@@ -1,4 +1,5 @@
 import type { EventCardData } from '@/lib/data/events';
+import { detectExplicitKidsAudience } from '@/lib/events/for-kids';
 
 export type EventAudience = 'all' | 'women' | 'kids';
 
@@ -17,34 +18,37 @@ export function eventAudienceLabel(audience: EventAudience): string {
   return EVENT_AUDIENCE_OPTIONS.find((o) => o.key === audience)?.label ?? 'Všetci';
 }
 
-function audienceHaystack(event: Pick<EventCardData, 'title' | 'description' | 'sourceUrl'>): string {
+type WomenFields = Pick<EventCardData, 'title' | 'description' | 'sourceUrl'>;
+type KidsFields = Pick<
+  EventCardData,
+  'title' | 'description' | 'sourceUrl' | 'forKids' | 'venueName' | 'sourceName'
+>;
+
+function audienceHaystack(event: WomenFields): string {
   return `${event.title} ${event.description ?? ''} ${event.sourceUrl ?? ''}`.toLowerCase();
 }
 
 /** Women-only / W4W activities (title + description heuristics). */
-export function eventMatchesWomen(
-  event: Pick<EventCardData, 'title' | 'description' | 'sourceUrl'>,
-): boolean {
+export function eventMatchesWomen(event: WomenFields): boolean {
   const hay = audienceHaystack(event);
-  return /women\s+for\s+women|\bw4w\b|pre\s+ženy|pre\s+zeny|žensky|zensky|žensk[áaei]|zensk[áaei]|women\s+only|ladies\s+only|dámsky|damsky|female\s+only|len\s+pre\s+ženy|len\s+pre\s+zeny|girl\s+power/i.test(
+  return /women\s+for\s+women|\bw4w\b|pre\s+ženy|pre\s+zeny|\bženy\b|\bzeny\b|žensky|zensky|žensk[áaei]|zensk[áaei]|women\s+only|\bwomen\b|\bladies\b|ladies\s+only|dámsky|damsky|female\s+only|len\s+pre\s+ženy|len\s+pre\s+zeny|girl\s+power/i.test(
     hay,
   );
 }
 
-/** Kids-oriented activities (DB flag + scraped copy). */
-export function eventMatchesKids(
-  event: Pick<EventCardData, 'title' | 'description' | 'sourceUrl' | 'forKids'>,
-): boolean {
-  if (event.forKids) return true;
-  return /pre deti|kidstown|škola korčuľ|skola korcul|detsk[éea]|deti\s+od\s*\d|letn[aá]\s+škola|letna\s+skola|zumba\s*kid|j[oó]ga\s+pre\s+deti|fitness\s*&\s*fun/i.test(
-    audienceHaystack(event),
-  );
+/** Kids-oriented activities (DB flag + explicit copy / kids venues). */
+export function eventMatchesKids(event: KidsFields): boolean {
+  return detectExplicitKidsAudience({
+    title: event.title,
+    description: event.description,
+    sourceUrl: event.sourceUrl,
+    venueName: event.venueName,
+    sourceName: event.sourceName,
+    forKids: event.forKids,
+  });
 }
 
-export function eventMatchesAudience(
-  event: Pick<EventCardData, 'title' | 'description' | 'sourceUrl' | 'forKids'>,
-  audience: EventAudience,
-): boolean {
+export function eventMatchesAudience(event: KidsFields, audience: EventAudience): boolean {
   if (audience === 'all') return true;
   if (audience === 'women') return eventMatchesWomen(event);
   return eventMatchesKids(event);
@@ -53,7 +57,7 @@ export function eventMatchesAudience(
 export function applyEventAudienceFilter<T>(
   items: T[],
   audience: EventAudience,
-  accessor: (item: T) => Pick<EventCardData, 'title' | 'description' | 'sourceUrl' | 'forKids'>,
+  accessor: (item: T) => KidsFields,
 ): T[] {
   if (audience === 'all') return items;
   return items.filter((item) => eventMatchesAudience(accessor(item), audience));

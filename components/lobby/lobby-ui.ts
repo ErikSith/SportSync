@@ -1,5 +1,7 @@
 import type { LobbySportKey, MatchCardData, SkillLevel, SportIconKind } from '@/types/lobby';
 import { SKILL_LEVEL_LABELS } from '@/types/lobby';
+import { detectEventSport, isLobbySport, sportDisplayLabel } from '@/lib/constants/sports';
+import { SPORT_ICONS } from '@/lib/utils/sport-icons';
 
 export function skillLabel(level: SkillLevel): string {
   return SKILL_LEVEL_LABELS[level];
@@ -20,17 +22,12 @@ export function skillLabelShort(level: SkillLevel): string {
 }
 
 export function normalizeLobbySport(sport: string): LobbySportKey | null {
-  const s = sport.toLowerCase();
-  if (s.includes('padel')) return 'padel';
-  if (s.includes('squash')) return 'squash';
-  if (s.includes('volejbal') || s.includes('volleyball')) return 'volleyball';
-  if (s.includes('hokej') || s.includes('hockey')) return 'hockey';
-  if (s.includes('running') || s.includes('behanie') || /\bbeh\b/.test(s) || s.includes('jogging'))
-    return 'running';
-  if (s.includes('futbal') || s.includes('football') || s.includes('soccer') || s.includes('futsal'))
-    return 'football';
-  if ((s.includes('tenis') || s.includes('tennis')) && !s.includes('table')) return 'tennis';
-  if (s.includes('basket')) return 'basketball';
+  const compact = sport.trim().toUpperCase().replace(/\s+/g, '_');
+  if (isLobbySport(compact)) return compact.toLowerCase() as LobbySportKey;
+  const detected = detectEventSport(sport);
+  if (detected !== 'OTHER' && isLobbySport(detected)) {
+    return detected.toLowerCase() as LobbySportKey;
+  }
   return null;
 }
 
@@ -77,14 +74,8 @@ export function parseAiLobbyPrompt(prompt: string): {
   const lower = prompt.toLowerCase();
   const result: ReturnType<typeof parseAiLobbyPrompt> = {};
 
-  if (lower.includes('padel')) result.sport = 'Padel';
-  else if (lower.includes('squash')) result.sport = 'Squash';
-  else if (lower.includes('volejbal') || lower.includes('volleyball')) result.sport = 'Volleyball';
-  else if (lower.includes('hokej') || lower.includes('hockey')) result.sport = 'Hockey';
-  else if (lower.includes('beh') || lower.includes('running')) result.sport = 'Running';
-  else if (lower.includes('tenis')) result.sport = 'Tenis';
-  else if (lower.includes('futbal')) result.sport = 'Futbal';
-  else if (lower.includes('basket')) result.sport = 'Basketbal';
+  const detected = detectEventSport(lower);
+  if (detected !== 'OTHER') result.sport = sportDisplayLabel(detected);
 
   if (lower.includes('park 21') || lower.includes('parku 21')) result.venue = 'Park 21';
   else if (lower.includes('fitcamp')) result.venue = 'FitCamp';
@@ -129,8 +120,37 @@ export function sportIconLabel(kind: SportIconKind): string {
 /** Map free-text sport → linear Lobby glyph (fallback: tennis racket). */
 export function sportToIconKind(sport: string, title?: string): SportIconKind {
   const key = normalizeLobbySport(`${sport} ${title ?? ''}`);
-  if (key) return key;
-  return 'tennis';
+  switch (key) {
+    case 'football':
+    case 'combat':
+      return 'football';
+    case 'tennis':
+    case 'table_tennis':
+      return 'tennis';
+    case 'padel':
+      return 'padel';
+    case 'basketball':
+    case 'handball':
+      return 'basketball';
+    case 'squash':
+      return 'squash';
+    case 'running':
+    case 'cycling':
+    case 'fitness':
+    case 'yoga':
+    case 'swimming':
+    case 'surfing':
+    case 'climbing':
+      return 'running';
+    case 'volleyball':
+      return 'volleyball';
+    case 'hockey':
+    case 'golf':
+    case 'bowling':
+      return 'hockey';
+    default:
+      return 'tennis';
+  }
 }
 
 /** Accent for watermark / corner marks — keeps Lobby feed color language. */
@@ -152,14 +172,25 @@ export const LOBBY_SPORT_META: Record<
   LobbySportKey,
   { label: string; materialIcon: string; countSuffix: string }
 > = {
-  padel: { label: 'Padel', materialIcon: 'sports_tennis', countSuffix: 'Active Games' },
-  football: { label: 'Football', materialIcon: 'sports_soccer', countSuffix: 'Active Teams' },
-  tennis: { label: 'Tennis', materialIcon: 'sports_tennis', countSuffix: 'Players Searching' },
-  basketball: { label: 'Basketball', materialIcon: 'sports_basketball', countSuffix: 'Active Games' },
-  squash: { label: 'Squash', materialIcon: 'sports_tennis', countSuffix: 'Open Courts' },
-  running: { label: 'Running', materialIcon: 'directions_run', countSuffix: 'Groups Nearby' },
-  volleyball: { label: 'Volleyball', materialIcon: 'sports_volleyball', countSuffix: 'Active Games' },
-  hockey: { label: 'Hockey', materialIcon: 'sports_hockey', countSuffix: 'Open Spots' },
+  padel: { label: sportDisplayLabel('PADEL'), materialIcon: SPORT_ICONS.PADEL ?? 'sports_tennis', countSuffix: 'zápasov' },
+  football: { label: sportDisplayLabel('FOOTBALL'), materialIcon: SPORT_ICONS.FOOTBALL ?? 'sports_soccer', countSuffix: 'tímov' },
+  tennis: { label: sportDisplayLabel('TENNIS'), materialIcon: SPORT_ICONS.TENNIS ?? 'sports_tennis', countSuffix: 'hľadá hráčov' },
+  basketball: { label: sportDisplayLabel('BASKETBALL'), materialIcon: SPORT_ICONS.BASKETBALL ?? 'sports_basketball', countSuffix: 'zápasov' },
+  squash: { label: sportDisplayLabel('SQUASH'), materialIcon: SPORT_ICONS.SQUASH ?? 'sports_tennis', countSuffix: 'kurtov' },
+  running: { label: sportDisplayLabel('RUNNING'), materialIcon: SPORT_ICONS.RUNNING ?? 'directions_run', countSuffix: 'skupín' },
+  volleyball: { label: sportDisplayLabel('VOLLEYBALL'), materialIcon: SPORT_ICONS.VOLLEYBALL ?? 'sports_volleyball', countSuffix: 'zápasov' },
+  hockey: { label: sportDisplayLabel('HOCKEY'), materialIcon: SPORT_ICONS.HOCKEY ?? 'sports_hockey', countSuffix: 'miest' },
+  handball: { label: sportDisplayLabel('HANDBALL'), materialIcon: SPORT_ICONS.HANDBALL ?? 'sports_handball', countSuffix: 'zápasov' },
+  cycling: { label: sportDisplayLabel('CYCLING'), materialIcon: SPORT_ICONS.CYCLING ?? 'directions_bike', countSuffix: 'skupín' },
+  golf: { label: sportDisplayLabel('GOLF'), materialIcon: SPORT_ICONS.GOLF ?? 'sports_golf', countSuffix: 'termínov' },
+  fitness: { label: sportDisplayLabel('FITNESS'), materialIcon: SPORT_ICONS.FITNESS ?? 'fitness_center', countSuffix: 'tréningov' },
+  yoga: { label: sportDisplayLabel('YOGA'), materialIcon: SPORT_ICONS.YOGA ?? 'self_improvement', countSuffix: 'lekcií' },
+  combat: { label: sportDisplayLabel('COMBAT'), materialIcon: SPORT_ICONS.COMBAT ?? 'sports_mma', countSuffix: 'tréningov' },
+  swimming: { label: sportDisplayLabel('SWIMMING'), materialIcon: SPORT_ICONS.SWIMMING ?? 'pool', countSuffix: 'tréningov' },
+  surfing: { label: sportDisplayLabel('SURFING'), materialIcon: SPORT_ICONS.SURFING ?? 'surfing', countSuffix: 'termínov' },
+  table_tennis: { label: sportDisplayLabel('TABLE_TENNIS'), materialIcon: SPORT_ICONS.TABLE_TENNIS ?? 'sports_tennis', countSuffix: 'zápasov' },
+  climbing: { label: sportDisplayLabel('CLIMBING'), materialIcon: SPORT_ICONS.CLIMBING ?? 'hiking', countSuffix: 'tréningov' },
+  bowling: { label: sportDisplayLabel('BOWLING'), materialIcon: SPORT_ICONS.BOWLING ?? 'sports', countSuffix: 'dráhy' },
 };
 
 export const LOBBY_SPORT_ORDER: LobbySportKey[] = [
@@ -171,4 +202,15 @@ export const LOBBY_SPORT_ORDER: LobbySportKey[] = [
   'running',
   'volleyball',
   'hockey',
+  'yoga',
+  'combat',
+  'fitness',
+  'swimming',
+  'handball',
+  'cycling',
+  'golf',
+  'table_tennis',
+  'climbing',
+  'bowling',
+  'surfing',
 ];

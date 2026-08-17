@@ -9,10 +9,12 @@ import {
 } from './store';
 import {
   BOROUGH_SEARCH_CIRCLES,
+  buildBratislavaDiscoverJobs,
   queriesForBorough,
   type DiscoveredPlace,
   type PlaceDiscoverOptions,
   type PlaceDiscoverReport,
+  type PlaceSearchJob,
 } from './types';
 
 /** 3–5s between Places API calls — never burst third-party APIs. */
@@ -34,7 +36,11 @@ function dedupePlaces(places: DiscoveredPlace[]): DiscoveredPlace[] {
       continue;
     }
     if (!prev.websiteUrl && place.websiteUrl) {
-      byId.set(place.googlePlaceId, place);
+      byId.set(place.googlePlaceId, { ...place, openingHours: place.openingHours ?? prev.openingHours });
+      continue;
+    }
+    if (!prev.openingHours && place.openingHours) {
+      byId.set(place.googlePlaceId, { ...prev, openingHours: place.openingHours, websiteUrl: prev.websiteUrl ?? place.websiteUrl });
     }
   }
   return [...byId.values()];
@@ -90,35 +96,44 @@ export async function discoverBratislavaVenues(
   options: PlaceDiscoverOptions = {},
 ): Promise<PlaceDiscoverReport> {
   const boroughSlug = options.borough?.toLowerCase().trim() || null;
-  const queriesAll = queriesForBorough(boroughSlug);
-  const maxQueries = options.maxQueries ?? queriesAll.length;
-  const queries = queriesAll.slice(0, Math.max(1, maxQueries));
   const dryRun = options.dryRun ?? false;
-  const circle = boroughSlug ? BOROUGH_SEARCH_CIRCLES[boroughSlug] : undefined;
+
+  const jobs: PlaceSearchJob[] = boroughSlug
+    ? queriesForBorough(boroughSlug).map((query) => ({
+        query,
+        circle: BOROUGH_SEARCH_CIRCLES[boroughSlug],
+        borough: boroughSlug,
+      }))
+    : buildBratislavaDiscoverJobs();
+  const maxQueries = options.maxQueries ?? jobs.length;
+  const selectedJobs = jobs.slice(0, Math.max(1, maxQueries));
 
   const collected: DiscoveredPlace[] = [];
   let queryErrors = 0;
 
-  for (let i = 0; i < queries.length; i++) {
-    const q = queries[i]!;
+  for (let i = 0; i < selectedJobs.length; i++) {
+    const job = selectedJobs[i]!;
     try {
-      console.log(`[places] (${i + 1}/${queries.length}) search "${q}"`);
-      const batch = await searchPlacesText(q, {
+      console.log(`[places] (${i + 1}/${selectedJobs.length}) search "${job.query}"`);
+      const batch = await searchPlacesText(job.query, {
         radiusMeters: options.radiusMeters ?? 22_000,
-        circle,
-        hardRestrict: Boolean(circle),
+        circle: job.circle,
+        hardRestrict: Boolean(job.circle),
       });
-      console.log(`[places] → ${batch.length} place(s)`);
-      collected.push(...batch);
+      const tagged = job.borough
+        ? batch.map((place) => ({ ...place, boroughSlug: place.boroughSlug ?? job.borough }))
+        : batch;
+      console.log(`[places] → ${tagged.length} place(s)`);
+      collected.push(...tagged);
     } catch (err) {
       queryErrors += 1;
       console.warn(
-        `[places] query failed "${q}":`,
+        `[places] query failed "${job.query}":`,
         err instanceof Error ? err.message : err,
       );
     }
 
-    if (i < queries.length - 1) {
+    if (i < selectedJobs.length - 1) {
       await sleep(randomDelay());
     }
   }
@@ -133,6 +148,7 @@ export async function discoverBratislavaVenues(
   }
 
   const withWebsite = places.filter((p) => p.websiteUrl).length;
+  const withHours = places.filter((p) => p.openingHours && Object.keys(p.openingHours).length > 0).length;
 
   // Always export JSON registry for the scrape DB (even on dry-run)
   let jsonPath: string | null = null;
@@ -176,15 +192,17 @@ export async function discoverBratislavaVenues(
   }
 
   return {
-    queries: queries.length,
+    queries: selectedJobs.length,
     borough: boroughSlug,
     discovered: places.length,
     upserted,
     scrapePages,
     withWebsite,
+    withHours,
+    skippedNoise: 0,
     places,
     error:
-      queryErrors === queries.length && places.length === 0
+      queryErrors === selectedJobs.length && places.length === 0
         ? 'All Places queries failed — check GOOGLE_PLACES_API_KEY and Places API (New) enablement.'
         : undefined,
   };

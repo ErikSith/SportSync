@@ -8,16 +8,10 @@ import { extractEventsFromText } from '../src/lib/scraper/extractor';
 import { fetchCleanText, sleep } from '../src/lib/scraper/fetcher';
 import { upsertScrapedEvents } from '../src/lib/scraper/db-service';
 import type { ScraperUpsertStats } from '../src/lib/scraper/types';
+import { shouldForceGroupClassFromUrl } from '../lib/feed/group-class';
 
-/** Places → website scrape cadence: 3–5s between venue sites. */
-const SITE_DELAY_MS = { min: 3000, max: 5000 } as const;
-
-function pauseMs(): number {
-  return (
-    SITE_DELAY_MS.min +
-    Math.floor(Math.random() * (SITE_DELAY_MS.max - SITE_DELAY_MS.min + 1))
-  );
-}
+/** Gemini Flash free-tier ~15 RPM — strict gap between page extracts. */
+const GEMINI_PAGE_GAP_MS = 3500;
 
 function parseArgs(argv: string[]) {
   const dryRun = argv.includes('--dry-run') || argv.includes('-n');
@@ -69,7 +63,7 @@ async function scrapeFromRegistry(opts: {
     // Prefer dated listing pages; skip websites in first pass when event pages exist.
     const pages = await listEnabledScrapePages({
       borough: opts.borough,
-      limit: opts.limit ?? 40,
+      limit: opts.limit ?? 250,
       kinds: ['tournaments', 'events', 'schedule'],
     });
     if (pages.length > 0) {
@@ -143,6 +137,8 @@ async function scrapeFromRegistry(opts: {
 
   console.log(`[places-pipeline] after noise filter: ${targets.length} page(s)`);
 
+  let consecutiveGeminiFails = 0;
+
   for (let i = 0; i < targets.length; i++) {
     const target = targets[i]!;
     const label = target.venueName ?? target.url;
@@ -153,6 +149,7 @@ async function scrapeFromRegistry(opts: {
       const text = await fetchCleanText(target.url);
       const events = await extractEventsFromText(target.url, text);
       extracted += events.length;
+      consecutiveGeminiFails = 0;
       console.log(`[places-pipeline] → ${events.length} event(s)`);
 
       if (opts.dryRun) {
@@ -167,7 +164,7 @@ async function scrapeFromRegistry(opts: {
           latitude: target.latitude,
           longitude: target.longitude,
           scrapePageUrl: target.url,
-          forceGroupClass: /\/(rozvrh|schedule|trening|tréning|lekci|class)/i.test(target.url),
+          forceGroupClass: shouldForceGroupClassFromUrl(target.url),
         });
         upsert.created += stats.created;
         upsert.updated += stats.updated;
@@ -192,6 +189,17 @@ async function scrapeFromRegistry(opts: {
       const error = err instanceof Error ? err.message : String(err);
       errors.push({ venue: label, url: target.url, error });
       console.warn(`[places-pipeline] skip ${label}: ${error}`);
+      if (/GoogleGenerativeAI|All Gemini models|quota|high demand/i.test(error)) {
+        consecutiveGeminiFails += 1;
+        if (consecutiveGeminiFails >= 5) {
+          console.error(
+            '[places-pipeline] Gemini unavailable after 5 consecutive pages — stopping scrape early',
+          );
+          break;
+        }
+      } else {
+        consecutiveGeminiFails = 0;
+      }
       if (target.id && !opts.dryRun) {
         const supabase = createAdminClient();
         await supabase
@@ -206,7 +214,7 @@ async function scrapeFromRegistry(opts: {
     }
 
     if (i < targets.length - 1) {
-      await sleep(pauseMs());
+      await sleep(GEMINI_PAGE_GAP_MS); // 3.5s pauza pre dodržanie 15 RPM
     }
   }
 
@@ -248,13 +256,16 @@ async function main() {
               queries: discoverReport.queries,
               discovered: discoverReport.discovered,
               withWebsite: discoverReport.withWebsite,
+              withHours: discoverReport.withHours,
               upserted: discoverReport.upserted,
               scrapePages: discoverReport.scrapePages,
               error: discoverReport.error,
               sample: discoverReport.places.slice(0, 8).map((p) => ({
                 name: p.name,
-                websiteUrl: p.websiteUrl,
                 address: p.address,
+                websiteUrl: p.websiteUrl,
+                sports: p.sports,
+                openingHours: p.openingHours ?? null,
               })),
             }
           : null,
