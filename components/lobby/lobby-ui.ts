@@ -23,7 +23,9 @@ export function skillLabelShort(level: SkillLevel): string {
 
 export function normalizeLobbySport(sport: string): LobbySportKey | null {
   const compact = sport.trim().toUpperCase().replace(/\s+/g, '_');
-  if (isLobbySport(compact)) return compact.toLowerCase() as LobbySportKey;
+  if (isLobbySport(compact) && compact !== 'OTHER') {
+    return compact.toLowerCase() as LobbySportKey;
+  }
   const detected = detectEventSport(sport);
   if (detected !== 'OTHER' && isLobbySport(detected)) {
     return detected.toLowerCase() as LobbySportKey;

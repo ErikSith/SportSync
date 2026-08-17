@@ -98,12 +98,13 @@ const TYPE_OPTIONS: { type: LobbyType; icon: typeof Users; desc: string }[] = [
 ];
 
 const chip =
-  'inline-flex shrink-0 items-center rounded-xl border px-3 py-2 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 active:scale-[0.98] whitespace-nowrap';
+  'inline-flex items-center justify-center rounded-xl border px-2 py-2 text-center font-label-caps text-[8px] uppercase leading-tight tracking-[0.1em] transition-colors duration-200 active:scale-[0.98]';
 const chipIdle =
   'border-white/10 bg-transparent text-on-surface-variant hover:border-white/18 hover:bg-white/[0.03] hover:text-zinc-200';
 const chipOn = 'border-white/18 bg-white/[0.05] text-white';
+const chipGrid = 'grid grid-cols-3 gap-1.5 sm:grid-cols-4';
 const scrollRow =
-  'flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain hide-scrollbar touch-pan-x py-0.5';
+  'flex min-w-0 flex-wrap items-center gap-1.5 py-0.5';
 const sectionLabel = 'font-label-caps text-[9px] uppercase tracking-[0.14em] text-tertiary';
 
 const panelMotion = {
@@ -471,7 +472,7 @@ export function CreateLobbyModal({
                     {detailPhase === 'sport' ? (
                       <motion.div key="sport" {...panelMotion}>
                         <p className={`${sectionLabel} mb-2`}>Vyber šport</p>
-                        <div className={scrollRow} role="list">
+                        <div className={chipGrid} role="list">
                           {SPORTS.map((sport) => {
                             const active = draft.sport === sport;
                             return (
@@ -485,7 +486,7 @@ export function CreateLobbyModal({
                                 }}
                                 className={`${chip} ${active ? chipOn : chipIdle}`}
                               >
-                                {sport}
+                                <span className="line-clamp-2">{sport}</span>
                               </button>
                             );
                           })}

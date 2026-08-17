@@ -47,6 +47,7 @@ export const LOBBY_SPORTS = [
   'TABLE_TENNIS',
   'CLIMBING',
   'BOWLING',
+  'OTHER',
 ] as const;
 
 export type EventSport = (typeof EVENT_SPORTS)[number];

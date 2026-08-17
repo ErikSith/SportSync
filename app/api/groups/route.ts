@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { getApiAuthUser } from '@/lib/auth/api-user';
 import { LOBBY_SPORTS } from '@/lib/constants/sports';
 import { getMyGroups } from '@/lib/data/sport-groups';
 import { generateInviteCode } from '@/lib/utils/invite-code';
@@ -14,20 +14,18 @@ const createGroupSchema = z.object({
 });
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data: auth, error: authError } = await supabase.auth.getUser();
-  if (authError || !auth.user) {
+  const { user } = await getApiAuthUser();
+  if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  const groups = await getMyGroups(auth.user.id);
+  const groups = await getMyGroups(user.id);
   return NextResponse.json({ groups });
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: auth, error: authError } = await supabase.auth.getUser();
-  if (authError || !auth.user) {
+  const { user, supabase } = await getApiAuthUser();
+  if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
@@ -46,7 +44,7 @@ export async function POST(request: Request) {
     const { data: group, error: groupError } = await supabase
       .from('sport_groups')
       .insert({
-        owner_id: auth.user.id,
+        owner_id: user.id,
         name: input.name.trim(),
         description: input.description?.trim() || null,
         sport,
@@ -74,7 +72,7 @@ export async function POST(request: Request) {
 
   const { error: memberError } = await supabase.from('sport_group_members').insert({
     group_id: groupId,
-    user_id: auth.user.id,
+    user_id: user.id,
     role: 'owner',
   });
 

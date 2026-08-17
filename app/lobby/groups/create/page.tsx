@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LOBBY_SPORTS } from '@/lib/constants/sports';
+import { authedFetch } from '@/lib/auth/authed-fetch';
 
 export const runtime = 'edge';
 
@@ -29,7 +30,7 @@ export default function CreateGroupPage() {
 
     setFormState('submitting');
 
-    const res = await fetch('/api/groups', {
+    const res = await authedFetch('/api/groups', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

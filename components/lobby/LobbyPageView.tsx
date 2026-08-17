@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -115,6 +115,20 @@ export function LobbyPageView({
     setSelectedSport(null);
     setSearch('');
   }
+
+  useLayoutEffect(() => {
+    if (!selectedSport) return;
+
+    const scrollTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+
+    scrollTop();
+    const frame = requestAnimationFrame(scrollTop);
+    return () => cancelAnimationFrame(frame);
+  }, [selectedSport]);
 
   async function handleLobbyCreated(draft: CreateLobbyDraft) {
     const built = buildCreateLobbyPayload(draft, city);

@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, Users } from 'lucide-react';
 import type { GroupCardData } from '@/lib/data/sport-groups-shared';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { authedFetch } from '@/lib/auth/authed-fetch';
 
 type ModalView = 'hub' | 'wizard';
 
@@ -17,6 +18,8 @@ function createErrorMessage(error: string | undefined): string {
   switch (error) {
     case 'Invalid group payload':
       return 'Skontroluj názov crew.';
+    case 'Not authenticated':
+      return 'Crew sa nepodarilo uložiť. Skús to znova.';
     default:
       return error ?? 'Crew sa nepodarilo vytvoriť.';
   }
@@ -84,7 +87,7 @@ export function CreateCrewModal({
     setCreateState('submitting');
     setCreateError(null);
 
-    const res = await fetch('/api/groups', {
+    const res = await authedFetch('/api/groups', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: trimmed }),
