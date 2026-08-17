@@ -2,12 +2,10 @@ import type { TournamentCardData } from '@/lib/data/tournaments';
 import type { ParticipationMode } from '@/lib/data/events';
 import { TournamentFiltersBar } from '@/components/tournaments/TournamentFiltersBar';
 import { TournamentAtmosphereTab } from '@/components/tournaments/TournamentAtmosphereTab';
-import type { TournamentStatusFilter } from '@/components/tournaments/TournamentFilterChips';
 
 interface TournamentsFeedProps {
   tournaments: TournamentCardData[];
   allTournaments?: TournamentCardData[];
-  statusFilter: TournamentStatusFilter;
   mode: ParticipationMode;
   selectedSports?: string[];
   eventDayKeys?: string[];
@@ -22,7 +20,6 @@ function countLabel(n: number): string {
 export function TournamentsFeed({
   tournaments,
   allTournaments: _allTournaments,
-  statusFilter,
   mode,
   selectedSports = [],
   eventDayKeys = [],
@@ -34,7 +31,6 @@ export function TournamentsFeed({
   return (
     <div className="flex flex-col gap-5">
       <TournamentFiltersBar
-        statusFilter={statusFilter}
         mode={mode}
         selectedSports={selectedSports}
         eventDayKeys={eventDayKeys}

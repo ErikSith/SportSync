@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { LOBBY_FORMATS, LOBBY_FORMAT_LABELS, type LobbyFormat } from '@/lib/constants/lobbies';
 import { LOBBY_SPORTS } from '@/lib/constants/sports';
 import { SUPPORTED_CITIES } from '@/lib/cities';
+import { authedFetch } from '@/lib/auth/authed-fetch';
 
 export const runtime = 'edge';
 
@@ -42,7 +43,7 @@ export default function CreateLobbyPage() {
 
     setFormState('submitting');
 
-    const res = await fetch('/api/lobbies', {
+    const res = await authedFetch('/api/lobbies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -56,6 +57,13 @@ export default function CreateLobbyPage() {
     });
 
     const body = (await res.json().catch(() => null)) as { error?: string; lobbyId?: string } | null;
+
+    if (res.status === 401) {
+      setFormState('idle');
+      router.push('/login?redirectTo=/lobby/create');
+      setError('Najprv sa prihlás, potom môžeš vytvoriť lobby.');
+      return;
+    }
 
     if (!res.ok) {
       setFormState('idle');

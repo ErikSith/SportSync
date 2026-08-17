@@ -1,17 +1,30 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { getSupabaseAnonEnv } from '@/lib/supabase/env';
 
 /**
  * Supabase client for Server Components / Route Handlers / Server Actions.
  * Reads the session from the request cookies that `middleware.ts` keeps fresh.
+ * Also forwards `Authorization: Bearer` so RLS works when cookies are missing
+ * (common on iOS / PWA / Cloudflare tunnels).
  */
 export async function createClient() {
   const cookieStore = await cookies();
   const { url, anonKey } = getSupabaseAnonEnv();
 
+  let bearer: string | undefined;
+  try {
+    const raw = (await headers()).get('authorization');
+    bearer = raw?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || undefined;
+  } catch {
+    bearer = undefined;
+  }
+
   return createServerClient(url, anonKey, {
-    global: { fetch: (...args: Parameters<typeof fetch>) => fetch(...args) },
+    global: {
+      fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+      headers: bearer ? { Authorization: `Bearer ${bearer}` } : {},
+    },
     cookies: {
       getAll() {
         return cookieStore.getAll();

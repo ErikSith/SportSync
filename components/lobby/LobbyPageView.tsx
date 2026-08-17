@@ -26,19 +26,23 @@ import {
   type LobbyPreviewData,
 } from '@/components/lobby/lobby-preview';
 import { PageTitleRow } from '@/components/shared/PageTitleRow';
+import { PlayerPreferencesAside } from '@/components/home/HomeFeedFilterButton';
 import type { CreateLobbyDraft } from '@/types/lobby';
 import { buildCreateLobbyPayload } from '@/lib/lobby-create';
+import { authedFetch } from '@/lib/auth/authed-fetch';
 
 export function LobbyPageView({
   city = 'Bratislava',
   venues = [],
   initialMatches,
   groups = [],
+  isGuest = false,
 }: {
   city?: string;
   venues?: HomeFilterVenue[];
   initialMatches?: MatchCardData[];
   groups?: GroupCardData[];
+  isGuest?: boolean;
 }) {
   const router = useRouter();
   const [selectedSport, setSelectedSport] = useState<LobbySportKey | null>(null);
@@ -51,6 +55,14 @@ export function LobbyPageView({
   function openCrewModal(preferWizard = false) {
     setCrewPreferWizard(preferWizard);
     setCrewModalOpen(true);
+  }
+
+  function openCreateLobby() {
+    if (isGuest) {
+      router.push('/login?redirectTo=/lobby');
+      return;
+    }
+    setLobbyModalOpen(true);
   }
   const [matches] = useState<MatchCardData[]>(
     initialMatches && initialMatches.length > 0 ? initialMatches : MOCK_MATCH_CARDS,
@@ -114,7 +126,7 @@ export function LobbyPageView({
       throw new Error(built.error);
     }
 
-    const res = await fetch('/api/lobbies', {
+    const res = await authedFetch('/api/lobbies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(built.payload),
@@ -123,6 +135,11 @@ export function LobbyPageView({
       error?: string;
       lobbyId?: string;
     } | null;
+
+    if (res.status === 401) {
+      router.push('/login?redirectTo=/lobby');
+      throw new Error('Najprv sa prihlás, potom môžeš vytvoriť lobby.');
+    }
 
     if (!res.ok || !body?.lobbyId) {
       throw new Error(body?.error ?? 'Lobby sa nepodarilo vytvoriť.');
@@ -162,11 +179,12 @@ export function LobbyPageView({
                   {sportMeta.label}
                 </h1>
               </div>
+              <PlayerPreferencesAside venues={venues} city={city} variant="minimal" />
             </div>
 
             <LobbyQuickActions
               groups={groups}
-              onCreateLobby={() => setLobbyModalOpen(true)}
+              onCreateLobby={openCreateLobby}
               onOpenCrew={openCrewModal}
             />
 
@@ -187,6 +205,8 @@ export function LobbyPageView({
             <PageTitleRow
               city={city}
               venues={venues}
+              showPreferences
+              preferencesVariant="minimal"
               title={
                 <div className="min-w-0 space-y-1">
                   <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-zinc-500">
@@ -205,7 +225,7 @@ export function LobbyPageView({
               actions={
                 <LobbyQuickActions
                   groups={groups}
-                  onCreateLobby={() => setLobbyModalOpen(true)}
+                  onCreateLobby={openCreateLobby}
                   onOpenCrew={openCrewModal}
                 />
               }

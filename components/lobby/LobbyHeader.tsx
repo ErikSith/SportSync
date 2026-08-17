@@ -34,6 +34,8 @@ export function LobbyHeader({
       <PageTitleRow
         city={city}
         venues={venues}
+        showPreferences
+        preferencesVariant="minimal"
         title={
           <div className="min-w-0 space-y-1">
             <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-zinc-500">

@@ -32,23 +32,14 @@ import {
   parseEventAudience,
   type EventAudience,
 } from '@/lib/event-audience-filter';
-import type { TournamentStatusFilter } from '@/components/tournaments/TournamentFilterChips';
 
 interface TournamentFiltersBarProps {
-  statusFilter: TournamentStatusFilter;
   mode: ParticipationMode;
   selectedSports?: string[];
   eventDayKeys?: string[];
 }
 
 type FilterPanel = 'when' | 'where' | 'sport' | null;
-
-const STATUS_SEGMENTS: Array<{ key: TournamentStatusFilter; label: string }> = [
-  { key: 'upcoming', label: 'Upcoming' },
-  { key: 'open', label: 'Open' },
-  { key: 'live', label: 'Live' },
-  { key: 'ALL', label: 'All' },
-];
 
 const DATE_PRESETS: Array<{ key: Exclude<DatePreset, 'all' | 'custom'>; label: string }> = [
   { key: 'today', label: 'Dnes' },
@@ -76,7 +67,6 @@ function whereSummary(area: FeedAreaId): string {
 }
 
 export function TournamentFiltersBar({
-  statusFilter,
   mode,
   selectedSports = [],
   eventDayKeys = [],
@@ -144,16 +134,6 @@ export function TournamentFiltersBar({
       });
     },
     [persistArea, replaceParams],
-  );
-
-  const setStatus = useCallback(
-    (next: TournamentStatusFilter) => {
-      replaceParams((params) => {
-        if (next === 'upcoming') params.delete('status');
-        else params.set('status', next === 'ALL' ? 'all' : next);
-      });
-    },
-    [replaceParams],
   );
 
   const setMode = useCallback(
@@ -337,14 +317,8 @@ export function TournamentFiltersBar({
     );
   };
 
-  const modeBtn = [
-    'flex min-h-[40px] w-full items-center justify-center gap-1 rounded-xl px-2 py-2.5 text-center font-label-caps text-[9px] uppercase tracking-[0.1em] transition-colors duration-200 sm:tracking-[0.12em]',
-  ].join(' ');
-
   return (
-    <div className="flex w-full min-w-0 flex-col gap-2.5" data-tournament-filters-bar="v5-stack-mode-col">
-      <div className="flex min-w-0 items-start gap-2">
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
+    <div className="flex w-full min-w-0 flex-col gap-2.5" data-tournament-filters-bar="v6-audience-mode-row">
       <div
         className="grid min-w-0 grid-cols-3 items-stretch gap-0 rounded-2xl border border-[#c4a035]/20 bg-transparent p-1 transition-colors duration-200"
         role="toolbar"
@@ -626,8 +600,9 @@ export function TournamentFiltersBar({
         ) : null}
       </AnimatePresence>
 
+      <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-2">
         <div
-          className={`grid min-w-0 w-full grid-cols-3 items-stretch gap-0 rounded-2xl border border-[#c4a035]/20 bg-transparent p-1 ${
+          className={`grid min-w-0 w-full grid-cols-3 items-stretch gap-0 rounded-2xl border border-[#c4a035]/20 bg-transparent p-1 md:max-w-[min(100%,22rem)] md:flex-1 ${
             modePending ? 'opacity-70' : ''
           }`}
           role="list"
@@ -661,45 +636,8 @@ export function TournamentFiltersBar({
           })}
         </div>
 
-      <div
-        className={`grid min-w-0 w-full grid-cols-4 items-stretch gap-0 rounded-2xl border border-[#c4a035]/20 bg-transparent p-1 ${
-          modePending ? 'opacity-70' : ''
-        }`}
-        role="tablist"
-        aria-label="Tournament status"
-      >
-        {STATUS_SEGMENTS.map((seg, index) => {
-          const active = statusFilter === seg.key;
-          return (
-            <div key={seg.key} className="relative min-w-0">
-              {index > 0 ? (
-                <span
-                  className="pointer-events-none absolute inset-y-1.5 left-0 w-px bg-[#c4a035]/20"
-                  aria-hidden
-                />
-              ) : null}
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setStatus(seg.key)}
-                className={[
-                  'flex h-full w-full min-w-0 items-center justify-center rounded-xl px-1.5 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.1em] transition-colors duration-200 sm:tracking-[0.12em] md:py-2',
-                  active
-                    ? 'bg-[#c4a035]/[0.08] text-[#e8d59a]'
-                    : 'text-on-surface-variant hover:bg-[#c4a035]/[0.04] hover:text-[#e8d59a]',
-                ].join(' ')}
-              >
-                <span className="truncate">{seg.label}</span>
-              </button>
-            </div>
-          );
-        })}
-      </div>
-        </div>
-
         <div
-          className={`grid w-[8.25rem] shrink-0 grid-rows-2 gap-0.5 self-start min-h-[9.25rem] rounded-2xl border border-[#c4a035]/20 bg-transparent p-1 ${
+          className={`grid w-full min-w-0 grid-cols-2 items-stretch gap-0.5 rounded-2xl border border-[#c4a035]/20 bg-transparent p-1 transition-colors duration-200 md:w-auto md:shrink-0 ${
             modePending ? 'opacity-70' : ''
           }`}
           role="tablist"
@@ -711,7 +649,7 @@ export function TournamentFiltersBar({
             aria-selected={!isSpectator}
             onClick={() => setMode('participate')}
             className={[
-              modeBtn,
+              'rounded-xl px-3 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 md:px-3.5 md:py-2',
               !isSpectator
                 ? 'bg-[#c4a035]/[0.08] text-[#e8d59a]'
                 : 'text-on-surface-variant hover:bg-[#c4a035]/[0.04] hover:text-[#e8d59a]',
@@ -725,13 +663,13 @@ export function TournamentFiltersBar({
             aria-selected={isSpectator}
             onClick={() => setMode('spectator')}
             className={[
-              modeBtn,
+              'inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 md:px-3.5 md:py-2',
               isSpectator
                 ? 'bg-[#c4a035]/[0.08] text-[#e8d59a]'
                 : 'text-on-surface-variant hover:bg-[#c4a035]/[0.04] hover:text-[#e8d59a]',
             ].join(' ')}
           >
-            <Eye className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+            <Eye className="h-3.5 w-3.5" strokeWidth={2} />
             Sledovať
           </button>
         </div>

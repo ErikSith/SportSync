@@ -8,7 +8,7 @@ export type { EventsFeedTab } from '@/lib/feed/events-feed-tab';
 export { parseEventsFeedTab } from '@/lib/feed/events-feed-tab';
 
 const TABS: Array<{ key: EventsFeedTab; label: string }> = [
-  { key: 'matches', label: 'Eventy & Zápasy' },
+  { key: 'matches', label: 'Eventy' },
   { key: 'schedules', label: 'Skupinové lekcie' },
 ];
 

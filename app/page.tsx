@@ -5,10 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 import {
   buildHomepageInspirationFromCards,
   getHomepageEventInspiration,
-  getVenuesForHomeFilter,
   homepageInspirationHasEvents,
   mapRawEventRowsToCards,
-  type HomeFilterVenue,
   type HomepageEventInspiration,
 } from '@/lib/data/homepage';
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
@@ -17,7 +15,7 @@ import { QuickActions } from '@/components/home/QuickActions';
 import { EventsInspirationSection } from '@/components/home/EventsInspirationSection';
 import { LocationPrompt } from '@/components/home/LocationPrompt';
 import { LockViewport } from '@/components/home/LockViewport';
-import { HomeFeedFilterHydrator as PlayerFeedFilterHydrator, HomeFeedPreferencesAside } from '@/components/home/HomeFeedFilterButton';
+import { HomeFeedFilterHydrator as PlayerFeedFilterHydrator } from '@/components/home/HomeFeedFilterButton';
 import { TrackPageView } from '@/components/telemetry/TrackPageView';
 import { parseHomeFeedFilters, activeHomeFeedFilterCount } from '@/lib/home-feed-filters';
 
@@ -151,7 +149,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const feedLng = profile.longitude ?? 17.1077;
   const feedFilters = parseHomeFeedFilters(searchParams);
   let inspiration: HomepageEventInspiration | null = null;
-  let filterVenues: HomeFilterVenue[] = [];
 
   try {
     // 1) Try location-aware inspiration when GPS exists (no HTTP — data layer uses createClient).
@@ -168,12 +165,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     if (!homepageInspirationHasEvents(inspiration)) {
       inspiration = await queryAllActiveEvents(feedLat, feedLng);
     }
-
-    filterVenues = await getVenuesForHomeFilter(city);
   } catch (error) {
     console.error('Homepage data fetch error:', error);
     inspiration = await queryAllActiveEvents(feedLat, feedLng);
-    filterVenues = [];
   }
 
   const displayName = profile.fullName ?? profile.username;
@@ -206,18 +200,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       <main className="h-dvh max-h-dvh overflow-hidden overscroll-none pt-24 px-container-margin-mobile md:px-container-margin-desktop max-w-7xl mx-auto space-y-8 md:space-y-section-gap relative z-10 w-full min-w-0 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]">
         <section className="space-y-5 md:space-y-6">
           <header className="space-y-2 border-b border-white/5 pb-4">
-            <div className="flex items-start justify-between gap-2.5">
-              <div className="min-w-0 flex-1 space-y-2 pr-1">
-                <p className="font-label-caps text-label-caps text-tertiary uppercase tracking-widest">Welcome Back</p>
-                <h2 className="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-on-surface break-words">
-                  {displayName}
-                </h2>
-              </div>
-              <Suspense fallback={null}>
-                <div className="shrink-0 pt-0.5">
-                  <HomeFeedPreferencesAside venues={filterVenues} city={city} />
-                </div>
-              </Suspense>
+            <div className="min-w-0 space-y-2">
+              <p className="font-label-caps text-label-caps text-tertiary uppercase tracking-widest">Welcome Back</p>
+              <h2 className="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-on-surface break-words">
+                {displayName}
+              </h2>
             </div>
           </header>
           <QuickActions />

@@ -12,7 +12,8 @@ const PUBLIC_PATHS = ['/login', '/auth/callback'];
  * middleware ochrana API ciest").
  *
  * Auth bypass is ON by default (early access): browsing is open without login.
- * Set AUTH_BYPASS=false when real email auth ships.
+ * /login stays available so write actions (create lobby, join, …) can still
+ * sign the user in. Set AUTH_BYPASS=false when you want to require accounts.
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -42,10 +43,6 @@ export async function updateSession(request: NextRequest) {
     const { data } = await supabase.auth.getUser();
     const isPublicPath = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
     const bypass = isAuthBypassEnabled();
-
-    if (bypass && request.nextUrl.pathname.startsWith('/login')) {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
 
     if (!data.user && !isPublicPath && !bypass) {
       const loginUrl = new URL('/login', request.url);

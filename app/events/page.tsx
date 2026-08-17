@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { getPageViewer } from '@/lib/auth/viewer';
-import { getVenuesForHomeFilter } from '@/lib/data/homepage';
 import type { EventFeedResult, ParticipationMode } from '@/lib/data/events';
 import { ALL_EVENTS_FALLBACK_MESSAGE } from '@/lib/data/events';
 import { getAllActiveEventsFeedSafe } from '@/lib/data/fetch-active-events';
@@ -176,7 +175,6 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
 
   const { profile } = viewer;
 
-  const city = profile.city ?? 'Bratislava';
   const hasGps = profile.latitude !== null && profile.longitude !== null;
   const feedFilters = parseHomeFeedFilters(searchParams);
   const typeFilter = feedFilters.type;
@@ -192,16 +190,10 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   const needsGpsPrompt =
     requestedArea === 'near_me' && (profile.latitude === null || profile.longitude === null);
 
-  let filterVenues: Awaited<ReturnType<typeof getVenuesForHomeFilter>> = [];
   let rawFeed: EventFeedResult = EMPTY_FEED;
 
   try {
-    const [venuesResult, feedResult] = await Promise.all([
-      getVenuesForHomeFilter(city, 200),
-      loadEventsFeed({ hasGps, needsGpsPrompt, location, typeFilter }),
-    ]);
-    filterVenues = venuesResult;
-    rawFeed = feedResult;
+    rawFeed = await loadEventsFeed({ hasGps, needsGpsPrompt, location, typeFilter });
   } catch (error) {
     console.error('Events page data fetch error:', error);
     rawFeed = await getAllActiveEventsFeedSafe({
@@ -276,8 +268,6 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
 
       <main className="relative z-10 mx-auto flex w-full max-w-screen-xl min-w-0 flex-grow flex-col gap-4 px-container-margin-mobile pb-8 pt-5 md:px-container-margin-desktop md:gap-5">
         <PageTitleRow
-          city={city}
-          venues={filterVenues}
           title={
             <div className="space-y-1 min-w-0">
               <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-zinc-500">

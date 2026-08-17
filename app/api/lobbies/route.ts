@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { getApiAuthUser } from '@/lib/auth/api-user';
 import { LOBBY_FORMATS } from '@/lib/constants/lobbies';
 import { LOBBY_SPORTS } from '@/lib/constants/sports';
 import { findCityByName } from '@/lib/cities';
@@ -23,9 +23,8 @@ const createLobbySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: auth, error: authError } = await supabase.auth.getUser();
-  if (authError || !auth.user) {
+  const { user, supabase } = await getApiAuthUser();
+  if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
@@ -65,7 +64,7 @@ export async function POST(request: Request) {
   }
 
   const baseInsert = {
-    host_id: auth.user.id,
+    host_id: user.id,
     sport: input.sport,
     format: input.format,
     city: city.name,
@@ -112,7 +111,7 @@ export async function POST(request: Request) {
 
   const { error: joinError } = await supabase.from('lobby_participants').insert({
     lobby_id: lobby.id,
-    user_id: auth.user.id,
+    user_id: user.id,
     payment_status: 'mock',
   });
 
@@ -131,7 +130,7 @@ export async function POST(request: Request) {
       city: city.name,
       latitude: city.latitude,
       longitude: city.longitude,
-      excludeIds: [auth.user.id],
+      excludeIds: [user.id],
       prioritizeMercenaries: input.mercenaryMode,
     });
   } catch {
