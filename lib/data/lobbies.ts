@@ -172,6 +172,21 @@ function mapLobbyRowToCard(
   };
 }
 
+/** Prefer `primary` (e.g. my lobbies), then fill from `secondary` without duplicates. */
+export function mergeLobbyFeeds(
+  primary: LobbyCardData[],
+  secondary: LobbyCardData[],
+): LobbyCardData[] {
+  const seen = new Set<string>();
+  const out: LobbyCardData[] = [];
+  for (const lobby of [...primary, ...secondary]) {
+    if (seen.has(lobby.id)) continue;
+    seen.add(lobby.id);
+    out.push(lobby);
+  }
+  return out;
+}
+
 /** Hosted or joined community matches — always shown regardless of distance/filters. */
 export async function getMyLobbyCards(
   profileId: string,

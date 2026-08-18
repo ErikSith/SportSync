@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -13,6 +13,7 @@ import { MOCK_MATCH_CARDS } from '@/lib/mockLobbyData';
 import {
   filterMatchesBySport,
   LOBBY_SPORT_META,
+  normalizeLobbySport,
 } from '@/components/lobby/lobby-ui';
 import { LobbySportPicker } from '@/components/lobby/LobbySportPicker';
 import { LobbyActivityCard } from '@/components/lobby/LobbyActivityCard';
@@ -22,6 +23,7 @@ import { CreateCrewModal } from '@/components/lobby/CreateCrewModal';
 import { LobbyPreviewModal } from '@/components/lobby/LobbyPreviewModal';
 import {
   draftToLobbyPreview,
+  draftToMatchCard,
   matchCardToLobbyPreview,
   type LobbyPreviewData,
 } from '@/components/lobby/lobby-preview';
@@ -31,15 +33,30 @@ import type { CreateLobbyDraft } from '@/types/lobby';
 import { buildCreateLobbyPayload } from '@/lib/lobby-create';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 
+function mergeLobbyMatchLists(
+  created: MatchCardData[],
+  initial?: MatchCardData[],
+): MatchCardData[] {
+  const server = initial ?? [];
+  const serverIds = new Set(server.map((match) => match.id));
+  const local = created.filter((match) => !serverIds.has(match.id));
+  const base = server.length > 0 ? server : local.length > 0 ? [] : MOCK_MATCH_CARDS;
+  if (local.length === 0) return base;
+  const localIds = new Set(local.map((match) => match.id));
+  return [...local, ...base.filter((match) => !localIds.has(match.id))];
+}
+
 export function LobbyPageView({
   city = 'Bratislava',
   venues = [],
   initialMatches,
+  myLobbies = [],
   groups = [],
 }: {
   city?: string;
   venues?: HomeFilterVenue[];
   initialMatches?: MatchCardData[];
+  myLobbies?: MatchCardData[];
   groups?: GroupCardData[];
   /** Kept for later auth — create lobby is open without registration for now. */
   isGuest?: boolean;
@@ -51,6 +68,7 @@ export function LobbyPageView({
   const [crewModalOpen, setCrewModalOpen] = useState(false);
   const [crewPreferWizard, setCrewPreferWizard] = useState(false);
   const [preview, setPreview] = useState<LobbyPreviewData | null>(null);
+  const [createdMatches, setCreatedMatches] = useState<MatchCardData[]>([]);
 
   function openCrewModal(preferWizard = false) {
     setCrewPreferWizard(preferWizard);
@@ -60,9 +78,25 @@ export function LobbyPageView({
   function openCreateLobby() {
     setLobbyModalOpen(true);
   }
-  const [matches] = useState<MatchCardData[]>(
-    initialMatches && initialMatches.length > 0 ? initialMatches : MOCK_MATCH_CARDS,
+  const matches = useMemo(
+    () => mergeLobbyMatchLists(createdMatches, initialMatches),
+    [createdMatches, initialMatches],
   );
+
+  const myActiveLobbies = useMemo(() => {
+    const byId = new Map(myLobbies.map((lobby) => [lobby.id, lobby]));
+    for (const card of createdMatches) {
+      if (!byId.has(card.id)) {
+        byId.set(card.id, { ...card, isHost: true, isJoined: true });
+      }
+    }
+    const createdIds = new Set(createdMatches.map((card) => card.id));
+    const all = [...byId.values()];
+    return [
+      ...all.filter((lobby) => createdIds.has(lobby.id)),
+      ...all.filter((lobby) => !createdIds.has(lobby.id)),
+    ];
+  }, [createdMatches, myLobbies]);
 
   const sportMatches = useMemo(
     () => filterMatchesBySport(matches, selectedSport),
@@ -98,10 +132,16 @@ export function LobbyPageView({
   }, [matches, search]);
 
   function openMatch(id: string) {
-    const match = matches.find((m) => m.id === id);
+    const match =
+      matches.find((m) => m.id === id) ?? myActiveLobbies.find((m) => m.id === id);
     if (!match) {
       router.push(`/lobby/${id}`);
       return;
+    }
+    const sportKey = normalizeLobbySport(match.sport);
+    if (sportKey) {
+      setSelectedSport(sportKey);
+      setSearch('');
     }
     setPreview(matchCardToLobbyPreview(match));
   }
@@ -130,6 +170,18 @@ export function LobbyPageView({
     return () => cancelAnimationFrame(frame);
   }, [selectedSport]);
 
+  function revealCreatedLobby(draft: CreateLobbyDraft, lobbyId: string) {
+    const card = draftToMatchCard(draft, lobbyId, city);
+    setCreatedMatches((prev) => [card, ...prev.filter((match) => match.id !== lobbyId)]);
+    const sportKey = normalizeLobbySport(draft.sport);
+    if (sportKey) {
+      setSelectedSport(sportKey);
+      setSearch('');
+    }
+    setLobbyModalOpen(false);
+    setPreview(draftToLobbyPreview(draft, lobbyId, city));
+  }
+
   async function handleLobbyCreated(draft: CreateLobbyDraft) {
     const built = buildCreateLobbyPayload(draft, city);
     if (!built.ok) {
@@ -147,9 +199,7 @@ export function LobbyPageView({
     } | null;
 
     if (res.status === 401) {
-      // Registration comes later — still show the created lobby as a local preview.
-      setLobbyModalOpen(false);
-      setPreview(draftToLobbyPreview(draft, `preview-${crypto.randomUUID()}`, city));
+      revealCreatedLobby(draft, `preview-${crypto.randomUUID()}`);
       return;
     }
 
@@ -157,8 +207,7 @@ export function LobbyPageView({
       throw new Error(body?.error ?? 'Lobby sa nepodarilo vytvoriť.');
     }
 
-    setLobbyModalOpen(false);
-    setPreview(draftToLobbyPreview(draft, body.lobbyId, city));
+    revealCreatedLobby(draft, body.lobbyId);
     router.refresh();
   }
 
@@ -196,7 +245,9 @@ export function LobbyPageView({
 
             <LobbyQuickActions
               groups={groups}
+              myLobbies={myActiveLobbies}
               onCreateLobby={openCreateLobby}
+              onOpenLobby={openMatch}
               onOpenCrew={openCrewModal}
             />
 
@@ -237,7 +288,9 @@ export function LobbyPageView({
               actions={
                 <LobbyQuickActions
                   groups={groups}
+                  myLobbies={myActiveLobbies}
                   onCreateLobby={openCreateLobby}
+                  onOpenLobby={openMatch}
                   onOpenCrew={openCrewModal}
                 />
               }
@@ -280,6 +333,7 @@ export function LobbyPageView({
         onCreated={handleLobbyCreated}
         venues={venues}
         city={city}
+        initialSport={selectedSport ? LOBBY_SPORT_META[selectedSport].label : undefined}
       />
       <CreateCrewModal
         open={crewModalOpen}
@@ -305,50 +359,87 @@ export function LobbyPageView({
   );
 }
 
+function lobbyRoleLabel(lobby: MatchCardData): string {
+  if (lobby.isHost) return 'Tvoja lobby';
+  if (lobby.isJoined) return 'Si v aktívnej';
+  return 'Aktívna';
+}
+
 function LobbyQuickActions({
   groups,
+  myLobbies,
   onCreateLobby,
+  onOpenLobby,
   onOpenCrew,
 }: {
   groups: GroupCardData[];
+  myLobbies: MatchCardData[];
   onCreateLobby: () => void;
+  onOpenLobby: (id: string) => void;
   /** preferWizard=true opens create wizard; false opens hub / empty create. */
   onOpenCrew: (preferWizard?: boolean) => void;
 }) {
   const router = useRouter();
-  const titleId = useId();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const lobbyTitleId = useId();
+  const crewTitleId = useId();
+  const [lobbyOpen, setLobbyOpen] = useState(false);
+  const [crewOpen, setCrewOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const hasLobbies = myLobbies.length > 0;
+  const hasCrews = groups.length > 0;
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!lobbyOpen && !crewOpen) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key === 'Escape') {
+        setLobbyOpen(false);
+        setCrewOpen(false);
+      }
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [menuOpen]);
+  }, [crewOpen, lobbyOpen]);
+
+  function handleLobbyClick() {
+    if (!hasLobbies) {
+      onCreateLobby();
+      return;
+    }
+    setCrewOpen(false);
+    setLobbyOpen((open) => !open);
+  }
 
   function handleCrewClick() {
-    if (groups.length === 0) {
+    if (!hasCrews) {
       onOpenCrew(false);
       return;
     }
-    setMenuOpen((open) => !open);
+    setLobbyOpen(false);
+    setCrewOpen((open) => !open);
   }
 
   function goToCrew(groupId: string) {
-    setMenuOpen(false);
+    setCrewOpen(false);
     router.push(`/lobby/groups/${groupId}`);
   }
 
   function createNewCrew() {
-    setMenuOpen(false);
+    setCrewOpen(false);
     onOpenCrew(true);
+  }
+
+  function goToLobby(lobbyId: string) {
+    setLobbyOpen(false);
+    onOpenLobby(lobbyId);
+  }
+
+  function createNewLobby() {
+    setLobbyOpen(false);
+    onCreateLobby();
   }
 
   return (
@@ -360,8 +451,14 @@ function LobbyQuickActions({
       >
         <button
           type="button"
-          onClick={onCreateLobby}
-          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-primary-container/20 bg-primary-container/10 px-2 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] text-white transition-colors duration-200 hover:border-primary-container/30 hover:bg-primary-container/15 active:scale-[0.98] sm:px-3"
+          onClick={handleLobbyClick}
+          aria-expanded={hasLobbies ? lobbyOpen : undefined}
+          aria-haspopup={hasLobbies ? 'dialog' : undefined}
+          className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 active:scale-[0.98] sm:px-3 ${
+            lobbyOpen || !hasLobbies
+              ? 'border-primary-container/20 bg-primary-container/10 text-white hover:border-primary-container/30 hover:bg-primary-container/15'
+              : 'border-transparent text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200'
+          }`}
         >
           <span
             className="material-symbols-outlined shrink-0 text-[16px] text-primary-container"
@@ -369,7 +466,24 @@ function LobbyQuickActions({
           >
             sports
           </span>
-          <span className="truncate text-center leading-tight">Vytvorenie lobby</span>
+          <span className="truncate text-center leading-tight">
+            {hasLobbies ? 'Lobby' : 'Vytvorenie lobby'}
+          </span>
+          {hasLobbies ? (
+            <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-1.5 py-0.5 font-label-caps text-[8px] leading-none text-zinc-300">
+              {myLobbies.length}
+            </span>
+          ) : null}
+          {hasLobbies ? (
+            <span
+              className={`material-symbols-outlined shrink-0 text-[14px] transition-transform ${
+                lobbyOpen ? 'rotate-180 text-primary-container' : 'text-zinc-500'
+              }`}
+              aria-hidden
+            >
+              expand_more
+            </span>
+          ) : null}
         </button>
 
         <span className="my-1.5 w-px shrink-0 bg-white/10" aria-hidden />
@@ -377,32 +491,32 @@ function LobbyQuickActions({
         <button
           type="button"
           onClick={handleCrewClick}
-          aria-expanded={menuOpen}
-          aria-haspopup="dialog"
+          aria-expanded={hasCrews ? crewOpen : undefined}
+          aria-haspopup={hasCrews ? 'dialog' : undefined}
           className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 active:scale-[0.98] sm:px-3 ${
-            menuOpen
+            crewOpen
               ? 'border-primary-container/30 bg-primary-container/10 text-white'
               : 'border-transparent text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200'
           }`}
         >
           <span
             className={`material-symbols-outlined shrink-0 text-[16px] ${
-              menuOpen ? 'text-primary-container' : 'text-secondary'
+              crewOpen ? 'text-primary-container' : 'text-secondary'
             }`}
             aria-hidden
           >
             groups
           </span>
           <span className="truncate">CREW</span>
-          {groups.length > 0 ? (
+          {hasCrews ? (
             <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-1.5 py-0.5 font-label-caps text-[8px] leading-none text-zinc-300">
               {groups.length}
             </span>
           ) : null}
-          {groups.length > 0 ? (
+          {hasCrews ? (
             <span
               className={`material-symbols-outlined shrink-0 text-[14px] transition-transform ${
-                menuOpen ? 'rotate-180 text-primary-container' : 'text-zinc-500'
+                crewOpen ? 'rotate-180 text-primary-container' : 'text-zinc-500'
               }`}
               aria-hidden
             >
@@ -415,103 +529,164 @@ function LobbyQuickActions({
       {mounted
         ? createPortal(
             <AnimatePresence>
-              {menuOpen && groups.length > 0 ? (
-                <motion.div
-                  className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+              {lobbyOpen && hasLobbies ? (
+                <QuickActionHub
+                  key="lobby-hub"
+                  titleId={lobbyTitleId}
+                  kicker="Lobby"
+                  title="Moje lobby"
+                  subtitle="Otvor aktívnu alebo vytvor novú"
+                  onClose={() => setLobbyOpen(false)}
+                  createLabel="+ Vytvoriť lobby"
+                  onCreate={createNewLobby}
                 >
-                  <button
-                    type="button"
-                    aria-label="Zavrieť"
-                    className="absolute inset-0"
-                    onClick={() => setMenuOpen(false)}
-                  />
-                  <motion.div
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby={titleId}
-                    initial={{ y: 16, opacity: 0, scale: 0.98 }}
-                    animate={{ y: 0, opacity: 1, scale: 1 }}
-                    exit={{ y: 16, opacity: 0, scale: 0.98 }}
-                    transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                    className="glass-panel relative z-[101] flex max-h-[min(88dvh,620px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="relative shrink-0 border-b border-white/5 px-5 pb-3 pt-5 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setMenuOpen(false)}
-                        className="absolute right-3 top-3 text-on-surface-variant transition-colors hover:text-primary"
-                        aria-label="Zavrieť"
-                      >
-                        <span className="material-symbols-outlined text-[22px]">close</span>
-                      </button>
-                      <p className="font-label-caps text-[10px] uppercase tracking-[0.18em] text-primary-container">
-                        Crew
-                      </p>
-                      <h2
-                        id={titleId}
-                        className="mt-0.5 font-headline-md text-[20px] text-on-surface"
-                      >
-                        My Crew Hub
-                      </h2>
-                      <p className="mt-1 font-label-caps text-[9px] uppercase tracking-[0.12em] text-zinc-500">
-                        Otvor skupinu alebo vytvor novú
-                      </p>
-                    </div>
-
-                    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-5">
-                      {groups.map((group) => (
-                        <button
-                          key={group.id}
-                          type="button"
-                          onClick={() => goToCrew(group.id)}
-                          className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-transparent px-3.5 py-3.5 text-left transition-colors duration-200 hover:border-white/16 hover:bg-white/[0.02]"
-                        >
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-transparent text-zinc-500">
-                            <span className="material-symbols-outlined text-[18px]">groups</span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate font-body-sm text-sm text-white">{group.name}</p>
-                            <p className="mt-0.5 truncate font-body-sm text-xs text-zinc-500">
-                              {sportDisplayLabel(group.sport)} · {group.memberCount}{' '}
-                              {group.memberCount === 1 ? 'člen' : 'členov'}
-                              {group.isOwner ? ' · Admin' : ''}
-                            </p>
-                          </div>
-                          <span className="material-symbols-outlined shrink-0 text-[18px] text-zinc-500">
-                            chevron_right
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="flex shrink-0 gap-2 border-t border-white/5 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
-                      <button
-                        type="button"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex-1 rounded-xl border border-outline/30 py-3 font-label-caps text-[11px] text-on-surface-variant transition-colors hover:text-on-surface"
-                      >
-                        Zrušiť
-                      </button>
-                      <button
-                        type="button"
-                        onClick={createNewCrew}
-                        className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-primary-container/35 bg-primary-container/10 py-3 font-label-caps text-[11px] text-white transition-all hover:border-primary-container/50 hover:bg-primary-container/15 active:scale-[0.98]"
-                      >
-                        + Vytvoriť crew
-                      </button>
-                    </div>
-                  </motion.div>
-                </motion.div>
+                  {myLobbies.map((lobby) => (
+                    <button
+                      key={lobby.id}
+                      type="button"
+                      onClick={() => goToLobby(lobby.id)}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-transparent px-3.5 py-3.5 text-left transition-colors duration-200 hover:border-white/16 hover:bg-white/[0.02]"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-transparent text-zinc-500">
+                        <span className="material-symbols-outlined text-[18px]">sports</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-body-sm text-sm text-white">
+                          {lobby.title || lobby.sport}
+                        </p>
+                        <p className="mt-0.5 truncate font-body-sm text-xs text-zinc-500">
+                          {lobby.sport} · {lobby.dateLabel} {lobby.timeLabel} · {lobbyRoleLabel(lobby)}
+                        </p>
+                      </div>
+                      <span className="material-symbols-outlined shrink-0 text-[18px] text-zinc-500">
+                        chevron_right
+                      </span>
+                    </button>
+                  ))}
+                </QuickActionHub>
+              ) : null}
+              {crewOpen && hasCrews ? (
+                <QuickActionHub
+                  key="crew-hub"
+                  titleId={crewTitleId}
+                  kicker="Crew"
+                  title="My Crew Hub"
+                  subtitle="Otvor skupinu alebo vytvor novú"
+                  onClose={() => setCrewOpen(false)}
+                  createLabel="+ Vytvoriť crew"
+                  onCreate={createNewCrew}
+                >
+                  {groups.map((group) => (
+                    <button
+                      key={group.id}
+                      type="button"
+                      onClick={() => goToCrew(group.id)}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-transparent px-3.5 py-3.5 text-left transition-colors duration-200 hover:border-white/16 hover:bg-white/[0.02]"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-transparent text-zinc-500">
+                        <span className="material-symbols-outlined text-[18px]">groups</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-body-sm text-sm text-white">{group.name}</p>
+                        <p className="mt-0.5 truncate font-body-sm text-xs text-zinc-500">
+                          {sportDisplayLabel(group.sport)} · {group.memberCount}{' '}
+                          {group.memberCount === 1 ? 'člen' : 'členov'}
+                          {group.isOwner ? ' · Admin' : ''}
+                        </p>
+                      </div>
+                      <span className="material-symbols-outlined shrink-0 text-[18px] text-zinc-500">
+                        chevron_right
+                      </span>
+                    </button>
+                  ))}
+                </QuickActionHub>
               ) : null}
             </AnimatePresence>,
             document.body,
           )
         : null}
     </>
+  );
+}
+
+function QuickActionHub({
+  titleId,
+  kicker,
+  title,
+  subtitle,
+  onClose,
+  createLabel,
+  onCreate,
+  children,
+}: {
+  titleId: string;
+  kicker: string;
+  title: string;
+  subtitle: string;
+  onClose: () => void;
+  createLabel: string;
+  onCreate: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <motion.div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <button type="button" aria-label="Zavrieť" className="absolute inset-0" onClick={onClose} />
+      <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        initial={{ y: 16, opacity: 0, scale: 0.98 }}
+        animate={{ y: 0, opacity: 1, scale: 1 }}
+        exit={{ y: 16, opacity: 0, scale: 0.98 }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        className="glass-panel relative z-[101] flex max-h-[min(88dvh,620px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="relative shrink-0 border-b border-white/5 px-5 pb-3 pt-5 text-center">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-3 top-3 text-on-surface-variant transition-colors hover:text-primary"
+            aria-label="Zavrieť"
+          >
+            <span className="material-symbols-outlined text-[22px]">close</span>
+          </button>
+          <p className="font-label-caps text-[10px] uppercase tracking-[0.18em] text-primary-container">
+            {kicker}
+          </p>
+          <h2 id={titleId} className="mt-0.5 font-headline-md text-[20px] text-on-surface">
+            {title}
+          </h2>
+          <p className="mt-1 font-label-caps text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+            {subtitle}
+          </p>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-5">{children}</div>
+
+        <div className="flex shrink-0 gap-2 border-t border-white/5 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-outline/30 py-3 font-label-caps text-[11px] text-on-surface-variant transition-colors hover:text-on-surface"
+          >
+            Zrušiť
+          </button>
+          <button
+            type="button"
+            onClick={onCreate}
+            className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-primary-container/35 bg-primary-container/10 py-3 font-label-caps text-[11px] text-white transition-all hover:border-primary-container/50 hover:bg-primary-container/15 active:scale-[0.98]"
+          >
+            {createLabel}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

@@ -4,6 +4,7 @@ import type { LobbyDetailData } from '@/lib/data/lobbies';
 import { isVenueUuid } from '@/lib/lobby-create';
 import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 import { lobbyTierLabel } from '@/lib/utils/lobby';
+import { sportIconAccent, sportToIconKind } from '@/components/lobby/lobby-ui';
 import {
   LOBBY_TYPE_LABELS,
   LobbyType,
@@ -71,8 +72,8 @@ export function matchCardToLobbyPreview(match: MatchCardData): LobbyPreviewData 
     coverUrl: match.coverUrl ?? null,
     hostName: match.roster[0]?.name ?? null,
     roster: match.roster,
-    isHost: false,
-    isJoined: false,
+    isHost: match.isHost ?? false,
+    isJoined: match.isJoined ?? false,
     mercenaryMode: match.type === LobbyType.SINGLE_PLAYER_1,
     status: statusFromSpots(match.playersFilled, match.playersTotal),
     venueId: match.venueId ?? null,
@@ -179,6 +180,62 @@ export function draftToLobbyPreview(
     websiteUrl: toVenueHomepageUrl(draft.websiteUrl),
     distanceKm: null,
     priceLabel: 'Free',
+  };
+}
+
+export function draftToMatchCard(
+  draft: CreateLobbyDraft,
+  lobbyId: string,
+  city: string,
+): MatchCardData {
+  const type = draft.type ?? LobbyType.SINGLE_PLAYER_1;
+  const spotsTotal = Math.min(10, Math.max(2, draft.spotsNeeded + 1));
+  const kind = sportToIconKind(draft.sport);
+  const dateLabel = draft.date
+    ? (() => {
+        const parts = draft.date.split('-').map(Number);
+        const y = parts[0];
+        const m = parts[1];
+        const d = parts[2];
+        if (y == null || m == null || d == null) return draft.date;
+        return new Date(y, m - 1, d).toLocaleDateString('sk-SK', {
+          weekday: 'short',
+          day: 'numeric',
+        });
+      })()
+    : '—';
+
+  return {
+    id: lobbyId,
+    type,
+    title: `${draft.sport} · ${draft.venue}`.slice(0, 80),
+    sport: draft.sport,
+    dateLabel,
+    timeLabel: draft.time || '—',
+    venueName: draft.venue,
+    venueId: isVenueUuid(draft.venueId) ? draft.venueId : null,
+    websiteUrl: toVenueHomepageUrl(draft.websiteUrl),
+    city,
+    distanceKm: 0,
+    playersFilled: 1,
+    playersTotal: spotsTotal,
+    skillLevel: draft.skillLevel,
+    pricePerPersonEur: null,
+    roster: [{ id: 'me', name: 'Ty', image: null }],
+    ctaLabel:
+      type === LobbyType.TEAM_VS_TEAM
+        ? 'Prijať výzvu (Challenge)'
+        : type === LobbyType.RECURRING_SQUAD
+          ? 'Požiadať o vstup do Squadu'
+          : 'Pripojiť sa (1-Klik)',
+    sportIcon: kind,
+    iconAccent: sportIconAccent(kind),
+    paymentDisclaimer: 'Rezervácia kurtu a platba priamo na športovisku.',
+    teamName: type === LobbyType.TEAM_VS_TEAM ? draft.venue : undefined,
+    challengeTerms:
+      type === LobbyType.TEAM_VS_TEAM ? 'Kurt rezervovaný • Náklady napoly' : undefined,
+    isHost: true,
+    isJoined: true,
   };
 }
 

@@ -89,6 +89,7 @@ interface CreateLobbyModalProps {
   onCreated: (draft: CreateLobbyDraft) => Promise<void> | void;
   venues?: HomeFilterVenue[];
   city?: string;
+  initialSport?: string;
 }
 
 const TYPE_OPTIONS: { type: LobbyType; icon: typeof Users; desc: string }[] = [
@@ -184,6 +185,7 @@ export function CreateLobbyModal({
   onCreated,
   venues = [],
   city = 'Bratislava',
+  initialSport,
 }: CreateLobbyModalProps) {
   const titleId = useId();
   const venueSearchId = useId();
@@ -212,12 +214,12 @@ export function CreateLobbyModal({
     setDraft({
       ...EMPTY_CREATE_DRAFT,
       date: toDateKey(new Date()),
-      sport: '',
+      sport: initialSport ?? '',
       venue: '',
       venueId: null,
       websiteUrl: null,
     });
-  }, [open]);
+  }, [open, initialSport]);
 
   useEffect(() => {
     if (!open || venues.length > 0) return;

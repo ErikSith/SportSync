@@ -115,6 +115,10 @@ export interface MatchCardData {
   /** RECURRING_SQUAD status line */
   squadStatus?: string;
   paymentDisclaimer?: string;
+  /** Viewer hosted this lobby. */
+  isHost?: boolean;
+  /** Viewer is in the roster. */
+  isJoined?: boolean;
 }
 
 export interface CreateLobbyDraft {

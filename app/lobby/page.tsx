@@ -3,13 +3,17 @@ import { getPageViewer } from '@/lib/auth/viewer';
 import { getVenuesForLobbyPicker } from '@/lib/data/homepage';
 import {
   getCityLobbyFeed,
+  getMyLobbyCards,
   getNearbyLobbyFeed,
+  mergeLobbyFeeds,
   type LobbyCardData,
 } from '@/lib/data/lobbies';
 import { getMyGroups } from '@/lib/data/sport-groups';
 import { MOCK_MATCH_CARDS } from '@/lib/mockLobbyData';
+import { sportDisplayLabel } from '@/lib/constants/sports';
 import type { MatchCardData, SkillLevel } from '@/types/lobby';
 import { LobbyType } from '@/types/lobby';
+import { sportIconAccent, sportToIconKind } from '@/components/lobby/lobby-ui';
 import { LobbyPageView } from '@/components/lobby/LobbyPageView';
 import { PlayerFeedFilterHydrator } from '@/components/home/HomeFeedFilterButton';
 import { BrandAppBar } from '@/components/shared/BrandAppBar';
@@ -18,18 +22,9 @@ export const runtime = 'edge';
 
 function skillFromElo(elo: number | null): SkillLevel {
   if (elo === null) return 'INTERMEDIATE';
-  if (elo >= 1600) return 'ADVANCED';
   if (elo >= 1400) return 'ADVANCED';
   if (elo >= 1200) return 'INTERMEDIATE';
   return 'NOVICE';
-}
-
-function sportIcon(sport: string): MatchCardData['sportIcon'] {
-  const s = sport.toLowerCase();
-  if (s.includes('tenis') || s.includes('tennis')) return 'tennis';
-  if (s.includes('futbal') || s.includes('football') || s.includes('soccer')) return 'football';
-  if (s.includes('basket')) return 'basketball';
-  return 'padel';
 }
 
 function lobbyToMatchCard(lobby: LobbyCardData): MatchCardData {
@@ -50,12 +45,13 @@ function lobbyToMatchCard(lobby: LobbyCardData): MatchCardData {
     minute: '2-digit',
     hour12: false,
   });
+  const sportIcon = sportToIconKind(lobby.sport, lobby.title ?? undefined);
 
   return {
     id: lobby.id,
     type,
     title: lobby.title ?? lobby.sport,
-    sport: lobby.sport,
+    sport: sportDisplayLabel(lobby.sport),
     dateLabel,
     timeLabel,
     venueName: lobby.venueName ?? lobby.city,
@@ -78,13 +74,15 @@ function lobbyToMatchCard(lobby: LobbyCardData): MatchCardData {
         : type === LobbyType.RECURRING_SQUAD
           ? 'Požiadať o vstup do Squadu'
           : 'Pripojiť sa (1-Klik)',
-    sportIcon: sportIcon(lobby.sport),
-    iconAccent: 'orange',
+    sportIcon,
+    iconAccent: sportIconAccent(sportIcon),
     coverUrl: lobby.coverUrl,
     paymentDisclaimer: 'Rezervácia kurtu a platba priamo na športovisku.',
     teamName: type === LobbyType.TEAM_VS_TEAM ? lobby.title ?? lobby.hostName : undefined,
     challengeTerms:
       type === LobbyType.TEAM_VS_TEAM ? 'Kurt rezervovaný • Náklady napoly' : undefined,
+    isHost: lobby.isHost,
+    isJoined: lobby.isJoined,
   };
 }
 
@@ -106,19 +104,22 @@ export default async function LobbyPage() {
   const city = profile.city ?? 'Bratislava';
   const hasGps = profile.latitude !== null && profile.longitude !== null;
   const venues = await getVenuesForLobbyPicker(city);
+  const origin = hasGps
+    ? { lat: profile.latitude as number, lng: profile.longitude as number }
+    : undefined;
 
   let dbLobbies: LobbyCardData[] = [];
+  let myLobbyRows: LobbyCardData[] = [];
   try {
-    if (hasGps) {
-      const feed = await getNearbyLobbyFeed({
-        lat: profile.latitude as number,
-        lng: profile.longitude as number,
-        profileId: profile.id,
-      });
-      dbLobbies = feed.lobbies;
-    } else {
-      dbLobbies = await getCityLobbyFeed(city, profile.id);
-    }
+    const nearbyOrCity = hasGps && origin
+      ? (await getNearbyLobbyFeed({
+          lat: origin.lat,
+          lng: origin.lng,
+          profileId: profile.id,
+        })).lobbies
+      : await getCityLobbyFeed(city, profile.id);
+    myLobbyRows = await getMyLobbyCards(profile.id, origin);
+    dbLobbies = mergeLobbyFeeds(myLobbyRows, nearbyOrCity);
   } catch (err) {
     if (process.env.NODE_ENV !== 'production') {
       console.error('[lobby.page] feed failed', err);
@@ -127,6 +128,7 @@ export default async function LobbyPage() {
 
   const initialMatches =
     dbLobbies.length > 0 ? dbLobbies.map(lobbyToMatchCard) : MOCK_MATCH_CARDS;
+  const myLobbies = myLobbyRows.map(lobbyToMatchCard);
 
   let groups: Awaited<ReturnType<typeof getMyGroups>> = [];
   try {
@@ -145,6 +147,7 @@ export default async function LobbyPage() {
         city={city}
         venues={venues}
         initialMatches={initialMatches}
+        myLobbies={myLobbies}
         groups={JSON.parse(JSON.stringify(groups)) as typeof groups}
       />
     </>
