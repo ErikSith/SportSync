@@ -84,6 +84,8 @@ interface ActivityRow {
   spots_needed?: number | null;
   mercenary_lobby_id?: string | null;
   is_pinned?: boolean | null;
+  total_cost_cents?: number | null;
+  cost_currency?: string | null;
   profiles: ProfileSnippet | ProfileSnippet[] | null;
   sport_group_activity_rsvps?: RsvpRow[];
   venues?: { id: string; name: string } | Array<{ id: string; name: string }> | null;
@@ -205,6 +207,9 @@ function mapActivity(row: ActivityRow): GroupActivityData {
     isPinned: Boolean(row.is_pinned),
     goingUserIds: rsvpUserIds(rsvps, 'going'),
     declinedUserIds: rsvpUserIds(rsvps, 'declined'),
+    maybeUserIds: rsvpUserIds(rsvps, 'maybe'),
+    totalCostCents: row.total_cost_cents ?? null,
+    costCurrency: row.cost_currency ?? 'EUR',
   };
 }
 
@@ -405,6 +410,8 @@ export async function getGroupById(id: string, viewerId: string): Promise<GroupD
         destination_address,
         parking_note,
         is_pinned,
+        total_cost_cents,
+        cost_currency,
         profiles!sport_group_activities_created_by_id_fkey ( id, full_name, username ),
         sport_group_activity_rsvps ( user_id, status, paid )
       )
@@ -717,6 +724,8 @@ export async function getGroupActivities(groupId: string): Promise<GroupActivity
       destination_address,
       parking_note,
       is_pinned,
+      total_cost_cents,
+      cost_currency,
       profiles!sport_group_activities_created_by_id_fkey ( id, full_name, username ),
       sport_group_activity_rsvps ( user_id, status, paid )
     `,

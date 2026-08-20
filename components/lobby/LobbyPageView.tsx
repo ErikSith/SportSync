@@ -570,8 +570,8 @@ function LobbyQuickActions({
                   key="crew-hub"
                   titleId={crewTitleId}
                   kicker="Crew"
-                  title="My Crew Hub"
-                  subtitle="Otvor skupinu alebo vytvor novú"
+                  title="Your Crews"
+                  subtitle="Manage teams, squads, and regular sessions"
                   onClose={() => setCrewOpen(false)}
                   createLabel="+ Vytvoriť crew"
                   onCreate={createNewCrew}

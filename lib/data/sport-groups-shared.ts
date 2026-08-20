@@ -97,6 +97,11 @@ export interface GroupActivityData {
   goingUserIds: string[];
   /** User ids who RSVP'd declined. */
   declinedUserIds: string[];
+  /** User ids who RSVP'd maybe. */
+  maybeUserIds: string[];
+  /** Optional pooled session cost in cents (split across going players). */
+  totalCostCents: number | null;
+  costCurrency: string;
 }
 
 export interface SessionRsvpData {
@@ -305,6 +310,9 @@ function groupActivityFromCard(group: GroupCardData): GroupActivityData | null {
     isPinned: false,
     goingUserIds: [],
     declinedUserIds: [],
+    maybeUserIds: [],
+    totalCostCents: null,
+    costCurrency: 'EUR',
   };
 }
 

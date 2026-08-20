@@ -1,41 +1,31 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import type { GroupDetailData } from '@/lib/data/sport-groups-shared';
-import { CrewHubModal } from '@/components/lobby/groups/CrewHub';
-import { PollRefresh } from '@/lib/realtime/usePollingRefresh';
+import type { GearClaimData, GroupDetailData } from '@/lib/data/sport-groups-shared';
+import { YourCrewsPage } from '@/components/lobby/groups/YourCrewsPage';
 
 interface CrewHubDetailClientProps {
   group: GroupDetailData;
   viewerId: string;
   viewerName: string;
   viewerAvatarUrl: string | null;
+  gearClaims?: GearClaimData[];
 }
 
-/** Deep-link / share URL — Event & Lobby-style preview window over /lobby. */
+/** Full-page My Crew hub — matches Your Crews mobile design. */
 export function CrewHubDetailClient({
   group,
   viewerId,
   viewerName,
   viewerAvatarUrl,
+  gearClaims = [],
 }: CrewHubDetailClientProps) {
-  const router = useRouter();
-
   return (
-    <>
-      <PollRefresh intervalMs={15000} />
-      <div className="fixed inset-0 z-40 bg-[#121212]" aria-hidden />
-      <CrewHubModal
-        group={group}
-        viewerId={viewerId}
-        viewerName={viewerName}
-        viewerAvatarUrl={viewerAvatarUrl}
-        open
-        onClose={() => {
-          router.push('/lobby');
-          router.refresh();
-        }}
-      />
-    </>
+    <YourCrewsPage
+      group={group}
+      viewerId={viewerId}
+      viewerName={viewerName}
+      viewerAvatarUrl={viewerAvatarUrl}
+      gearClaims={gearClaims}
+    />
   );
 }

@@ -153,7 +153,7 @@ export function CreateCrewModal({
                 <span className="material-symbols-outlined text-[22px]">close</span>
               </button>
               <p className="font-label-caps text-[10px] uppercase tracking-[0.18em] text-primary-container">
-                My Crew
+                Your Crews
               </p>
               <h2 id={titleId} className="mt-0.5 font-headline-md text-[20px] text-on-surface">
                 {view === 'hub' ? 'CREW' : 'Vytvorenie crew'}

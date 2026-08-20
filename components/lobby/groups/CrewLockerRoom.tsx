@@ -18,6 +18,8 @@ interface CrewLockerRoomProps {
   viewerAvatarUrl: string | null;
   /** Compact layout for CrewHub modal */
   compact?: boolean;
+  /** Single latest-message preview (no composer) for one-screen hubs */
+  teaser?: boolean;
 }
 
 function formatTime(iso: string) {
@@ -32,12 +34,14 @@ export function CrewLockerRoom({
   viewerName,
   viewerAvatarUrl,
   compact = false,
+  teaser = false,
 }: CrewLockerRoomProps) {
   const [messages, setMessages] = useState<CrewChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLUListElement>(null);
+  const latest = messages[messages.length - 1] ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +107,39 @@ export function CrewLockerRoom({
     } finally {
       setSending(false);
     }
+  }
+
+  if (teaser) {
+    return (
+      <section
+        id="feed"
+        className="shrink-0 rounded-[1.1rem] border border-white/[0.06] bg-[#1F1F1F] px-3 py-2.5"
+      >
+        <div className="mb-1.5 flex items-center gap-1.5 text-gray-400">
+          <span className="material-symbols-outlined text-[16px] text-[#FF7F50]">forum</span>
+          <h3 className="text-[12px] font-bold text-white">Locker Room Talk</h3>
+        </div>
+        {loading && !latest ? (
+          <p className="text-[11px] text-gray-500">Loading…</p>
+        ) : latest ? (
+          <div className="flex gap-2">
+            <CrewAvatarStack
+              people={[{ id: latest.id, name: latest.author, avatarUrl: latest.avatarUrl }]}
+              size="sm"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="truncate text-[11px] font-bold text-white">{latest.author}</p>
+                <span className="shrink-0 text-[9px] text-gray-500">{formatTime(latest.createdAt)}</span>
+              </div>
+              <p className="mt-0.5 line-clamp-1 text-[12px] leading-snug text-gray-300">{latest.body}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-[11px] text-gray-500">No messages yet.</p>
+        )}
+      </section>
+    );
   }
 
   return (
