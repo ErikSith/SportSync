@@ -6,6 +6,9 @@ export interface ProfileGameStats {
   completedLobbies: number;
   tournamentRegistrations: number;
   lessonsBooked: number;
+  /** Completed lobbies ∪ confirmed match_results for this player. */
+  gamesPlayed: number;
+  groupsCount: number;
 }
 
 export interface KarmaHistoryEntry {
@@ -13,7 +16,8 @@ export interface KarmaHistoryEntry {
   type: string;
   delta: number;
   contextRef: string | null;
-  createdAt: Date;
+  /** ISO timestamp — must stay serializable for Client Components. */
+  createdAt: string;
   actorId: string | null;
   actorName: string | null;
 }
@@ -50,21 +54,31 @@ export async function getProfileGameStats(profileId: string): Promise<ProfileGam
     completedLobbies: 0,
     tournamentRegistrations: 0,
     lessonsBooked: 0,
+    gamesPlayed: 0,
+    groupsCount: 0,
   };
 
   const supabase = await createClient();
 
-  const [hostedRes, joinedRes, tournamentRes, lessonsRes] = await Promise.all([
+  const [hostedRes, joinedRes, tournamentRes, lessonsRes, groupsRes, matchCountRes] = await Promise.all([
     supabase.from('lobbies').select('*', { count: 'exact', head: true }).eq('host_id', profileId),
     supabase.from('lobby_participants').select('*', { count: 'exact', head: true }).eq('user_id', profileId),
     supabase.from('tournament_registrations').select('*', { count: 'exact', head: true }).eq('user_id', profileId),
     supabase.from('training_lesson_bookings').select('*', { count: 'exact', head: true }).eq('user_id', profileId),
+    supabase.from('sport_group_members').select('*', { count: 'exact', head: true }).eq('user_id', profileId),
+    supabase
+      .from('match_results')
+      .select('*', { count: 'exact', head: true })
+      .contains('participant_ids', [profileId])
+      .eq('status', 'confirmed'),
   ]);
 
   const lobbiesHosted = hostedRes.error ? 0 : (hostedRes.count ?? 0);
   const lobbiesJoined = joinedRes.error ? 0 : (joinedRes.count ?? 0);
   const tournamentRegistrations = tournamentRes.error ? 0 : (tournamentRes.count ?? 0);
   const lessonsBooked = lessonsRes.error ? 0 : (lessonsRes.count ?? 0);
+  const groupsCount = groupsRes.error ? 0 : (groupsRes.count ?? 0);
+  const matchResultsCount = matchCountRes.error ? 0 : (matchCountRes.count ?? 0);
 
   const { data: memberships, error: membershipError } = await supabase
     .from('lobby_participants')
@@ -96,11 +110,17 @@ export async function getProfileGameStats(profileId: string): Promise<ProfileGam
     }
   }
 
-  if (hostedRes.error || joinedRes.error || tournamentRes.error || lessonsRes.error) {
-    return { ...empty, lobbiesHosted, lobbiesJoined, completedLobbies, tournamentRegistrations, lessonsBooked };
-  }
+  const gamesPlayed = Math.max(completedLobbies, matchResultsCount);
 
-  return { lobbiesHosted, lobbiesJoined, completedLobbies, tournamentRegistrations, lessonsBooked };
+  return {
+    lobbiesHosted,
+    lobbiesJoined,
+    completedLobbies,
+    tournamentRegistrations,
+    lessonsBooked,
+    gamesPlayed,
+    groupsCount,
+  };
 }
 
 /** Recent karma ledger entries for the profile activity feed. */
@@ -143,7 +163,7 @@ export async function getKarmaHistory(profileId: string, take = 10): Promise<Kar
       type: row.type as string,
       delta: Number(row.delta ?? 0),
       contextRef: row.context_ref as string | null,
-      createdAt: new Date(row.created_at as string),
+      createdAt: new Date(row.created_at as string).toISOString(),
       actorId: row.actor_id as string | null,
       actorName: row.actor_id ? (actorNames.get(row.actor_id as string) ?? null) : null,
     }));
@@ -154,7 +174,7 @@ export async function getKarmaHistory(profileId: string, take = 10): Promise<Kar
     type: row.type,
     delta: Number(row.delta ?? 0),
     contextRef: row.context_ref,
-    createdAt: new Date(row.created_at),
+    createdAt: new Date(row.created_at).toISOString(),
     actorId: row.actor_id,
     actorName: actorNameFromRow(row.profiles),
   }));

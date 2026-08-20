@@ -117,6 +117,8 @@ model Profile {
   bio             String?
   coverUrl        String?  @map("cover_url")
   preferredSports String[] @default([]) @map("preferred_sports")
+  /// Per-sport skill 1–4 for profile bars, e.g. { "FOOTBALL": 3, "TENNIS": 2 }.
+  sportSkills     Json     @default("{}") @map("sport_skills")
 
   /// Sports this player is willing to act as a "mercenary" for — i.e. be
   /// auto-suggested to lobbies/crews that are missing a player. Powers the

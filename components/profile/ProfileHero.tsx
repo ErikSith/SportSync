@@ -1,129 +1,179 @@
 'use client';
 
 import { useState } from 'react';
-import type { Profile } from '@/lib/data/profile';
-import type { ProfileGameStats } from '@/lib/data/profile-stats';
-import { profileTierLabel } from '@/lib/utils/profile-tier';
+import type { Profile, ProfileHeroStats } from '@/lib/data/profile-shared';
+import { profileIsVerified } from '@/lib/utils/profile-tier';
 import { initialsFromName } from '@/lib/utils/initials';
 import { ProfileEditSheet } from '@/components/profile/ProfileEditSheet';
 
 interface ProfileHeroProps {
   profile: Profile;
-  stats: ProfileGameStats;
-  cityRank?: number | null;
+  heroStats: ProfileHeroStats;
   editable?: boolean;
+  /** Open edit sheet from parent (e.g. sports "Pridať"). */
+  editOpen?: boolean;
+  onEditOpenChange?: (open: boolean) => void;
 }
 
-function coverStyle(profile: Profile): React.CSSProperties | undefined {
-  if (profile.coverUrl) {
-    return { backgroundImage: `url('${profile.coverUrl}')` };
-  }
-  return undefined;
-}
+export function ProfileHero({
+  profile,
+  heroStats,
+  editable = false,
+  editOpen: controlledEditOpen,
+  onEditOpenChange,
+}: ProfileHeroProps) {
+  const [internalEditOpen, setInternalEditOpen] = useState(false);
+  const [shareHint, setShareHint] = useState<string | null>(null);
 
-function coverClass(profile: Profile): string {
-  if (profile.coverUrl) return 'bg-cover bg-center';
-  const tier = profileTierLabel(profile.karmaScore);
-  if (tier === 'LEGEND' || tier === 'ELITE TIER') {
-    return 'bg-gradient-to-br from-surface-container-high via-secondary/20 to-primary-container/30';
+  const editOpen = controlledEditOpen ?? internalEditOpen;
+  function setEditOpen(open: boolean) {
+    onEditOpenChange?.(open);
+    if (controlledEditOpen === undefined) setInternalEditOpen(open);
   }
-  if (tier === 'PRO TIER' || tier === 'RISING STAR') {
-    return 'bg-gradient-to-br from-surface-container-high via-primary-container/20 to-secondary/10';
-  }
-  return 'bg-gradient-to-br from-surface-container-high via-primary-container/10 to-surface-container';
-}
 
-export function ProfileHero({ profile, stats, cityRank = null, editable = false }: ProfileHeroProps) {
-  const [editOpen, setEditOpen] = useState(false);
   const displayName = profile.fullName ?? profile.username;
-  const tier = profileTierLabel(profile.karmaScore);
   const initials = initialsFromName(displayName);
   const city = profile.city ?? 'Bratislava';
+  const verified = profileIsVerified(profile.role, profile.karmaScore);
+  const shareUrl =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/players/${profile.username}`
+      : `/players/${profile.username}`;
 
-  const statChips = [
-    { label: 'Matches', value: stats.completedLobbies },
-    { label: 'Karma', value: profile.karmaScore },
-    { label: 'Season', value: profile.seasonPts },
+  async function handleShare() {
+    setShareHint(null);
+    const payload = {
+      title: `${displayName} · SportSync`,
+      text: profile.bio ?? `Pozri si profil ${displayName} na SportSync`,
+      url: shareUrl,
+    };
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share(payload);
+        return;
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareHint('Odkaz skopírovaný');
+        window.setTimeout(() => setShareHint(null), 2000);
+        return;
+      }
+      setShareHint(shareUrl);
+    } catch {
+      // User cancelled share sheet — ignore.
+    }
+  }
+
+  const statCards = [
+    { label: 'Odohrané hry', value: String(heroStats.gamesPlayed) },
+    { label: 'Skupiny', value: String(heroStats.groupsCount) },
+    { label: 'Úroveň', value: heroStats.levelLabel },
   ];
 
   return (
     <>
-      <section className="glass-panel rounded-xl overflow-hidden relative">
-        <div className={`h-48 md:h-56 w-full relative ${coverClass(profile)}`} style={coverStyle(profile)}>
-          <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/70 to-transparent" />
-          {editable && (
+      <section className="flex flex-col items-center text-center gap-4">
+        <div className="relative w-full">
+          <div className="relative h-36 w-full overflow-hidden rounded-2xl border border-white/8 bg-surface-container-high">
+            {profile.coverUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                className="h-full w-full object-cover"
+                src={profile.coverUrl}
+                alt=""
+              />
+            ) : (
+              <div
+                className="h-full w-full bg-gradient-to-br from-primary-container/35 via-surface-container to-secondary-container/20"
+                aria-hidden
+              />
+            )}
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
+          </div>
+
+          <div className="relative -mt-14 flex justify-center">
+            <div className="relative">
+              <div className="h-28 w-28 overflow-hidden rounded-full border-[3px] border-primary-container bg-surface-container-high shadow-[0_0_24px_rgba(200,75,36,0.35)]">
+                {profile.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="h-full w-full object-cover" src={profile.avatarUrl} alt={displayName} />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center font-headline-md text-headline-md text-on-surface">
+                    {initials}
+                  </div>
+                )}
+              </div>
+              {verified ? (
+                <span
+                  className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-primary-container text-white"
+                  title="Overený profil"
+                >
+                  <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    verified
+                  </span>
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-1.5 max-w-md">
+          <h1 className="font-headline-md text-headline-md text-on-surface md:text-[1.75rem]">{displayName}</h1>
+          <p className="flex items-center justify-center gap-1 font-body-md text-sm text-on-surface-variant">
+            <span className="material-symbols-outlined text-[16px] text-primary-container">location_on</span>
+            {city}, Slovakia
+          </p>
+          {profile.bio ? (
+            <p className="line-clamp-2 font-body-md text-sm leading-relaxed text-on-surface">{profile.bio}</p>
+          ) : editable ? (
+            <p className="font-body-md text-sm text-on-surface-variant/70">Pridaj bio v úprave profilu.</p>
+          ) : null}
+        </div>
+
+        <div className="flex w-full max-w-md gap-2">
+          {editable ? (
             <button
               type="button"
               onClick={() => setEditOpen(true)}
-              aria-label="Edit profile"
-              className="absolute top-4 right-4 p-2 rounded-lg bg-surface/60 backdrop-blur-sm text-on-surface-variant hover:text-secondary transition-colors border border-white/10"
+              className="flex-1 rounded-xl bg-primary-container py-3 font-label-caps text-[11px] uppercase tracking-[0.14em] text-white transition-colors hover:brightness-110"
             >
-              <span className="material-symbols-outlined text-xl">edit</span>
+              Upraviť profil
             </button>
-          )}
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void handleShare()}
+            className={`rounded-xl border border-white/15 bg-surface-container py-3 font-label-caps text-[11px] uppercase tracking-[0.14em] text-on-surface transition-colors hover:border-white/25 hover:bg-surface-container-high ${
+              editable ? 'flex-1' : 'w-full'
+            }`}
+          >
+            Zdieľať
+          </button>
         </div>
+        {shareHint ? (
+          <p className="font-label-caps text-[10px] uppercase tracking-widest text-secondary">{shareHint}</p>
+        ) : null}
 
-        <div className="px-5 pb-5 -mt-12 relative z-10">
-          <div className="flex items-end gap-4 mb-4">
-            <div className="w-24 h-24 rounded-xl border-2 border-secondary overflow-hidden shadow-[0_0_15px_rgba(233,195,73,0.25)] shrink-0 bg-surface-container-high">
-              {profile.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="w-full h-full object-cover" src={profile.avatarUrl} alt={displayName} />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center font-headline-md text-headline-md text-on-surface">
-                  {initials}
-                </div>
-              )}
-            </div>
-
-            <div className="inline-flex items-center gap-2 bg-secondary/10 border border-secondary/50 px-3 py-1 rounded-full mb-1">
-              <span className="material-symbols-outlined text-secondary text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
-                stars
-              </span>
-              <span className="font-label-caps text-[10px] text-secondary tracking-widest uppercase font-bold">{tier}</span>
-            </div>
-          </div>
-
-          <h1 className="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-on-surface mb-1">
-            {displayName}
-          </h1>
-          <p className="font-label-caps text-label-caps text-on-surface-variant mb-2">
-            @{profile.username} · {city}
-            {cityRank !== null && ` · #${cityRank} in ${city}`}
-          </p>
-
-          {profile.bio && (
-            <p className="font-body-md text-body-md text-on-surface-variant mb-4 max-w-md leading-relaxed">{profile.bio}</p>
-          )}
-
-          {profile.preferredSports.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {profile.preferredSports.map((sport) => (
-                <span
-                  key={sport}
-                  className="font-label-caps text-[10px] uppercase px-2.5 py-1 rounded-full bg-primary-container/20 text-primary-container border border-primary-container/30"
-                >
-                  {sport}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            {statChips.map((chip) => (
-              <div
-                key={chip.label}
-                className="flex-1 bg-surface-container/60 rounded-lg p-3 text-center border border-white/5"
-              >
-                <div className="font-display-lg-mobile text-display-lg-mobile text-primary-container mb-0.5">{chip.value}</div>
-                <div className="font-label-caps text-[10px] text-on-surface-variant uppercase">{chip.label}</div>
+        <div className="grid w-full grid-cols-3 gap-2">
+          {statCards.map((card) => (
+            <div
+              key={card.label}
+              className="rounded-2xl border border-white/5 bg-surface-container px-2 py-3.5 text-center"
+            >
+              <div className="font-display-lg-mobile text-[1.65rem] leading-none text-primary-container">
+                {card.value}
               </div>
-            ))}
-          </div>
+              <div className="mt-1.5 font-label-caps text-[9px] uppercase tracking-[0.12em] text-on-surface-variant">
+                {card.label}
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
-      {editable && <ProfileEditSheet open={editOpen} onClose={() => setEditOpen(false)} profile={profile} />}
+      {editable ? (
+        <ProfileEditSheet open={editOpen} onClose={() => setEditOpen(false)} profile={profile} />
+      ) : null}
     </>
   );
 }

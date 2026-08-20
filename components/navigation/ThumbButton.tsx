@@ -63,7 +63,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/profile',
     label: 'Profile',
     icon: User,
-    match: (p) => p === '/profile' || p.startsWith('/players/'),
+    match: (p) => p === '/profile' || p.startsWith('/profile/') || p.startsWith('/players/'),
   },
   {
     href: '/lobby',

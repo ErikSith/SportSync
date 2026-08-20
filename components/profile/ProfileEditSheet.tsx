@@ -3,9 +3,15 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import type { Profile } from '@/lib/data/profile';
+import type { Profile } from '@/lib/data/profile-shared';
 import { SUPPORTED_CITIES } from '@/lib/cities';
 import { EVENT_SPORTS, sportDisplayLabel } from '@/lib/constants/sports';
+import {
+  normalizeSportSkills,
+  sportSkillLabel,
+  type SportSkillLevel,
+  type SportSkillsMap,
+} from '@/lib/profile/sport-skills';
 
 interface ProfileEditSheetProps {
   open: boolean;
@@ -21,8 +27,11 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
   const [username, setUsername] = useState(profile.username);
   const [city, setCity] = useState(profile.city ?? SUPPORTED_CITIES[0]?.name ?? 'Bratislava');
   const [preferredSports, setPreferredSports] = useState<string[]>(profile.preferredSports);
+  const [sportSkills, setSportSkills] = useState<SportSkillsMap>(profile.sportSkills);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState<'avatar' | 'cover' | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState(profile.avatarUrl);
+  const [coverPreview, setCoverPreview] = useState(profile.coverUrl);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,11 +40,15 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
 
   useEffect(() => {
     if (!open) return;
+    const sports = (profile.preferredSports ?? []).map((s) => s.toUpperCase());
     setFullName(profile.fullName ?? '');
     setBio(profile.bio ?? '');
     setUsername(profile.username);
     setCity(profile.city ?? SUPPORTED_CITIES[0]?.name ?? 'Bratislava');
-    setPreferredSports(profile.preferredSports);
+    setPreferredSports(sports);
+    setSportSkills(normalizeSportSkills(sports, profile.sportSkills ?? {}));
+    setAvatarPreview(profile.avatarUrl);
+    setCoverPreview(profile.coverUrl);
     setError(null);
   }, [open, profile]);
 
@@ -56,9 +69,19 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
   }, [open, onClose]);
 
   function toggleSport(sport: string) {
-    setPreferredSports((prev) =>
-      prev.includes(sport) ? prev.filter((s) => s !== sport) : prev.length < 7 ? [...prev, sport] : prev,
-    );
+    setPreferredSports((prev) => {
+      const next = prev.includes(sport)
+        ? prev.filter((s) => s !== sport)
+        : prev.length < 7
+          ? [...prev, sport]
+          : prev;
+      setSportSkills((skills) => normalizeSportSkills(next, skills));
+      return next;
+    });
+  }
+
+  function setSkill(sport: string, level: SportSkillLevel) {
+    setSportSkills((prev) => ({ ...prev, [sport]: level }));
   }
 
   async function uploadImage(kind: 'avatar' | 'cover', file: File) {
@@ -69,7 +92,9 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
     formData.append('file', file);
 
     const res = await fetch(`/api/profile/${kind}`, { method: 'POST', body: formData });
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    const body = (await res.json().catch(() => null)) as
+      | { error?: string; avatarUrl?: string; coverUrl?: string }
+      | null;
 
     setUploading(null);
     if (!res.ok) {
@@ -77,6 +102,8 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
       return;
     }
 
+    if (kind === 'avatar' && body?.avatarUrl) setAvatarPreview(body.avatarUrl);
+    if (kind === 'cover' && body?.coverUrl) setCoverPreview(body.coverUrl);
     router.refresh();
   }
 
@@ -85,21 +112,39 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
     setSubmitting(true);
     setError(null);
 
+    const trimmedUsername = username.trim();
+    if (trimmedUsername.length < 3) {
+      setSubmitting(false);
+      setError('Username must be at least 3 characters');
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+      setSubmitting(false);
+      setError('Username can only contain letters, numbers, and underscores');
+      return;
+    }
+
+    const normalizedSports = preferredSports.map((s) => s.toUpperCase());
     const profileRes = await fetch('/api/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fullName: fullName.trim() || null,
         bio: bio.trim() || null,
-        username: username.trim(),
-        preferredSports,
+        username: trimmedUsername,
+        preferredSports: normalizedSports,
+        sportSkills: normalizeSportSkills(normalizedSports, sportSkills),
       }),
     });
 
     if (!profileRes.ok) {
-      const body = (await profileRes.json().catch(() => null)) as { error?: string } | null;
+      const body = (await profileRes.json().catch(() => null)) as {
+        error?: string;
+        issues?: { message?: string }[];
+      } | null;
       setSubmitting(false);
-      setError(body?.error ?? 'Could not save profile');
+      const issue = body?.issues?.[0]?.message;
+      setError(body?.error ?? issue ?? 'Could not save profile');
       return;
     }
 
@@ -138,7 +183,7 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
       >
         <div className="flex items-center justify-between">
           <h3 id="edit-profile-title" className="font-headline-md text-headline-md text-on-surface">
-            Edit profile
+            Upraviť profil
           </h3>
           <button type="button" onClick={onClose} className="text-on-surface-variant hover:text-secondary transition-colors">
             <span className="material-symbols-outlined">close</span>
@@ -146,11 +191,19 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
         </div>
 
         <div className="flex gap-4">
-          <label className="flex-1 cursor-pointer">
-            <span className="font-label-caps text-[10px] uppercase text-on-surface-variant block mb-2">Avatar</span>
-            <span className="flex items-center justify-center gap-2 py-2.5 rounded-lg border border-white/10 hover:border-secondary/30 transition-colors text-on-surface-variant text-sm">
-              <span className="material-symbols-outlined text-lg">photo_camera</span>
-              {uploading === 'avatar' ? 'Uploading…' : 'Change'}
+          <label className="flex-1 cursor-pointer space-y-2">
+            <span className="font-label-caps text-[10px] uppercase text-on-surface-variant block">
+              Profilovka
+            </span>
+            <span className="relative flex h-20 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-surface-container hover:border-secondary/30 transition-colors">
+              {avatarPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarPreview} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              ) : null}
+              <span className="relative z-[1] flex items-center justify-center gap-2 rounded-lg bg-black/55 px-3 py-1.5 text-sm text-white">
+                <span className="material-symbols-outlined text-lg">photo_camera</span>
+                {uploading === 'avatar' ? 'Nahrávam…' : 'Zmeniť'}
+              </span>
             </span>
             <input
               type="file"
@@ -164,11 +217,19 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
               }}
             />
           </label>
-          <label className="flex-1 cursor-pointer">
-            <span className="font-label-caps text-[10px] uppercase text-on-surface-variant block mb-2">Cover</span>
-            <span className="flex items-center justify-center gap-2 py-2.5 rounded-lg border border-white/10 hover:border-secondary/30 transition-colors text-on-surface-variant text-sm">
-              <span className="material-symbols-outlined text-lg">wallpaper</span>
-              {uploading === 'cover' ? 'Uploading…' : 'Change'}
+          <label className="flex-1 cursor-pointer space-y-2">
+            <span className="font-label-caps text-[10px] uppercase text-on-surface-variant block">
+              Banner / pozadie
+            </span>
+            <span className="relative flex h-20 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-surface-container hover:border-secondary/30 transition-colors">
+              {coverPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={coverPreview} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              ) : null}
+              <span className="relative z-[1] flex items-center justify-center gap-2 rounded-lg bg-black/55 px-3 py-1.5 text-sm text-white">
+                <span className="material-symbols-outlined text-lg">wallpaper</span>
+                {uploading === 'cover' ? 'Nahrávam…' : 'Zmeniť'}
+              </span>
             </span>
             <input
               type="file"
@@ -215,7 +276,7 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
               onChange={(e) => setBio(e.target.value)}
               maxLength={160}
               rows={3}
-              placeholder="What are you training for?"
+              placeholder="Čo hráš a s kým hľadáš partiu?"
               className="w-full rounded-lg bg-surface-container border border-white/10 px-3 py-2 text-on-surface resize-none"
             />
             <span className="font-label-caps text-[10px] text-on-surface-variant">{bio.length}/160</span>
@@ -248,7 +309,7 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
                     onClick={() => toggleSport(sport)}
                     className={`font-label-caps text-[10px] uppercase px-2.5 py-1 rounded-full border transition-colors ${
                       active
-                        ? 'bg-secondary/20 text-secondary border-secondary/40'
+                        ? 'bg-primary-container/20 text-primary-container border-primary-container/40'
                         : 'bg-surface-container text-on-surface-variant border-white/10 hover:border-white/20'
                     }`}
                   >
@@ -259,14 +320,49 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
             </div>
           </div>
 
+          {preferredSports.length > 0 ? (
+            <div className="space-y-3">
+              <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">Úroveň športov</span>
+              {preferredSports.map((sport) => {
+                const level = (sportSkills[sport as keyof SportSkillsMap] ?? 2) as SportSkillLevel;
+                return (
+                  <div key={sport} className="rounded-xl border border-white/8 bg-surface-container/80 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-body-md text-sm text-on-surface">{sportDisplayLabel(sport)}</span>
+                      <span className="font-label-caps text-[9px] uppercase text-primary-container">
+                        {sportSkillLabel(level)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {([1, 2, 3, 4] as const).map((step) => (
+                        <button
+                          key={step}
+                          type="button"
+                          onClick={() => setSkill(sport, step)}
+                          className={`rounded-lg py-2 font-label-caps text-[10px] uppercase transition-colors ${
+                            level === step
+                              ? 'bg-primary-container text-white'
+                              : 'bg-black/25 text-on-surface-variant hover:bg-black/40'
+                          }`}
+                        >
+                          {step}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+
           {error && <p className="text-primary text-sm">{error}</p>}
 
           <button
             type="submit"
             disabled={submitting || uploading !== null}
-            className="w-full font-label-caps text-label-caps uppercase px-4 py-2.5 rounded-lg bg-secondary text-on-secondary disabled:opacity-50"
+            className="w-full font-label-caps text-label-caps uppercase px-4 py-2.5 rounded-lg bg-primary-container text-white disabled:opacity-50"
           >
-            {submitting ? 'Saving…' : 'Save changes'}
+            {submitting ? 'Ukladám…' : 'Uložiť zmeny'}
           </button>
         </form>
       </div>

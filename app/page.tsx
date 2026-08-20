@@ -190,7 +190,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       <Suspense fallback={null}>
         <PlayerFeedFilterHydrator />
       </Suspense>
-      <div className="ambient-glow-layer fixed inset-0" aria-hidden>
+      <div className="ambient-glow-layer pointer-events-none fixed inset-0 z-0" aria-hidden>
         <div className="ambient-glow bg-primary-container/10 w-[500px] h-[500px] top-0 left-[-200px]" />
         <div className="ambient-glow bg-secondary-container/5 w-[600px] h-[600px] bottom-[20%] right-[-100px]" />
       </div>

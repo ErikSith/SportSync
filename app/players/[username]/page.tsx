@@ -1,44 +1,20 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
-import { createClient } from '@/lib/supabase/server';
 import { getProfileByUsername } from '@/lib/data/profile';
-import { getTopProfilesByCity } from '@/lib/data/homepage';
-import { getProfileGameStats, getKarmaHistory, profileTierLabel } from '@/lib/data/profile-stats';
-import { getProfileGoals } from '@/lib/data/profile-goals';
-import { getProfileAchievements } from '@/lib/data/profile-achievements';
-import { getFavoriteVenues } from '@/lib/data/profile-venues';
+import { getProfileDashboard } from '@/lib/data/profile-dashboard';
 import {
   friendshipRelation,
-  getFriends,
   getFriendshipBetween,
 } from '@/lib/data/profile-friends';
 import { TopAppBar } from '@/components/home/TopAppBar';
-import { ProfileHero } from '@/components/profile/ProfileHero';
-import { ProfileFriendsSection } from '@/components/profile/ProfileFriendsSection';
-import { ProfileGoalsSection } from '@/components/profile/ProfileGoalsSection';
-import { ProfileAchievementsSection } from '@/components/profile/ProfileAchievementsSection';
-import { ProfileVenuesSection } from '@/components/profile/ProfileVenuesSection';
-import { ProfileRankingsSection } from '@/components/profile/ProfileRankingsSection';
-import { ProfileActivitySection } from '@/components/profile/ProfileActivitySection';
+import { ProfileTopSections } from '@/components/profile/ProfileTopSections';
 import { FriendActionButton } from '@/components/profile/FriendActionButton';
 
 export const runtime = 'edge';
 
 interface PlayerProfilePageProps {
   params: { username: string };
-}
-
-async function getCityKarmaRank(city: string, karmaScore: number): Promise<number | null> {
-  const supabase = await createClient();
-  const { count, error } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .ilike('city', city)
-    .gt('karma_score', karmaScore);
-
-  if (error) return null;
-  return (count ?? 0) + 1;
 }
 
 export default async function PlayerProfilePage({ params }: PlayerProfilePageProps) {
@@ -60,27 +36,14 @@ export default async function PlayerProfilePage({ params }: PlayerProfilePagePro
     redirect('/profile');
   }
 
-  const city = profile.city ?? 'Bratislava';
-  const displayName = profile.fullName ?? profile.username;
-  const tier = profileTierLabel(profile.karmaScore);
-
   const friendship = await getFriendshipBetween(viewer.id, profile.id);
   const relation = friendshipRelation(viewer.id, profile.id, friendship);
   const isFriend = relation === 'friends';
 
-  const [stats, goals, achievements, karmaHistory, leaderboard, cityRank, favoriteVenues, friends] =
-    await Promise.all([
-      getProfileGameStats(profile.id),
-      getProfileGoals(profile.id, profile.karmaScore),
-      getProfileAchievements(profile),
-      isFriend ? getKarmaHistory(profile.id) : Promise.resolve([]),
-      getTopProfilesByCity(city, 5),
-      getCityKarmaRank(city, profile.karmaScore),
-      isFriend ? getFavoriteVenues(profile.id) : Promise.resolve([]),
-      isFriend ? getFriends(profile.id) : Promise.resolve([]),
-    ]);
-
-  const isTopTier = tier === 'ELITE TIER' || tier === 'LEGEND';
+  const dashboard = await getProfileDashboard(profile, {
+    includePrivateSocial: isFriend,
+    includeIncomingRequests: false,
+  });
 
   return (
     <>
@@ -104,31 +67,16 @@ export default async function PlayerProfilePage({ params }: PlayerProfilePagePro
           />
         </div>
 
-        <ProfileHero profile={profile} stats={stats} cityRank={cityRank} editable={false} />
-
-        {isFriend && <ProfileFriendsSection friends={friends} incomingRequests={[]} readOnly />}
-
-        <ProfileGoalsSection goals={goals} readOnly />
-
-        <ProfileAchievementsSection achievements={achievements} />
-
-        <ProfileVenuesSection venues={favoriteVenues} />
-
-        {isFriend && (
-          <>
-            <ProfileRankingsSection
-              city={city}
-              cityRank={cityRank}
-              tier={tier}
-              isTopTier={isTopTier}
-              leaderboard={leaderboard}
-            />
-
-            <ProfileActivitySection entries={karmaHistory.slice(0, 5)} />
-          </>
-        )}
+        <ProfileTopSections
+          profile={profile}
+          heroStats={dashboard.heroStats}
+          stats={dashboard.stats}
+          recentMatches={dashboard.recentMatches}
+          karmaFallback={isFriend ? dashboard.karmaHistory : []}
+          editable={false}
+          showStatsExpand={isFriend}
+        />
       </main>
-
     </>
   );
 }

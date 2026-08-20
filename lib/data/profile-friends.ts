@@ -17,13 +17,15 @@ export interface FriendshipView {
   requesterId: string;
   addresseeId: string;
   friend: FriendProfileSnippet;
-  createdAt: Date;
+  /** ISO timestamp — must stay serializable for Client Components. */
+  createdAt: string;
 }
 
 export interface FriendRequestView {
   id: string;
   requester: FriendProfileSnippet;
-  createdAt: Date;
+  /** ISO timestamp — must stay serializable for Client Components. */
+  createdAt: string;
 }
 
 export type FriendshipRelation =
@@ -106,7 +108,7 @@ export async function getFriends(profileId: string): Promise<FriendshipView[]> {
         requesterId: row.requester_id,
         addresseeId: row.addressee_id,
         friend,
-        createdAt: new Date(row.created_at),
+        createdAt: new Date(row.created_at).toISOString(),
       } satisfies FriendshipView;
     })
     .filter((row): row is FriendshipView => row !== null);
@@ -134,7 +136,7 @@ export async function getIncomingFriendRequests(profileId: string): Promise<Frie
       return {
         id: row.id,
         requester,
-        createdAt: new Date(row.created_at),
+        createdAt: new Date(row.created_at).toISOString(),
       } satisfies FriendRequestView;
     })
     .filter((row): row is FriendRequestView => row !== null);
@@ -237,7 +239,7 @@ export async function createFriendRequest(
       requesterId: created.requester_id,
       addresseeId: created.addressee_id,
       friend: mapSnippet(target as ProfileSnippetRow),
-      createdAt: new Date(created.created_at),
+      createdAt: new Date(created.created_at).toISOString(),
     },
   };
 }

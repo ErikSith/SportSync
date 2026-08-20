@@ -25,6 +25,7 @@ export function guestProfile(): Profile {
     coverUrl: null,
     bio: null,
     preferredSports: [],
+    sportSkills: {},
     mercenarySports: [],
     role: 'player',
     city: city.name,

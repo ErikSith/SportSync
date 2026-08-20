@@ -14,12 +14,14 @@ export interface UserGoalView {
   targetMeta: Record<string, unknown>;
   currentValue: number;
   trackingMode: 'manual' | 'auto';
-  deadline: Date | null;
+  /** ISO date string or null — must stay serializable for Client Components. */
+  deadline: string | null;
   isFeatured: boolean;
   status: UserGoalStatus;
   progressPercent: number;
   progressLabel: string;
-  createdAt: Date;
+  /** ISO timestamp — must stay serializable for Client Components. */
+  createdAt: string;
 }
 
 interface UserGoalRow {
@@ -244,12 +246,12 @@ function mapGoalRow(
     targetMeta: row.target_meta ?? {},
     currentValue: progress.current,
     trackingMode: row.tracking_mode as 'manual' | 'auto',
-    deadline: row.deadline ? new Date(row.deadline) : null,
+    deadline: row.deadline ? new Date(row.deadline).toISOString() : null,
     isFeatured: row.is_featured,
     status: progress.percent >= 100 ? 'completed' : status,
     progressPercent: progress.percent,
     progressLabel: progress.label,
-    createdAt: new Date(row.created_at),
+    createdAt: new Date(row.created_at).toISOString(),
   };
 }
 

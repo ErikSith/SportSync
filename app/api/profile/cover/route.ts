@@ -13,10 +13,15 @@ export async function POST(request: Request) {
   }
 
   const formData = await request.formData().catch(() => null);
-  const file = formData?.get('file');
-  if (!(file instanceof File)) {
+  const raw = formData?.get('file');
+  // Edge FormData may yield Blob instead of File.
+  if (!(raw instanceof Blob) || raw.size === 0) {
     return NextResponse.json({ error: 'Missing file' }, { status: 400 });
   }
+  const file =
+    raw instanceof File
+      ? raw
+      : new File([raw], 'cover', { type: raw.type || 'image/jpeg' });
 
   const result = await uploadProfileImage(auth.user.id, file, 'cover');
   if ('error' in result) {

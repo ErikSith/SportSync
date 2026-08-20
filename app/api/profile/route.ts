@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getProfileByAuthId, updateProfile } from '@/lib/data/profile';
 import { EVENT_SPORTS } from '@/lib/constants/sports';
+import { parseSportSkills } from '@/lib/profile/sport-skills';
 
 export const runtime = 'edge';
 
@@ -19,6 +20,7 @@ const patchSchema = z.object({
     .array(z.enum(EVENT_SPORTS))
     .max(7)
     .optional(),
+  sportSkills: z.record(z.string(), z.number().int().min(1).max(4)).optional(),
   mercenarySports: z
     .array(z.enum(EVENT_SPORTS))
     .max(7)
@@ -53,10 +55,17 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
   }
 
-  const profile = await updateProfile(auth.user.id, parsed.data);
-  if (!profile) {
-    return NextResponse.json({ error: 'Could not update profile' }, { status: 500 });
+  const { sportSkills: rawSkills, preferredSports, mercenarySports, ...rest } = parsed.data;
+  const result = await updateProfile(auth.user.id, {
+    ...rest,
+    preferredSports,
+    mercenarySports,
+    sportSkills: rawSkills !== undefined ? parseSportSkills(rawSkills) : undefined,
+  });
+  if (!result.ok) {
+    const status = result.error === 'Profile not found' ? 404 : result.error.includes('username') ? 409 : 500;
+    return NextResponse.json({ error: result.error }, { status });
   }
 
-  return NextResponse.json({ profile });
+  return NextResponse.json({ profile: result.profile });
 }

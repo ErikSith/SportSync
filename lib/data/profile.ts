@@ -1,22 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
+import {
+  normalizeSportSkills,
+  parseSportSkills,
+  type SportSkillsMap,
+} from '@/lib/profile/sport-skills';
+import type { Profile } from '@/lib/data/profile-shared';
 
-export interface Profile {
-  id: string;
-  email: string;
-  username: string;
-  fullName: string | null;
-  avatarUrl: string | null;
-  coverUrl: string | null;
-  bio: string | null;
-  preferredSports: string[];
-  mercenarySports: string[];
-  role: string;
-  city: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  karmaScore: number;
-  seasonPts: number;
-}
+export type { Profile } from '@/lib/data/profile-shared';
 
 interface ProfileRow {
   id: string;
@@ -27,6 +17,7 @@ interface ProfileRow {
   cover_url: string | null;
   bio: string | null;
   preferred_sports: string[] | null;
+  sport_skills?: unknown;
   mercenary_sports: string[] | null;
   role: string;
   city: string | null;
@@ -37,6 +28,7 @@ interface ProfileRow {
 }
 
 export function mapProfile(row: ProfileRow): Profile {
+  const preferredSports = row.preferred_sports ?? [];
   return {
     id: row.id,
     email: row.email,
@@ -45,7 +37,8 @@ export function mapProfile(row: ProfileRow): Profile {
     avatarUrl: row.avatar_url,
     coverUrl: row.cover_url,
     bio: row.bio,
-    preferredSports: row.preferred_sports ?? [],
+    preferredSports,
+    sportSkills: normalizeSportSkills(preferredSports, parseSportSkills(row.sport_skills)),
     mercenarySports: row.mercenary_sports ?? [],
     role: row.role,
     city: row.city,
@@ -83,22 +76,52 @@ export interface ProfileUpdateInput {
   bio?: string | null;
   username?: string;
   preferredSports?: string[];
+  sportSkills?: SportSkillsMap;
   mercenarySports?: string[];
 }
 
+export type ProfileUpdateResult =
+  | { ok: true; profile: Profile }
+  | { ok: false; error: string };
+
+function normalizePreferredSports(sports: string[] | undefined): string[] | undefined {
+  if (sports === undefined) return undefined;
+  return [...new Set(sports.map((s) => s.trim().toUpperCase()).filter(Boolean))];
+}
+
 /** Updates the signed-in user's profile fields. */
-export async function updateProfile(authId: string, input: ProfileUpdateInput): Promise<Profile | null> {
+export async function updateProfile(
+  authId: string,
+  input: ProfileUpdateInput,
+): Promise<ProfileUpdateResult> {
   const supabase = await createClient();
+
+  const current = await getProfileByAuthId(authId);
+  if (!current) return { ok: false, error: 'Profile not found' };
+
+  const preferredSports = normalizePreferredSports(input.preferredSports);
+  const mercenarySports = normalizePreferredSports(input.mercenarySports);
 
   const update: Record<string, unknown> = {};
   if (input.fullName !== undefined) update.full_name = input.fullName;
   if (input.bio !== undefined) update.bio = input.bio;
-  if (input.username !== undefined) update.username = input.username;
-  if (input.preferredSports !== undefined) update.preferred_sports = input.preferredSports;
-  if (input.mercenarySports !== undefined) update.mercenary_sports = input.mercenarySports;
+  if (input.username !== undefined) update.username = input.username.trim();
+  if (mercenarySports !== undefined) update.mercenary_sports = mercenarySports;
+
+  const nextPreferred = preferredSports ?? current.preferredSports;
+  if (preferredSports !== undefined) {
+    update.preferred_sports = preferredSports;
+  }
+
+  if (input.sportSkills !== undefined || preferredSports !== undefined) {
+    update.sport_skills = normalizeSportSkills(nextPreferred, {
+      ...current.sportSkills,
+      ...(input.sportSkills ?? {}),
+    });
+  }
 
   if (Object.keys(update).length === 0) {
-    return getProfileByAuthId(authId);
+    return { ok: true, profile: current };
   }
 
   const { data, error } = await supabase
@@ -108,8 +131,28 @@ export async function updateProfile(authId: string, input: ProfileUpdateInput): 
     .select('*')
     .single();
 
-  if (error || !data) return null;
-  return mapProfile(data as ProfileRow);
+  if (error || !data) {
+    // Unique username collision
+    if (error && /profiles_username|duplicate key|unique/i.test(error.message)) {
+      return { ok: false, error: 'This username is already taken' };
+    }
+    // Remote DB may lag Prisma — retry without optional columns that might be missing.
+    if (error && /schema cache|column .* does not exist/i.test(error.message)) {
+      const optionalKeys = ['sport_skills', 'preferred_sports', 'mercenary_sports', 'bio', 'cover_url'] as const;
+      const rest = { ...update };
+      for (const key of optionalKeys) {
+        if (error.message.includes(key)) delete rest[key];
+      }
+      if (Object.keys(rest).length === 0) return { ok: true, profile: current };
+      const fallback = await supabase.from('profiles').update(rest).eq('id', authId).select('*').single();
+      if (fallback.error || !fallback.data) {
+        return { ok: false, error: fallback.error?.message ?? 'Could not update profile' };
+      }
+      return { ok: true, profile: mapProfile(fallback.data as ProfileRow) };
+    }
+    return { ok: false, error: error?.message ?? 'Could not update profile' };
+  }
+  return { ok: true, profile: mapProfile(data as ProfileRow) };
 }
 
 export async function updateProfileAvatarUrl(authId: string, avatarUrl: string): Promise<Profile | null> {

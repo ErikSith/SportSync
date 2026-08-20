@@ -1,5 +1,4 @@
-import type { Profile } from '@/lib/data/profile';
-import type { ProfileGameStats } from '@/lib/data/profile-stats';
+import type { Profile, ProfileGameStatsView } from '@/lib/data/profile-shared';
 
 interface StatTile {
   label: string;
@@ -9,18 +8,19 @@ interface StatTile {
 
 interface StatsGridProps {
   profile: Profile;
-  stats: ProfileGameStats;
+  stats: ProfileGameStatsView;
   embedded?: boolean;
 }
 
 export function StatsGrid({ profile, stats, embedded = false }: StatsGridProps) {
   const tiles: StatTile[] = [
-    { label: 'Matches Played', value: stats.completedLobbies, icon: 'sports_score' },
+    { label: 'Matches Played', value: stats.gamesPlayed || stats.completedLobbies, icon: 'sports_score' },
+    { label: 'Groups', value: stats.groupsCount, icon: 'groups' },
     { label: 'Karma Score', value: profile.karmaScore, icon: 'favorite' },
     { label: 'Season Points', value: profile.seasonPts, icon: 'military_tech' },
     { label: 'Tournaments', value: stats.tournamentRegistrations, icon: 'emoji_events' },
     { label: 'Lessons Booked', value: stats.lessonsBooked, icon: 'school' },
-    { label: 'Lobbies Hosted', value: stats.lobbiesHosted, icon: 'groups' },
+    { label: 'Lobbies Hosted', value: stats.lobbiesHosted, icon: 'stadium' },
   ];
 
   return (

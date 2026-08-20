@@ -12,8 +12,12 @@ interface KarmaVisual {
   trailingFilled?: boolean;
 }
 
-function formatRelativeTime(date: Date): string {
-  const diffMs = Date.now() - date.getTime();
+function formatRelativeTime(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  const ms = date.getTime();
+  if (Number.isNaN(ms)) return '';
+
+  const diffMs = Date.now() - ms;
   const minutes = Math.floor(diffMs / 60_000);
 
   if (minutes < 1) return 'Just now';

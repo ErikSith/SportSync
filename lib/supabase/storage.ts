@@ -42,11 +42,11 @@ export async function uploadProfileImage(
   const path = `${userId}/${kind}.${ext}`;
   const supabase = await createClient();
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const bytes = new Uint8Array(await file.arrayBuffer());
 
   const { error: uploadError } = await supabase.storage
     .from(PROFILE_MEDIA_BUCKET)
-    .upload(path, buffer, {
+    .upload(path, bytes, {
       contentType: file.type,
       upsert: true,
     });
@@ -56,5 +56,7 @@ export async function uploadProfileImage(
   }
 
   const { data } = supabase.storage.from(PROFILE_MEDIA_BUCKET).getPublicUrl(path);
-  return { publicUrl: data.publicUrl };
+  // Same object path on re-upload — bust CDN/browser cache so the new image shows.
+  const publicUrl = `${data.publicUrl}?v=${Date.now()}`;
+  return { publicUrl };
 }
