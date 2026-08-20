@@ -14,14 +14,16 @@ export async function POST(request: Request) {
 
   const formData = await request.formData().catch(() => null);
   const raw = formData?.get('file');
-  // Edge FormData may yield Blob instead of File.
+  // FormDataEntryValue is File | string; some runtimes still hand back a plain Blob.
   if (!(raw instanceof Blob) || raw.size === 0) {
     return NextResponse.json({ error: 'Missing file' }, { status: 400 });
   }
   const file =
     raw instanceof File
       ? raw
-      : new File([raw], 'avatar', { type: raw.type || 'image/jpeg' });
+      : new File([raw as BlobPart], 'avatar', {
+          type: (raw as { type?: string }).type || 'image/jpeg',
+        });
 
   const result = await uploadProfileImage(auth.user.id, file, 'avatar');
   if ('error' in result) {
