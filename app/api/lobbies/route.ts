@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getApiAuthUser } from '@/lib/auth/api-user';
+import { ensureProfileForUser } from '@/lib/auth/ensure-profile';
 import { LOBBY_FORMATS } from '@/lib/constants/lobbies';
 import { LOBBY_SPORTS } from '@/lib/constants/sports';
 import { findCityByName } from '@/lib/cities';
@@ -26,6 +27,14 @@ export async function POST(request: Request) {
   const { user, supabase } = await getApiAuthUser();
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  const profileReady = await ensureProfileForUser(supabase, user);
+  if (!profileReady.ok) {
+    return NextResponse.json(
+      { error: profileReady.error || 'Could not prepare player profile' },
+      { status: 500 },
+    );
   }
 
   const json = await request.json().catch(() => null);
@@ -63,6 +72,8 @@ export async function POST(request: Request) {
     }
   }
 
+  const title = input.title?.trim() || null;
+
   const baseInsert = {
     host_id: user.id,
     sport: input.sport,
@@ -77,13 +88,14 @@ export async function POST(request: Request) {
     latitude,
     longitude,
     status: 'open',
+    // Keep title on the core insert so sport/venue still show after schema-cache fallback.
+    title,
   };
 
   const enrichedInsert = {
     ...baseInsert,
     skill_level: input.skillLevel ?? null,
     lobby_type: input.lobbyType ?? null,
-    title: input.title ?? null,
   };
 
   let lobby: { id: string } | null = null;

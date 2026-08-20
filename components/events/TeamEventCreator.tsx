@@ -94,7 +94,7 @@ export function TeamEventCreator({ defaultCity }: TeamEventCreatorProps) {
 
     setCreatedEventId(body.eventId);
     setStep('done');
-    router.push(`/events/${body.eventId}`);
+    router.push('/events');
   }
 
   function updateIntentField<K extends keyof EventIntent>(key: K, value: EventIntent[K]) {
@@ -116,10 +116,10 @@ export function TeamEventCreator({ defaultCity }: TeamEventCreatorProps) {
               </p>
             </div>
             <Link
-              href={`/events/${createdEventId}`}
+              href="/events"
               className="inline-flex w-full py-3 rounded-lg bg-primary-container text-white font-label-caps text-label-caps items-center justify-center gap-2"
             >
-              VIEW EVENT
+              VIEW EVENTS
               <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
             </Link>
           </section>

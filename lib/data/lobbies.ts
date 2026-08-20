@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
+import { lobbyActiveSinceIso } from '@/lib/retention/lobbies';
 import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 
 export { LOBBY_SPORTS, type LobbySport } from '@/lib/constants/sports';
@@ -194,7 +195,7 @@ export async function getMyLobbyCards(
   take = 12,
 ): Promise<LobbyCardData[]> {
   const supabase = await createClient();
-  const now = new Date().toISOString();
+  const activeSince = lobbyActiveSinceIso();
 
   const { data: memberships } = await supabase
     .from('lobby_participants')
@@ -211,7 +212,7 @@ export async function getMyLobbyCards(
     .from('lobbies')
     .select(LOBBY_CARD_SELECT)
     .in('status', ['open', 'full', 'live'])
-    .gte('scheduled_at', now)
+    .gte('scheduled_at', activeSince)
     .or(orParts.join(','))
     .order('scheduled_at', { ascending: true })
     .limit(take);
@@ -232,7 +233,7 @@ async function findWithinRadius(query: LobbyFeedQuery, radiusKm: number): Promis
     .from('lobbies')
     .select(LOBBY_CARD_SELECT)
     .in('status', ['open', 'full', 'live'])
-    .gte('scheduled_at', new Date().toISOString())
+    .gte('scheduled_at', lobbyActiveSinceIso())
     .gte('latitude', box.minLat)
     .lte('latitude', box.maxLat)
     .gte('longitude', box.minLng)
@@ -287,7 +288,7 @@ export async function getCityLobbyFeed(
     .from('lobbies')
     .select(LOBBY_CARD_SELECT)
     .in('status', ['open', 'full', 'live'])
-    .gte('scheduled_at', new Date().toISOString())
+    .gte('scheduled_at', lobbyActiveSinceIso())
     .ilike('city', city)
     .order('scheduled_at', { ascending: true })
     .limit(take);
@@ -398,6 +399,7 @@ export async function getLobbyById(id: string, viewerProfileId: string): Promise
     `,
     )
     .eq('id', id)
+    .gte('scheduled_at', lobbyActiveSinceIso())
     .maybeSingle();
 
   if (error || !data) return null;

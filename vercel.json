@@ -11,6 +11,14 @@
     {
       "path": "/api/cron/midnight-sync",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/scrape-events",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/purge-lobbies",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

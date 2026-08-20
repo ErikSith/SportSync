@@ -43,6 +43,8 @@ export interface EventCardData {
   isAggregated: boolean;
   /** Kids-oriented activity (Kidstown / pre deti). */
   forKids: boolean;
+  /** Women-only activity (pre ženy / ladies only). */
+  forWomen: boolean;
   /** Present when Mixed Feed Engine injected this card outside sport/venue prefs. */
   isDiscovery?: boolean;
   discoveryReason?: EventDiscoveryReason;
@@ -103,6 +105,7 @@ interface EventRow {
   external_id?: string | null;
   is_aggregated?: boolean | null;
   for_kids?: boolean | null;
+  for_women?: boolean | null;
   venues?: { name: string } | { name: string }[] | null;
 }
 
@@ -181,6 +184,7 @@ function mapEventCard(event: EventRow, d: number): EventCardData {
     externalId: event.external_id ?? null,
     isAggregated: Boolean(event.is_aggregated),
     forKids: Boolean(event.for_kids),
+    forWomen: Boolean(event.for_women),
   };
 }
 

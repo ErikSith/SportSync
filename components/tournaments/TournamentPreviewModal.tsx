@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Calendar, Clock, MapPin, Trophy, Users, X } from 'lucide-react';
 import type { TournamentCardData } from '@/lib/data/tournaments';
+import { eventMatchesKids, eventMatchesWomen } from '@/lib/event-audience-filter';
 import { tournamentParticipationMode } from '@/lib/tournament-participation';
 import { lobbyTierLabel } from '@/lib/utils/lobby';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
@@ -213,6 +214,34 @@ export function TournamentPreviewModal({
                   />
                   <span className="text-white/40">·</span>
                   <span style={{ color: BRASS }}>{formatLabel}</span>
+                  {eventMatchesWomen({
+                    title: tournament.name,
+                    description: tournament.description,
+                    sourceUrl: tournament.sourceUrl,
+                    forKids: tournament.forKids,
+                    forWomen: tournament.forWomen,
+                    venueName: tournament.venueName,
+                    sourceName: tournament.source,
+                  }) ? (
+                    <>
+                      <span className="text-white/40">·</span>
+                      <span>Pre ženy</span>
+                    </>
+                  ) : null}
+                  {eventMatchesKids({
+                    title: tournament.name,
+                    description: tournament.description,
+                    sourceUrl: tournament.sourceUrl,
+                    forKids: tournament.forKids,
+                    forWomen: tournament.forWomen,
+                    venueName: tournament.venueName,
+                    sourceName: tournament.source,
+                  }) ? (
+                    <>
+                      <span className="text-white/40">·</span>
+                      <span>Pre deti</span>
+                    </>
+                  ) : null}
                 </p>
                 <h2
                   id={titleId}

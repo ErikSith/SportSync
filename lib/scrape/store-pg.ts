@@ -3,7 +3,7 @@ import { SPORT_TYPE_THEMES } from '@/lib/ai/theme-config';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { resolveEventCover } from '@/lib/media/cover-factory';
 import { aggregatorNotice, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
-import { detectExplicitKidsAudience } from '@/lib/events/for-kids';
+import { classifyListingAudience } from '@/lib/events/audience';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import {
   DEFAULT_COVERS,
@@ -18,21 +18,21 @@ import {
 
 type UpsertStats = { created: number; updated: number; skipped: number; unchanged: number };
 
-let forKidsColumnAvailable: boolean | null = null;
+let audienceColumnsAvailable: boolean | null = null;
 
-async function supportsForKidsColumn(client: Client): Promise<boolean> {
-  if (forKidsColumnAvailable != null) return forKidsColumnAvailable;
+async function supportsAudienceColumns(client: Client): Promise<boolean> {
+  if (audienceColumnsAvailable != null) return audienceColumnsAvailable;
   try {
     const res = await client.query(
       `select 1 from information_schema.columns
-       where table_schema = 'public' and table_name = 'events' and column_name = 'for_kids'
+       where table_schema = 'public' and table_name = 'events' and column_name = 'for_women'
        limit 1`,
     );
-    forKidsColumnAvailable = (res.rowCount ?? 0) > 0;
+    audienceColumnsAvailable = (res.rowCount ?? 0) > 0;
   } catch {
-    forKidsColumnAvailable = false;
+    audienceColumnsAvailable = false;
   }
-  return forKidsColumnAvailable;
+  return audienceColumnsAvailable;
 }
 
 function skillFromTitle(title: string): { min: number | null; max: number | null } {
@@ -177,7 +177,7 @@ export async function upsertEventsPg(
   const stats: UpsertStats = { created: 0, updated: 0, skipped: 0, unchanged: 0 };
 
   await withPgAdmin(async (client) => {
-    const hasForKids = await supportsForKidsColumn(client);
+    const hasAudience = await supportsAudienceColumns(client);
 
     for (const raw of events) {
       try {
@@ -206,24 +206,25 @@ export async function upsertEventsPg(
           is_aggregated: boolean | null;
           cover_url: string | null;
           for_kids: boolean | null;
+          for_women: boolean | null;
         }>(
-          hasForKids
+          hasAudience
             ? `select id, title, sport, starts_at, price_cents, capacity, registered_count,
                     venue_id, source_url, ticket_url, participation_mode, is_aggregated, cover_url,
-                    for_kids
+                    for_kids, for_women
                from events
                where source = $1 and external_id = $2
                limit 1`
             : `select id, title, sport, starts_at, price_cents, capacity, registered_count,
                     venue_id, source_url, ticket_url, participation_mode, is_aggregated, cover_url,
-                    false as for_kids
+                    false as for_kids, false as for_women
                from events
                where source = $1 and external_id = $2
                limit 1`,
           [event.source, event.externalId],
         );
         const existing = existingRes.rows[0];
-        const forKids = detectExplicitKidsAudience({
+        const { forKids, forWomen } = classifyListingAudience({
           title: event.title,
           description,
           sourceUrl: event.sourceUrl,
@@ -231,6 +232,7 @@ export async function upsertEventsPg(
           sourceName,
           locationName: event.locationName,
           forKids: event.forKids,
+          forWomen: event.forWomen,
         });
 
         if (!existing?.id) {
@@ -266,7 +268,9 @@ export async function upsertEventsPg(
             strEq(existing.source_url, event.sourceUrl ?? null) &&
             strEq(existing.ticket_url, event.ticketUrl ?? null) &&
             strEq(existing.participation_mode, event.participationMode) &&
-            (!hasForKids || Boolean(existing.for_kids) === forKids) &&
+            (!hasAudience ||
+              (Boolean(existing.for_kids) === forKids &&
+                Boolean(existing.for_women) === forWomen)) &&
             Boolean(existing.is_aggregated) === SCRAPE_ETHICS.isAggregatedRedirector;
 
           if (same) {
@@ -292,7 +296,7 @@ export async function upsertEventsPg(
           }
 
           await client.query(
-            hasForKids
+            hasAudience
               ? `update events set
                type = 'official',
                status = 'open',
@@ -325,6 +329,7 @@ export async function upsertEventsPg(
                participation_mode = $22,
                theme_config = $23::jsonb,
                for_kids = $24,
+               for_women = $25,
                ai_enriched = false,
                photos = '{}',
                sponsors_json = '[]'::jsonb
@@ -364,7 +369,7 @@ export async function upsertEventsPg(
                photos = '{}',
                sponsors_json = '[]'::jsonb
              where id = $1::uuid`,
-            hasForKids
+            hasAudience
               ? [
                   existing.id,
                   event.sport,
@@ -390,6 +395,7 @@ export async function upsertEventsPg(
                   event.participationMode,
                   JSON.stringify(theme),
                   forKids,
+                  forWomen,
                 ]
               : [
                   existing.id,
@@ -422,21 +428,21 @@ export async function upsertEventsPg(
         }
 
         await client.query(
-          hasForKids
+          hasAudience
             ? `insert into events (
              type, status, sport, sport_type, title, description, cover_url, city,
              starts_at, event_date, start_time, price, price_cents, currency,
              capacity, max_participants, registered_count, latitude, longitude,
              venue_id, organizer_id, source, external_id, source_url, source_name,
              is_aggregated, ticket_url, scraped_at, participation_mode, theme_config,
-             for_kids, ai_enriched, photos, sponsors_json
+             for_kids, for_women, ai_enriched, photos, sponsors_json
            ) values (
              'official', 'open', $1, $2::"SportType", $3, $4, $5, $6,
              $7::timestamptz, $7::timestamptz, $7::timestamptz, $8, $9, 'EUR',
              $10, $10, $11, $12, $13,
              $14::uuid, null, $15, $16, $17, $18,
              $19, $20, now(), $21, $22::jsonb,
-             $23, false, '{}', '[]'::jsonb
+             $23, $24, false, '{}', '[]'::jsonb
            )`
             : `insert into events (
              type, status, sport, sport_type, title, description, cover_url, city,
@@ -453,7 +459,7 @@ export async function upsertEventsPg(
              $19, $20, now(), $21, $22::jsonb,
              false, '{}', '[]'::jsonb
            )`,
-          hasForKids
+          hasAudience
             ? [
                 event.sport,
                 event.sportType,
@@ -478,6 +484,7 @@ export async function upsertEventsPg(
                 event.participationMode,
                 JSON.stringify(theme),
                 forKids,
+                forWomen,
               ]
             : [
                 event.sport,
@@ -537,6 +544,16 @@ export async function upsertTournamentsPg(
         const description = withAggregatorDescription(item, sourceName);
         const startsAt = item.startsAt.toISOString();
         await syncVenueBorough(client, venueId, item);
+        const { forKids, forWomen } = classifyListingAudience({
+          title: item.title,
+          description,
+          sourceUrl: item.sourceUrl,
+          venueName: venue?.name ?? item.locationName,
+          sourceName,
+          locationName: item.locationName,
+          forKids: item.forKids,
+          forWomen: item.forWomen,
+        });
 
         const existingRes = await client.query<{
           id: string;
@@ -550,9 +567,11 @@ export async function upsertTournamentsPg(
           source_url: string | null;
           ticket_url: string | null;
           cover_url: string | null;
+          for_kids: boolean | null;
+          for_women: boolean | null;
         }>(
           `select id, name, sport, starts_at, entry_fee, max_participants, current_participants,
-                  venue_id, source_url, ticket_url, cover_url
+                  venue_id, source_url, ticket_url, cover_url, for_kids, for_women
            from tournaments
            where source = $1 and external_id = $2
            limit 1`,
@@ -570,7 +589,9 @@ export async function upsertTournamentsPg(
             numEq(existing.current_participants, item.registeredCount ?? 0) &&
             strEq(existing.venue_id, venueId) &&
             strEq(existing.source_url, item.sourceUrl ?? null) &&
-            strEq(existing.ticket_url, item.ticketUrl ?? null);
+            strEq(existing.ticket_url, item.ticketUrl ?? null) &&
+            Boolean(existing.for_kids) === forKids &&
+            Boolean(existing.for_women) === forWomen;
 
           if (same) {
             await client.query(`update tournaments set scraped_at = now() where id = $1::uuid`, [
@@ -615,6 +636,8 @@ export async function upsertTournamentsPg(
                external_id = $17,
                source_url = $18,
                ticket_url = $19,
+               for_kids = $20,
+               for_women = $21,
                scraped_at = now(),
                updated_at = now()
              where id = $1::uuid`,
@@ -638,6 +661,8 @@ export async function upsertTournamentsPg(
               item.externalId,
               item.sourceUrl ?? null,
               item.ticketUrl ?? null,
+              forKids,
+              forWomen,
             ],
           );
           stats.updated += 1;
@@ -649,12 +674,12 @@ export async function upsertTournamentsPg(
              organizer_id, venue_id, name, description, sport, format, status,
              skill_level_min, skill_level_max, entry_fee, max_participants, current_participants,
              cover_url, city, latitude, longitude, starts_at, ends_at, registration_deadline,
-             source, external_id, source_url, ticket_url, scraped_at, updated_at
+             source, external_id, source_url, ticket_url, for_kids, for_women, scraped_at, updated_at
            ) values (
              null, $1::uuid, $2, $3, $4, 'SINGLE_ELIMINATION', 'REGISTRATION_OPEN',
              $5, $6, $7, $8, $9,
              $10, $11, $12, $13, $14::timestamptz, null, $14::timestamptz,
-             $15, $16, $17, $18, now(), now()
+             $15, $16, $17, $18, $19, $20, now(), now()
            )`,
           [
             venueId,
@@ -675,6 +700,8 @@ export async function upsertTournamentsPg(
             item.externalId,
             item.sourceUrl ?? null,
             item.ticketUrl ?? null,
+            forKids,
+            forWomen,
           ],
         );
         stats.created += 1;

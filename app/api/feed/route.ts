@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { boundingBox, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
+import { lobbyActiveSinceIso } from '@/lib/retention/lobbies';
 
 export const runtime = 'edge';
 
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
 
   // Build query filters
   const now = new Date().toISOString();
+  const lobbySince = lobbyActiveSinceIso();
 
   // 1. Fetch pending match suggestions for this user
   const { data: suggestions, error: suggestionsError } = await supabase
@@ -102,7 +104,7 @@ let events = (await eventsQuery).data ?? [];
     .from('lobbies')
     .select('id, sport, format, city, status, spots_total, spots_filled, cost_per_player, split_pay, mercenary_mode, scheduled_at, latitude, longitude, created_at')
     .eq('status', 'open')
-    .gte('scheduled_at', now)
+    .gte('scheduled_at', lobbySince)
     .order('scheduled_at', { ascending: true })
     .limit(20);
 
@@ -126,7 +128,7 @@ let lobbies = (await lobbiesQuery).data ?? [];
       .from('lobbies')
       .select('id, sport, format, city, status, spots_total, spots_filled, cost_per_player, split_pay, mercenary_mode, scheduled_at, latitude, longitude, created_at')
       .eq('status', 'open')
-      .gte('scheduled_at', now)
+      .gte('scheduled_at', lobbySince)
       .order('scheduled_at', { ascending: true })
       .limit(20)
       .gte('latitude', fallbackBox.minLat)

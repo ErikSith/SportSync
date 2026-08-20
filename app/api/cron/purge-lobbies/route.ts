@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { cleanupExpiredEvents } from '@/lib/retention/events';
-import { cleanupExpiredLobbies } from '@/lib/retention/lobbies';
-import { runAllScrapers } from '@/lib/scrape/run';
 
 export const runtime = 'edge';
-export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 function isAuthorizedCron(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -32,25 +29,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const purge = await cleanupExpiredEvents();
-    const lobbyPurge = await cleanupExpiredLobbies();
-    const scrape = await runAllScrapers();
-
-    return NextResponse.json({
-      ok: true,
-      purge,
-      lobbyPurge,
-      scrape: {
-        created: scrape.created,
-        updated: scrape.updated,
-        unchanged: scrape.unchanged,
-        skipped: scrape.skipped,
-        adapters: scrape.adapters,
-      },
-    });
+    const { cleanupExpiredLobbies } = await import('@/lib/retention/lobbies');
+    const result = await cleanupExpiredLobbies();
+    return NextResponse.json({ ok: true, ...result });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Midnight sync failed';
-    console.error('[midnight-sync]', message);
+    const message = error instanceof Error ? error.message : 'Lobby retention cleanup failed';
+    console.error('[LobbyRetention]', message);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

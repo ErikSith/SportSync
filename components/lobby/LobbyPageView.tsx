@@ -199,14 +199,14 @@ export function LobbyPageView({
     } | null;
 
     if (res.status === 401) {
-      revealCreatedLobby(draft, `preview-${crypto.randomUUID()}`);
-      return;
+      throw new Error('Nepodarilo sa overiť session. Skús to znova — na telefóne pomôže obnoviť stránku.');
     }
 
     if (!res.ok || !body?.lobbyId) {
       throw new Error(body?.error ?? 'Lobby sa nepodarilo vytvoriť.');
     }
 
+    // Jump into the selected sport feed so the new lobby is visible under that sport.
     revealCreatedLobby(draft, body.lobbyId);
     router.refresh();
   }

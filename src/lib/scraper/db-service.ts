@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { detectEventSport } from '@/lib/constants/sports';
 import { resolveSportType, buildThemeConfig } from '@/lib/ai/theme-config';
-import { detectExplicitKidsAudience } from '@/lib/events/for-kids';
+import { classifyListingAudience } from '@/lib/events/audience';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   GEMINI_SCRAPER_SOURCE,
@@ -19,6 +19,8 @@ import {
   loadVenueUrlIndex,
   findVenueInIndex,
   resolveVenueFromListingUrl,
+  resolveVenueFromLocationName,
+  type ResolvedListingVenue,
   type VenueUrlIndex,
 } from './resolve-venue';
 
@@ -116,6 +118,24 @@ export interface UpsertScrapedOptions {
   venueIndex?: VenueUrlIndex;
 }
 
+function resolveWriteVenue(
+  event: ScrapedEvent,
+  opts: UpsertScrapedOptions,
+  existingVenueId: string | null,
+): { venueId: string | null; named: ResolvedListingVenue | null } {
+  const index = opts.venueIndex;
+  const pageUrl = opts.scrapePageUrl ?? event.originalUrl;
+  const fromUrl = index ? resolveVenueFromListingUrl(pageUrl, index) : null;
+  const fromName =
+    !fromUrl && index ? resolveVenueFromLocationName(event.locationName, index) : null;
+  const resolved = fromUrl ?? fromName;
+  const venueId = opts.venueId ?? resolved?.id ?? existingVenueId ?? null;
+  const named =
+    (resolved && resolved.id === venueId ? resolved : null) ??
+    (venueId && index ? findVenueInIndex(venueId, index) : null);
+  return { venueId, named };
+}
+
 function isGroupClassWrite(event: ScrapedEvent, opts: UpsertScrapedOptions): boolean {
   if (looksLikeTournament(event)) return false;
   if (opts.forceGroupClass) return true;
@@ -143,6 +163,7 @@ type ExistingEvent = {
   cover_url: string | null;
   external_id: string | null;
   for_kids: boolean | null;
+  for_women: boolean | null;
 };
 
 type ExistingTournament = {
@@ -156,6 +177,8 @@ type ExistingTournament = {
   latitude: number | null;
   longitude: number | null;
   external_id: string | null;
+  for_kids: boolean | null;
+  for_women: boolean | null;
 };
 
 async function findEventByUrlAndStart(originalUrl: string, startsAt: Date) {
@@ -165,7 +188,7 @@ async function findEventByUrlAndStart(originalUrl: string, startsAt: Date) {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, title, sport, starts_at, price_cents, source_url, venue_id, latitude, longitude, cover_url, external_id, for_kids',
+      'id, title, sport, starts_at, price_cents, source_url, venue_id, latitude, longitude, cover_url, external_id, for_kids, for_women',
     )
     .eq('source_url', originalUrl)
     .gte('starts_at', from)
@@ -181,7 +204,7 @@ async function findTournamentByUrlAndStart(originalUrl: string, startsAt: Date) 
   const { data } = await supabase
     .from('tournaments')
     .select(
-      'id, name, sport, starts_at, entry_fee, source_url, venue_id, latitude, longitude, external_id',
+      'id, name, sport, starts_at, entry_fee, source_url, venue_id, latitude, longitude, external_id, for_kids, for_women',
     )
     .eq('source_url', originalUrl)
     .gte('starts_at', from)
@@ -217,7 +240,7 @@ async function upsertEvent(
   const { data: byKey } = await supabase
     .from('events')
     .select(
-      'id, title, sport, starts_at, price_cents, source_url, venue_id, latitude, longitude, cover_url, external_id, for_kids',
+      'id, title, sport, starts_at, price_cents, source_url, venue_id, latitude, longitude, cover_url, external_id, for_kids, for_women',
     )
     .eq('source', GEMINI_SCRAPER_SOURCE)
     .eq('external_id', externalId)
@@ -227,26 +250,20 @@ async function upsertEvent(
     (byKey as ExistingEvent | null) ??
     (await findEventByUrlAndStart(originalUrl, startsAt));
 
-  const index = opts.venueIndex;
-  const fromUrl = index
-    ? resolveVenueFromListingUrl(opts.scrapePageUrl ?? originalUrl, index)
-    : null;
-  const venueId = opts.venueId ?? fromUrl?.id ?? existing?.venue_id ?? null;
-  const named =
-    (fromUrl && fromUrl.id === venueId ? fromUrl : null) ??
-    (venueId && index ? findVenueInIndex(venueId, index) : null);
+  const { venueId, named } = resolveWriteVenue(event, opts, existing?.venue_id ?? null);
   const latitude =
-    opts.latitude ?? named?.latitude ?? fromUrl?.latitude ?? existing?.latitude ?? 48.1486;
+    opts.latitude ?? named?.latitude ?? existing?.latitude ?? 48.1486;
   const longitude =
-    opts.longitude ?? named?.longitude ?? fromUrl?.longitude ?? existing?.longitude ?? 17.1077;
-  const sourceName = named?.name?.trim() || fromUrl?.name?.trim() || 'Web športoviska';
-  const forKids = detectExplicitKidsAudience({
+    opts.longitude ?? named?.longitude ?? existing?.longitude ?? 17.1077;
+  const sourceName = named?.name?.trim() || 'Web športoviska';
+  const { forKids, forWomen } = classifyListingAudience({
     title: event.title,
     description: event.description,
     sourceUrl: originalUrl,
     venueName: sourceName,
     locationName: event.locationName,
     forKids: event.forKids,
+    forWomen: event.forWomen,
   });
 
   const shared = {
@@ -278,6 +295,7 @@ async function upsertEvent(
     latitude,
     longitude,
     for_kids: forKids,
+    for_women: forWomen,
   };
 
   if (existing) {
@@ -288,7 +306,8 @@ async function upsertEvent(
       Number(existing.price_cents ?? 0) === priceCents &&
       strEq(existing.source_url, originalUrl) &&
       strEq(existing.venue_id, venueId) &&
-      Boolean(existing.for_kids) === forKids;
+      Boolean(existing.for_kids) === forKids &&
+      Boolean(existing.for_women) === forWomen;
 
     if (unchanged) {
       await supabase
@@ -350,7 +369,7 @@ async function upsertTournament(
   const { data: byKey } = await supabase
     .from('tournaments')
     .select(
-      'id, name, sport, starts_at, entry_fee, source_url, venue_id, latitude, longitude, external_id',
+      'id, name, sport, starts_at, entry_fee, source_url, venue_id, latitude, longitude, external_id, for_kids, for_women',
     )
     .eq('source', GEMINI_SCRAPER_SOURCE)
     .eq('external_id', externalId)
@@ -360,9 +379,19 @@ async function upsertTournament(
     (byKey as ExistingTournament | null) ??
     (await findTournamentByUrlAndStart(originalUrl, startsAt));
 
-  const venueId = opts.venueId ?? existing?.venue_id ?? null;
-  const latitude = opts.latitude ?? existing?.latitude ?? 48.1486;
-  const longitude = opts.longitude ?? existing?.longitude ?? 17.1077;
+  const { venueId, named } = resolveWriteVenue(event, opts, existing?.venue_id ?? null);
+  const latitude = opts.latitude ?? named?.latitude ?? existing?.latitude ?? 48.1486;
+  const longitude = opts.longitude ?? named?.longitude ?? existing?.longitude ?? 17.1077;
+  const sourceName = named?.name?.trim() || 'Web športoviska';
+  const { forKids, forWomen } = classifyListingAudience({
+    title: event.title,
+    description: event.description,
+    sourceUrl: originalUrl,
+    venueName: sourceName,
+    locationName: event.locationName,
+    forKids: event.forKids,
+    forWomen: event.forWomen,
+  });
 
   const shared = {
     name: event.title.slice(0, 200),
@@ -385,6 +414,8 @@ async function upsertTournament(
     venue_id: venueId,
     latitude,
     longitude,
+    for_kids: forKids,
+    for_women: forWomen,
   };
 
   if (existing) {
@@ -394,7 +425,9 @@ async function upsertTournament(
       new Date(existing.starts_at).getTime() === startsAt.getTime() &&
       Number(existing.entry_fee ?? 0) === entryFee &&
       strEq(existing.source_url, originalUrl) &&
-      strEq(existing.venue_id, venueId);
+      strEq(existing.venue_id, venueId) &&
+      Boolean(existing.for_kids) === forKids &&
+      Boolean(existing.for_women) === forWomen;
 
     if (unchanged) {
       await supabase

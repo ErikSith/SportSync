@@ -299,11 +299,18 @@ export function CreateLobbyModal({
     patch({ venue: trimmed, venueId: resolvedId, websiteUrl });
     setVenueQuery('');
     setVenueHighlight(0);
-    setDetailPhase(null);
+    setDetailPhase('players');
   }
 
   useEffect(() => {
-    if (step === 1) setDetailPhase(null);
+    if (step !== 1) return;
+    // Seed the first unfinished phase when entering details (esp. mobile).
+    if (!draft.sport) setDetailPhase('sport');
+    else if (!draft.date || !draft.time) setDetailPhase('schedule');
+    else if (!draft.venue) setDetailPhase('venue');
+    else setDetailPhase(null);
+    // Only when the step changes — not on every draft field edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
   useEffect(() => {
@@ -484,7 +491,7 @@ export function CreateLobbyModal({
                                 role="listitem"
                                 onClick={() => {
                                   patch({ sport });
-                                  setDetailPhase(null);
+                                  setDetailPhase('schedule');
                                 }}
                                 className={`${chip} ${active ? chipOn : chipIdle}`}
                               >
@@ -505,7 +512,7 @@ export function CreateLobbyModal({
                           onDateChange={(date) => patch({ date })}
                           onTimeChange={(time) => {
                             patch({ time });
-                            setDetailPhase(null);
+                            setDetailPhase('venue');
                           }}
                         />
                       </motion.div>

@@ -19,7 +19,7 @@ function createErrorMessage(error: string | undefined): string {
     case 'Invalid group payload':
       return 'Skontroluj názov crew.';
     case 'Not authenticated':
-      return 'Crew sa nepodarilo uložiť. Skús to znova.';
+      return 'Session na telefóne vypadla. Skús to znova — ak to nejde, obnov stránku.';
     default:
       return error ?? 'Crew sa nepodarilo vytvoriť.';
   }

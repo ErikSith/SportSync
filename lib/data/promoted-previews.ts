@@ -45,6 +45,8 @@ export function getPromotedBannerPreviews(): PromotedBannerItem[] {
     sourceUrl: null,
     ticketUrl: null,
     isAggregated: false,
+    forKids: false,
+    forWomen: false,
   };
 
   const fitnessEvent: EventCardData = {
@@ -79,6 +81,7 @@ export function getPromotedBannerPreviews(): PromotedBannerItem[] {
     externalId: null,
     isAggregated: false,
     forKids: false,
+    forWomen: false,
   };
 
   return [

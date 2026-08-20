@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getProfileByAuthId, type Profile } from '@/lib/data/profile';
 import { isAuthBypassEnabled } from '@/lib/auth/demo-mode';
+import { ensureProfileForUser } from '@/lib/auth/ensure-profile';
 import { SUPPORTED_CITIES } from '@/lib/cities';
 
 export type PageViewer =
@@ -42,7 +43,13 @@ export async function getPageViewer(): Promise<PageViewer> {
   const { data: auth } = await supabase.auth.getUser();
 
   if (auth.user) {
-    const profile = await getProfileByAuthId(auth.user.id);
+    let profile = await getProfileByAuthId(auth.user.id);
+    if (!profile) {
+      const ensured = await ensureProfileForUser(supabase, auth.user);
+      if (ensured.ok) {
+        profile = await getProfileByAuthId(auth.user.id);
+      }
+    }
     if (profile) {
       return { status: 'ready', profile, userId: auth.user.id, isGuest: false };
     }

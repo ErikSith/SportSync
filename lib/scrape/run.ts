@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { SPORT_TYPE_THEMES } from '@/lib/ai/theme-config';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { aggregatorNotice, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
-import { detectExplicitKidsAudience } from '@/lib/events/for-kids';
+import { classifyListingAudience } from '@/lib/events/audience';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import { scrapeTextListing } from '@/lib/scrape/adapters/_text-listing';
 import { SCRAPING_SOURCES } from '@/lib/scrape/scraping-sources';
@@ -52,14 +52,14 @@ type ScraperFn = () => Promise<AdapterResult>;
 
 type UpsertStats = { created: number; updated: number; skipped: number; unchanged: number };
 
-/** Cached probe for optional `events.for_kids` (migration may not be applied yet). */
-let forKidsColumnAvailable: boolean | null = null;
+/** Cached probe for optional audience columns (migration may not be applied yet). */
+let audienceColumnsAvailable: boolean | null = null;
 
-async function supportsForKidsColumn(supabase: ReturnType<typeof createAdminClient>): Promise<boolean> {
-  if (forKidsColumnAvailable != null) return forKidsColumnAvailable;
-  const { error } = await supabase.from('events').select('for_kids').limit(1);
-  forKidsColumnAvailable = !error;
-  return forKidsColumnAvailable;
+async function supportsAudienceColumns(supabase: ReturnType<typeof createAdminClient>): Promise<boolean> {
+  if (audienceColumnsAvailable != null) return audienceColumnsAvailable;
+  const { error } = await supabase.from('events').select('for_kids, for_women').limit(1);
+  audienceColumnsAvailable = !error;
+  return audienceColumnsAvailable;
 }
 
 /** Bratislava 20 + legacy feed adapters. Run sequentially to respect rate limits. */
@@ -247,7 +247,7 @@ async function upsertEvents(
 ): Promise<UpsertStats> {
   const supabase = createAdminClient();
   const stats: UpsertStats = { created: 0, updated: 0, skipped: 0, unchanged: 0 };
-  const hasForKids = await supportsForKidsColumn(supabase);
+  const hasAudience = await supportsAudienceColumns(supabase);
 
   for (const raw of events) {
     const event = tagScrapedEventLocation(raw);
@@ -263,7 +263,7 @@ async function upsertEvents(
     const { data: byExternal } = await supabase
       .from('events')
       .select(
-        'id, title, description, sport, sport_type, starts_at, price_cents, capacity, registered_count, venue_id, source_url, ticket_url, source_name, is_aggregated, cover_url, participation_mode, for_kids',
+        'id, title, description, sport, sport_type, starts_at, price_cents, capacity, registered_count, venue_id, source_url, ticket_url, source_name, is_aggregated, cover_url, participation_mode, for_kids, for_women',
       )
       .eq('source', event.source)
       .eq('external_id', event.externalId)
@@ -292,7 +292,7 @@ async function upsertEvents(
       }
     }
 
-    const forKids = detectExplicitKidsAudience({
+    const { forKids, forWomen } = classifyListingAudience({
       title: event.title,
       description,
       sourceUrl: event.sourceUrl,
@@ -300,6 +300,7 @@ async function upsertEvents(
       sourceName,
       locationName: event.locationName,
       forKids: event.forKids,
+      forWomen: event.forWomen,
     });
 
     // Compare factual fields first — avoid Cover Factory / write when nothing changed
@@ -315,8 +316,9 @@ async function upsertEvents(
         strEq(existing.source_url, event.sourceUrl ?? null) &&
         strEq(existing.ticket_url, event.ticketUrl ?? null) &&
         strEq(existing.participation_mode, event.participationMode) &&
-        (!hasForKids ||
-          Boolean((existing as { for_kids?: boolean | null }).for_kids) === forKids) &&
+        (!hasAudience ||
+          (Boolean((existing as { for_kids?: boolean | null }).for_kids) === forKids &&
+            Boolean((existing as { for_women?: boolean | null }).for_women) === forWomen)) &&
         Boolean(existing.is_aggregated) === SCRAPE_ETHICS.isAggregatedRedirector;
 
       if (same) {
@@ -371,9 +373,10 @@ async function upsertEvents(
       sponsors_json: [],
     };
 
-    // Optional column — only write when present (migration 20260811_event_for_kids).
-    if (hasForKids) {
-      (row as { for_kids?: boolean }).for_kids = forKids;
+    // Optional columns — only write when present.
+    if (hasAudience) {
+      (row as { for_kids?: boolean; for_women?: boolean }).for_kids = forKids;
+      (row as { for_kids?: boolean; for_women?: boolean }).for_women = forWomen;
     }
 
     if (existing?.id) {
@@ -414,6 +417,7 @@ async function upsertTournaments(
 ): Promise<UpsertStats> {
   const supabase = createAdminClient();
   const stats: UpsertStats = { created: 0, updated: 0, skipped: 0, unchanged: 0 };
+  const hasAudience = await supportsAudienceColumns(supabase);
 
   for (const raw of tournaments) {
     const item = tagScrapedEventLocation(raw);
@@ -426,11 +430,21 @@ async function upsertTournaments(
     const description = withAggregatorDescription(item, sourceName);
     const startsAt = item.startsAt.toISOString();
     await syncVenueBorough(venueId, item);
+    const { forKids, forWomen } = classifyListingAudience({
+      title: item.title,
+      description,
+      sourceUrl: item.sourceUrl,
+      venueName: venue?.name ?? item.locationName,
+      sourceName,
+      locationName: item.locationName,
+      forKids: item.forKids,
+      forWomen: item.forWomen,
+    });
 
     const { data: existing } = await supabase
       .from('tournaments')
       .select(
-        'id, name, description, sport, starts_at, entry_fee, max_participants, current_participants, venue_id, source_url, ticket_url, cover_url',
+        'id, name, description, sport, starts_at, entry_fee, max_participants, current_participants, venue_id, source_url, ticket_url, cover_url, for_kids, for_women',
       )
       .eq('source', item.source)
       .eq('external_id', item.externalId)
@@ -446,7 +460,10 @@ async function upsertTournaments(
         numEq(existing.current_participants, item.registeredCount ?? 0) &&
         strEq(existing.venue_id, venueId) &&
         strEq(existing.source_url, item.sourceUrl ?? null) &&
-        strEq(existing.ticket_url, item.ticketUrl ?? null);
+        strEq(existing.ticket_url, item.ticketUrl ?? null) &&
+        (!hasAudience ||
+          (Boolean((existing as { for_kids?: boolean | null }).for_kids) === forKids &&
+            Boolean((existing as { for_women?: boolean | null }).for_women) === forWomen));
 
       if (same) {
         await supabase
@@ -466,7 +483,7 @@ async function upsertTournaments(
         ? String(existing.cover_url)
         : await coverForEvent(item, venueId);
 
-    const row = {
+    const row: Record<string, unknown> = {
       organizer_id: null,
       venue_id: venueId,
       name: item.title,
@@ -493,6 +510,10 @@ async function upsertTournaments(
       scraped_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+    if (hasAudience) {
+      row.for_kids = forKids;
+      row.for_women = forWomen;
+    }
 
     if (existing?.id) {
       const { error } = await supabase.from('tournaments').update(row).eq('id', existing.id);

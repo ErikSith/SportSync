@@ -83,7 +83,7 @@ export function CrewPinnedOfficial({
                   <CrewAvatarStack people={preview} size="sm" />
                   {activity.eventId ? (
                     <Link
-                      href={`/events/${activity.eventId}`}
+                      href="/events"
                       className="shrink-0 rounded-xl bg-[#FF5722] px-3 py-2 text-[11px] font-bold text-white transition hover:brightness-110"
                     >
                       View / Join

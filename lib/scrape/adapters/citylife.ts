@@ -9,6 +9,7 @@ import {
   slugify,
 } from '@/lib/scrape/fetch';
 import { detectExplicitKidsAudience } from '@/lib/events/for-kids';
+import { detectExplicitWomenAudience } from '@/lib/events/for-women';
 import { tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import type { AdapterResult, NormalizedScrapedEvent, ParticipationMode } from '@/lib/scrape/types';
 import type { SportTypeKey } from '@/lib/ai/theme-config';
@@ -135,6 +136,12 @@ function parseDetailPage(
     'Eurovea';
 
   const forKids = detectForKids(listing.href, title, lead, editorial);
+  const forWomen = detectExplicitWomenAudience({
+    title,
+    description: `${lead} ${editorial}`,
+    sourceUrl: listing.href,
+    locationName: venueLabel,
+  });
   const participationMode = classifyParticipation(title, lead, editorial);
   const { sport, sportType } = detectSport(title, lead);
   const priceCents = extractPriceCents(editorial) ?? 0;
@@ -180,7 +187,7 @@ function parseDetailPage(
     }
   }
 
-  const entryNote = extractEntryNote(editorial, priceCents, forKids);
+  const entryNote = extractEntryNote(editorial, priceCents, forKids, forWomen);
 
   return starts.map((startsAt) =>
     buildEvent({
@@ -195,6 +202,7 @@ function parseDetailPage(
       sport,
       sportType,
       forKids,
+      forWomen,
       priceCents,
       scheduleNote: schedule ? schedulePhrase(schedule.weekday, schedule.time) : null,
       entryNote,
@@ -213,6 +221,12 @@ function parseListingFallback(listing: {
   const range = parseDateRange(listing.datumcas);
   const venueLabel = extractVenue(listing.datumcas);
   const forKids = detectForKids(listing.href, listing.title, intro, '');
+  const forWomen = detectExplicitWomenAudience({
+    title: listing.title,
+    description: intro,
+    sourceUrl: listing.href,
+    locationName: venueLabel,
+  });
   const participationMode = classifyParticipation(listing.title, intro, '');
   const { sport, sportType } = detectSport(listing.title, intro);
   const baseExternalId = slugify(
@@ -247,9 +261,10 @@ function parseListingFallback(listing: {
       sport,
       sportType,
       forKids,
+      forWomen,
       priceCents: 0,
       scheduleNote: schedule ? schedulePhrase(schedule.weekday, schedule.time) : null,
-      entryNote: forKids ? 'Pre deti.' : null,
+      entryNote: forKids ? 'Pre deti.' : forWomen ? 'Pre ženy.' : null,
     }),
   );
 }
@@ -266,6 +281,7 @@ function buildEvent(input: {
   sport: string;
   sportType: SportTypeKey;
   forKids: boolean;
+  forWomen: boolean;
   priceCents: number;
   scheduleNote: string | null;
   entryNote: string | null;
@@ -306,6 +322,7 @@ function buildEvent(input: {
     sourceUrl: input.absolute,
     ticketUrl: input.absolute,
     forKids: input.forKids,
+    forWomen: input.forWomen,
     priceCents: input.priceCents,
   };
 }
@@ -585,9 +602,11 @@ function extractEntryNote(
   text: string,
   priceCents: number,
   forKids: boolean,
+  forWomen: boolean,
 ): string | null {
   const parts: string[] = [];
   if (forKids) parts.push('Pre deti');
+  if (forWomen) parts.push('Pre ženy');
   if (/vstup\s+je\s+bezplatn|zadarmo|bezplatn[eý]/i.test(text) || priceCents === 0) {
     parts.push('Vstup voľný');
   } else if (priceCents > 0) {

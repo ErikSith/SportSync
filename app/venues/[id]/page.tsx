@@ -177,7 +177,7 @@ export default async function VenueDetailPage({ params }: VenueDetailPageProps) 
                   {venue.upcomingEvents.map((event) => (
                     <Link
                       key={event.id}
-                      href={`/events/${event.id}`}
+                      href="/events"
                       className="glass-card rounded-xl p-4 flex items-center justify-between gap-4 hover:border-primary/30 transition-colors"
                     >
                       <div>

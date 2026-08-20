@@ -127,7 +127,7 @@ function OfficialTournamentCard({
         </div>
         {activity.eventId ? (
           <Link
-            href={`/events/${activity.eventId}`}
+            href="/events"
             className="shrink-0 rounded-xl bg-[#FF5722] px-3.5 py-2.5 text-center text-xs font-bold text-white transition hover:brightness-110 active:scale-[0.98]"
           >
             Zobraziť Turnaj / Prihlásiť sa

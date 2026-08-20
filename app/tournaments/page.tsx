@@ -102,7 +102,8 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
     title: t.name,
     description: t.description,
     sourceUrl: t.sourceUrl ?? t.ticketUrl,
-    forKids: false,
+    forKids: t.forKids,
+    forWomen: t.forWomen,
     venueName: t.venueName,
     sourceName: t.source,
   }));

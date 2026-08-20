@@ -18,6 +18,7 @@ interface IndexedPage {
 export interface VenueUrlIndex {
   pages: IndexedPage[];
   byHost: Map<string, ResolvedListingVenue[]>;
+  venues: ResolvedListingVenue[];
 }
 
 function venueFromJoin(
@@ -44,8 +45,7 @@ export async function loadVenueUrlIndex(): Promise<VenueUrlIndex> {
       .not('venue_id', 'is', null),
     supabase
       .from('venues')
-      .select('id, name, website_url, latitude, longitude')
-      .not('website_url', 'is', null),
+      .select('id, name, website_url, latitude, longitude'),
   ]);
 
   const indexedPages: IndexedPage[] = [];
@@ -65,25 +65,37 @@ export async function loadVenueUrlIndex(): Promise<VenueUrlIndex> {
   }
 
   const byHost = new Map<string, ResolvedListingVenue[]>();
+  const allVenues: ResolvedListingVenue[] = [];
+  const seenVenueIds = new Set<string>();
   const pushHost = (host: string, venue: ResolvedListingVenue) => {
     if (!host) return;
     const list = byHost.get(host) ?? [];
     if (!list.some((item) => item.id === venue.id)) list.push(venue);
     byHost.set(host, list);
   };
+  const pushVenue = (venue: ResolvedListingVenue) => {
+    if (seenVenueIds.has(venue.id)) return;
+    seenVenueIds.add(venue.id);
+    allVenues.push(venue);
+  };
 
-  for (const page of indexedPages) pushHost(page.host, page.venue);
+  for (const page of indexedPages) {
+    pushHost(page.host, page.venue);
+    pushVenue(page.venue);
+  }
   for (const row of venues ?? []) {
-    const url = String(row.website_url ?? '');
-    pushHost(listingHost(url), {
+    const venue: ResolvedListingVenue = {
       id: String(row.id),
       name: String(row.name),
       latitude: (row.latitude as number | null) ?? null,
       longitude: (row.longitude as number | null) ?? null,
-    });
+    };
+    pushVenue(venue);
+    const url = String(row.website_url ?? '');
+    if (url) pushHost(listingHost(url), venue);
   }
 
-  return { pages: indexedPages, byHost };
+  return { pages: indexedPages, byHost, venues: allVenues };
 }
 
 /**
@@ -97,6 +109,8 @@ export function findVenueInIndex(
   for (const page of index.pages) {
     if (page.venue.id === venueId) return page.venue;
   }
+  const named = index.venues.find((venue) => venue.id === venueId);
+  if (named) return named;
   for (const list of index.byHost.values()) {
     const hit = list.find((venue) => venue.id === venueId);
     if (hit) return hit;
@@ -130,4 +144,40 @@ export function resolveVenueFromListingUrl(
   const hostVenues = index.byHost.get(host) ?? [];
   if (hostVenues.length === 1) return hostVenues[0]!;
   return null;
+}
+
+function foldVenueName(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Fallback when the listing URL is an aggregator (citylife, predpredaj)
+ * but the page names a known SportSync venue.
+ */
+export function resolveVenueFromLocationName(
+  locationName: string | null | undefined,
+  index: VenueUrlIndex,
+): ResolvedListingVenue | null {
+  const needle = foldVenueName(locationName ?? '');
+  if (needle.length < 4) return null;
+
+  let best: { venue: ResolvedListingVenue; score: number } | null = null;
+  for (const venue of index.venues) {
+    const name = foldVenueName(venue.name);
+    if (name.length < 4) continue;
+    let score = 0;
+    if (name === needle) score = 1000 + name.length;
+    else if (needle.includes(name) || name.includes(needle)) {
+      score = Math.min(name.length, needle.length);
+    }
+    if (score > 0 && (!best || score > best.score)) {
+      best = { venue, score };
+    }
+  }
+  return best?.venue ?? null;
 }

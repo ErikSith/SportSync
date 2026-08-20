@@ -10,25 +10,28 @@ function bearerFromAuthorization(raw: string | null): string | undefined {
 
 /**
  * Resolve the signed-in user for Route Handlers.
- * Cookies first (middleware-refreshed), then Authorization Bearer —
- * iOS / PWA / tunnel clients sometimes send the JWT but drop cookies.
+ * Prefer Authorization Bearer when present — iOS / PWA / tunnels often send
+ * the JWT on writes while dropping cookies on POST.
  */
 export async function getApiAuthUser(): Promise<{
   user: User | null;
   supabase: Awaited<ReturnType<typeof createClient>>;
 }> {
+  const headerStore = await headers();
+  const bearer = bearerFromAuthorization(headerStore.get('authorization'));
   const supabase = await createClient();
+
+  if (bearer) {
+    const fromJwt = await supabase.auth.getUser(bearer);
+    if (fromJwt.data.user) {
+      return { user: fromJwt.data.user, supabase };
+    }
+  }
+
   const fromCookies = await supabase.auth.getUser();
   if (fromCookies.data.user) {
     return { user: fromCookies.data.user, supabase };
   }
 
-  const headerStore = await headers();
-  const bearer = bearerFromAuthorization(headerStore.get('authorization'));
-  if (!bearer) {
-    return { user: null, supabase };
-  }
-
-  const fromJwt = await supabase.auth.getUser(bearer);
-  return { user: fromJwt.data.user ?? null, supabase };
+  return { user: null, supabase };
 }

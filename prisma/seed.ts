@@ -261,7 +261,7 @@ async function main() {
   console.log('Seed complete:');
   console.log('  showcase: fixed IDs — open /demo for detail page links');
   console.log(`    venue:      /venues/${SHOWCASE.venueId}`);
-  console.log(`    event:      /events/${SHOWCASE.eventId}`);
+  console.log(`    event:      /events`);
   console.log(`    lobby:      /lobby/${SHOWCASE.lobbyId}`);
   console.log(`    trainer:    /trainers/${SHOWCASE.coachId}`);
   console.log('  profiles: 8 (PLAYER x5, COACH x1, VENUE_OWNER x1, ADMIN x1) — demo data, not real auth users');

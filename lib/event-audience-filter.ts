@@ -1,5 +1,5 @@
 import type { EventCardData } from '@/lib/data/events';
-import { detectExplicitKidsAudience } from '@/lib/events/for-kids';
+import { classifyListingAudience } from '@/lib/events/audience';
 
 export type EventAudience = 'all' | 'women' | 'kids';
 
@@ -18,47 +18,50 @@ export function eventAudienceLabel(audience: EventAudience): string {
   return EVENT_AUDIENCE_OPTIONS.find((o) => o.key === audience)?.label ?? 'Všetci';
 }
 
-type WomenFields = Pick<EventCardData, 'title' | 'description' | 'sourceUrl'>;
-type KidsFields = Pick<
+export type AudienceFields = Pick<
   EventCardData,
   'title' | 'description' | 'sourceUrl' | 'forKids' | 'venueName' | 'sourceName'
->;
+> & {
+  forWomen?: boolean | null;
+};
 
-function audienceHaystack(event: WomenFields): string {
-  return `${event.title} ${event.description ?? ''} ${event.sourceUrl ?? ''}`.toLowerCase();
-}
-
-/** Women-only / W4W activities (title + description heuristics). */
-export function eventMatchesWomen(event: WomenFields): boolean {
-  const hay = audienceHaystack(event);
-  return /women\s+for\s+women|\bw4w\b|pre\s+ženy|pre\s+zeny|\bženy\b|\bzeny\b|žensky|zensky|žensk[áaei]|zensk[áaei]|women\s+only|\bwomen\b|\bladies\b|ladies\s+only|dámsky|damsky|female\s+only|len\s+pre\s+ženy|len\s+pre\s+zeny|girl\s+power/i.test(
-    hay,
-  );
-}
-
-/** Kids-oriented activities (DB flag + explicit copy / kids venues). */
-export function eventMatchesKids(event: KidsFields): boolean {
-  return detectExplicitKidsAudience({
+function classify(event: AudienceFields) {
+  return classifyListingAudience({
     title: event.title,
     description: event.description,
     sourceUrl: event.sourceUrl,
     venueName: event.venueName,
     sourceName: event.sourceName,
     forKids: event.forKids,
+    forWomen: event.forWomen,
   });
 }
 
-export function eventMatchesAudience(event: KidsFields, audience: EventAudience): boolean {
-  if (audience === 'all') return true;
-  if (audience === 'women') return eventMatchesWomen(event);
-  return eventMatchesKids(event);
+/** Women-only / W4W activities (persisted flag + title/description heuristics). */
+export function eventMatchesWomen(event: AudienceFields): boolean {
+  return classify(event).forWomen;
+}
+
+/** Kids-oriented activities (DB flag + explicit copy / kids venues). */
+export function eventMatchesKids(event: AudienceFields): boolean {
+  return classify(event).forKids;
+}
+
+/**
+ * `all` = open mixed listings (not exclusively kids, not exclusively women).
+ * Dedicated filters still surface those exclusive activities.
+ */
+export function eventMatchesAudience(event: AudienceFields, audience: EventAudience): boolean {
+  const { forKids, forWomen } = classify(event);
+  if (audience === 'women') return forWomen;
+  if (audience === 'kids') return forKids;
+  return !forKids && !forWomen;
 }
 
 export function applyEventAudienceFilter<T>(
   items: T[],
   audience: EventAudience,
-  accessor: (item: T) => KidsFields,
+  accessor: (item: T) => AudienceFields,
 ): T[] {
-  if (audience === 'all') return items;
   return items.filter((item) => eventMatchesAudience(accessor(item), audience));
 }

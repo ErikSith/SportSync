@@ -45,6 +45,7 @@ interface RawEventRow {
   external_id?: string | null;
   is_aggregated?: boolean | null;
   for_kids?: boolean | null;
+  for_women?: boolean | null;
   venues?: { name: string } | { name: string }[] | null;
 }
 
@@ -90,6 +91,7 @@ function mapRow(event: RawEventRow, lat: number, lng: number): EventCardData {
     externalId: event.external_id ?? null,
     isAggregated: Boolean(event.is_aggregated),
     forKids: Boolean(event.for_kids),
+    forWomen: Boolean(event.for_women),
   };
 }
 

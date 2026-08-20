@@ -53,6 +53,7 @@ const RESPONSE_SCHEMA: ResponseSchema = {
           description: { type: SchemaType.STRING },
           originalUrl: { type: SchemaType.STRING },
           forKids: { type: SchemaType.BOOLEAN },
+          forWomen: { type: SchemaType.BOOLEAN },
         },
         required: [
           'title',
@@ -138,6 +139,8 @@ Pravidlá:
 - description max 2 krátke vety; priceText len ak je cena uvedená.
 - forKids = true LEN keď je aktivita VYSLOVENE pre deti: „pre deti“, detský/detská, Kidstown, detské plávanie, mini tenis, U6–U12, bábätká, rodič + dieťa.
   NIE junior/mládež/ITF do 18 rokov. NIE bežný dospelácky tréning len preto, že deti môžu prísť.
+- forWomen = true LEN keď je aktivita VYSLOVENE pre ženy: „pre ženy“, ladies only, W4W, dámsky, ženský turnaj.
+  NIE mix „ženy a muži“, NIE open kategória kde hrajú obe pohlavia.
 - isTournament = true pre turnaje, súťaže, championshipy, cup, open (turnaj), liga, trophy, kvalifikáciu.
   Tieto záznamy idú do tabuľky Tournament (nie Event).
 - isTournament = false pre tréningy, lekcie, rekreačné zápasy a týždenný rozvrh.
@@ -368,6 +371,8 @@ function coerceOriginalUrls(parsed: unknown, pageUrl: string): unknown {
           pageUrl,
         ),
         isGroupClass: row.isGroupClass === true || row.isGroupClass === 'true',
+        forKids: row.forKids === true || row.forKids === 'true',
+        forWomen: row.forWomen === true || row.forWomen === 'true',
       };
     }),
   };

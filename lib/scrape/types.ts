@@ -76,6 +76,8 @@ export interface NormalizedScrapedEvent {
   registeredCount?: number;
   /** Kids-oriented activity (CityLife Kidstown, "pre deti", etc.). */
   forKids?: boolean;
+  /** Women-only activity ("pre ženy", ladies only, W4W). */
+  forWomen?: boolean;
 }
 
 export interface AdapterResult {

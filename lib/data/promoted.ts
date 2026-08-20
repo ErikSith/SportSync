@@ -112,6 +112,7 @@ export async function getActivePromotedBanners(
         externalId: (row.external_id as string | null) ?? null,
         isAggregated: Boolean(row.is_aggregated),
         forKids: Boolean(row.for_kids),
+        forWomen: Boolean(row.for_women),
         isDiscovery: false,
       };
 
@@ -173,6 +174,8 @@ export async function getActivePromotedBanners(
       sourceUrl: (row.source_url as string | null) ?? null,
       ticketUrl: (row.ticket_url as string | null) ?? null,
       isAggregated: Boolean(row.source),
+      forKids: Boolean(row.for_kids),
+      forWomen: Boolean(row.for_women),
     };
 
     return {

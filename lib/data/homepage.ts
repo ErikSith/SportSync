@@ -7,6 +7,7 @@ import type { EventCardData } from '@/lib/data/events';
 import { ALL_EVENTS_FALLBACK_MESSAGE } from '@/lib/data/events';
 import type { HomeFeedFilters } from '@/lib/home-feed-filters';
 import { matchesHomeFeedFilters } from '@/lib/home-feed-filters';
+import { applyEventAudienceFilter } from '@/lib/event-audience-filter';
 import { mixMatchDiscoveryFeed } from '@/lib/feed/mix-discovery';
 import {
   aggregateEventsForFeed,
@@ -15,6 +16,7 @@ import {
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
 import { FEED_ACTIVE_GRACE_HOURS, activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { lobbyActiveSinceIso } from '@/lib/retention/lobbies';
 import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 
 export { getProfileByAuthId, type Profile } from '@/lib/data/profile';
@@ -63,7 +65,7 @@ function venueNameFromRow(venues: LobbyRow['venues']): string | null {
 /** "My Upcoming" — community matches the profile hosts or has joined. */
 export async function getMyUpcomingLobbies(profileId: string, take = 3): Promise<UpcomingLobbyCard[]> {
   const supabase = await createClient();
-  const now = new Date().toISOString();
+  const activeSince = lobbyActiveSinceIso();
 
   const { data: memberships } = await supabase
     .from('lobby_participants')
@@ -80,7 +82,7 @@ export async function getMyUpcomingLobbies(profileId: string, take = 3): Promise
     .from('lobbies')
     .select('id, sport, format, scheduled_at, city, host_id, venues(name)')
     .in('status', ['open', 'full', 'live'])
-    .gte('scheduled_at', now)
+    .gte('scheduled_at', activeSince)
     .or(orParts.join(','))
     .order('scheduled_at', { ascending: true })
     .limit(take);
@@ -146,6 +148,7 @@ interface EventRow {
   external_id?: string | null;
   is_aggregated?: boolean | null;
   for_kids?: boolean | null;
+  for_women?: boolean | null;
   venues?: { name: string } | { name: string }[] | null;
 }
 
@@ -227,14 +230,16 @@ function toEventCard(event: EventRow, distKm: number): EventCardData {
     externalId: event.external_id ?? null,
     isAggregated: Boolean(event.is_aggregated),
     forKids: Boolean(event.for_kids),
+    forWomen: Boolean(event.for_women),
   };
 }
 
 function applyFeedFilters(events: EventCardData[], filters?: HomeFeedFilters): EventCardData[] {
-  if (!filters) return events;
+  const openMixed = applyEventAudienceFilter(events, 'all', (event) => event);
+  if (!filters) return openMixed;
   if (filters.sports.length === 0 && filters.venueIds.length === 0) {
-    if (filters.type === 'ALL') return events;
-    return events.filter((event) =>
+    if (filters.type === 'ALL') return openMixed;
+    return openMixed.filter((event) =>
       matchesHomeFeedFilters(
         { sport: event.sport, type: event.type, venueId: event.venueId },
         filters,
@@ -242,7 +247,7 @@ function applyFeedFilters(events: EventCardData[], filters?: HomeFeedFilters): E
     );
   }
   // Silent 70/30 mix whenever sports/venues are set.
-  return mixMatchDiscoveryFeed(events, filters);
+  return mixMatchDiscoveryFeed(openMixed, filters);
 }
 
 function isStartingSoon(startsAt: Date, now: Date): boolean {

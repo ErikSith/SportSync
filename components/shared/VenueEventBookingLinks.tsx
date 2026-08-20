@@ -45,7 +45,7 @@ export function VenueEventBookingLinks({
             <span className="truncate">{venueName || 'Športovisko'}</span>
           </Link>
         ) : eventId ? (
-          <Link href={`/events/${eventId}`} className={quietClass}>
+          <Link href="/events" className={quietClass}>
             <span className="material-symbols-outlined text-[14px] text-zinc-500">confirmation_number</span>
             <span className="truncate">{eventTitle || 'Event'}</span>
           </Link>
@@ -82,7 +82,7 @@ export function VenueEventBookingLinks({
       ) : null}
       {eventId ? (
         <Link
-          href={`/events/${eventId}`}
+          href="/events"
           className={`${buttonClass} bg-primary-container/20 text-primary border border-primary-container/30 hover:bg-primary-container/30`}
         >
           <span className="material-symbols-outlined text-[16px]">confirmation_number</span>

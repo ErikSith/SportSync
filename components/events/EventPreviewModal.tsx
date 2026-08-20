@@ -1,12 +1,11 @@
 'use client';
 
 import { useEffect, useId } from 'react';
-import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Calendar, Clock, MapPin, Users, X } from 'lucide-react';
 import type { EventCardData } from '@/lib/data/events';
-import { eventMatchesKids } from '@/lib/event-audience-filter';
+import { eventMatchesKids, eventMatchesWomen } from '@/lib/event-audience-filter';
 import { eventTypeBadge } from '@/lib/constants/events';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
@@ -169,6 +168,12 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
                       <span>Watch</span>
                     </>
                   ) : null}
+                  {eventMatchesWomen(event) ? (
+                    <>
+                      <span className="text-white/40">·</span>
+                      <span>Pre ženy</span>
+                    </>
+                  ) : null}
                   {eventMatchesKids(event) ? (
                     <>
                       <span className="text-white/40">·</span>
@@ -256,13 +261,7 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
                 <EventAggregatedDisclaimer sourceName={resolvedSourceName} compact />
               ) : null}
 
-              <div className="flex items-center justify-between gap-2">
-                <Link
-                  href={`/events/${event.id}`}
-                  className="font-label-caps text-[10px] uppercase tracking-[0.12em] text-on-surface-variant underline-offset-4 hover:text-zinc-200 hover:underline"
-                >
-                  Stránka v SportSync
-                </Link>
+              <div className="flex items-center justify-end gap-2">
                 <ReportEventDataButton eventId={event.id} eventTitle={event.title} />
               </div>
             </div>

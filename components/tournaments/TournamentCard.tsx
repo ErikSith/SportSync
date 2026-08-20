@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { TournamentCardData } from '@/lib/data/tournaments';
+import { eventMatchesKids, eventMatchesWomen } from '@/lib/event-audience-filter';
 import { lobbyTierLabel } from '@/lib/utils/lobby';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { TournamentPreviewModal } from '@/components/tournaments/TournamentPreviewModal';
@@ -145,6 +146,32 @@ export function TournamentCard({ tournament }: { tournament: TournamentCardData 
           <div className="mt-2 flex min-h-[1.25rem] items-center gap-1 text-on-surface-variant">
             <span className="material-symbols-outlined shrink-0 text-[14px]">location_on</span>
             <span className="truncate font-label-caps text-[10px] uppercase tracking-wide">{location}</span>
+            {eventMatchesWomen({
+              title: tournament.name,
+              description: tournament.description,
+              sourceUrl: tournament.sourceUrl,
+              forKids: tournament.forKids,
+              forWomen: tournament.forWomen,
+              venueName: tournament.venueName,
+              sourceName: tournament.source,
+            }) ? (
+              <span className="shrink-0 font-label-caps text-[10px] uppercase tracking-wide text-primary-container/90">
+                · Pre ženy
+              </span>
+            ) : null}
+            {eventMatchesKids({
+              title: tournament.name,
+              description: tournament.description,
+              sourceUrl: tournament.sourceUrl,
+              forKids: tournament.forKids,
+              forWomen: tournament.forWomen,
+              venueName: tournament.venueName,
+              sourceName: tournament.source,
+            }) ? (
+              <span className="shrink-0 font-label-caps text-[10px] uppercase tracking-wide text-primary-container/90">
+                · Pre deti
+              </span>
+            ) : null}
           </div>
 
           <div className="mt-auto flex min-h-[96px] flex-col justify-end gap-2.5 border-t border-secondary/15 pt-3">

@@ -43,7 +43,7 @@ export async function getOrganizerUpcomingContent(profileId: string): Promise<Or
       sport: row.sport as string,
       startsAt: parseDbInstant(row.starts_at as string),
       status: row.status as string,
-      href: `/events/${row.id as string}`,
+      href: '/events',
     });
   }
 

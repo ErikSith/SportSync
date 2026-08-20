@@ -185,7 +185,7 @@ export function VenueEventCreator({
       tags: body.tags ?? [],
     });
 
-    router.push(`/events/${body.eventId}`);
+    router.push('/events');
   }
 
   function updateIntentField<K extends keyof EventIntent>(key: K, value: EventIntent[K]) {
@@ -207,7 +207,7 @@ export function VenueEventCreator({
         <section className="mb-8 space-y-3">
           <h2 className="font-display-lg-mobile text-display-lg-mobile text-on-surface">Describe your event</h2>
           <p className="font-body-lg text-body-lg text-on-surface-variant">
-            Sport, date, pricing and capacity — we&apos;ll draft the official event page and enable AI management.
+            Sport, date, pricing and capacity — we&apos;ll draft the listing and enable AI management.
           </p>
         </section>
 

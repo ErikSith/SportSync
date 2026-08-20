@@ -30,6 +30,10 @@ export interface TournamentCardData {
   sourceUrl: string | null;
   ticketUrl: string | null;
   isAggregated: boolean;
+  /** Kids-only tournament. */
+  forKids: boolean;
+  /** Women-only tournament. */
+  forWomen: boolean;
 }
 
 export interface TournamentDetailData extends TournamentCardData {
@@ -81,6 +85,8 @@ interface TournamentRow {
   source?: string | null;
   source_url?: string | null;
   ticket_url?: string | null;
+  for_kids?: boolean | null;
+  for_women?: boolean | null;
   venues: VenueSnippet | VenueSnippet[] | null;
   profiles?: OrganizerSnippet | OrganizerSnippet[] | null;
   tournament_registrations?: RegistrationSnippet[];
@@ -139,6 +145,8 @@ function mapTournamentRow(row: TournamentRow): TournamentCardData {
     sourceUrl: row.source_url ?? null,
     ticketUrl: row.ticket_url ?? null,
     isAggregated: Boolean(row.source),
+    forKids: Boolean(row.for_kids),
+    forWomen: Boolean(row.for_women),
   };
 }
 

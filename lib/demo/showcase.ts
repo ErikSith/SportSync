@@ -55,7 +55,7 @@ export const SHOWCASE_CARDS: ShowcaseCard[] = [
     tab: 'Events',
     title: 'Midnight Padel Masters',
     subtitle: 'Official venue event — capacity bar, organizer, register CTA',
-    href: `/events/${SHOWCASE.eventId}`,
+    href: '/events',
     icon: 'event',
     badge: 'ACTIVE',
   },

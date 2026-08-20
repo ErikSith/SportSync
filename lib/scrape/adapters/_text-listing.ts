@@ -11,7 +11,7 @@ import {
   slugify,
 } from '@/lib/scrape/fetch';
 import { scrapingSourceByAdapter } from '@/lib/scrape/scraping-sources';
-import { tagScrapedEventKids } from '@/lib/events/for-kids';
+import { tagScrapedListingAudience } from '@/lib/events/audience';
 import { tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import type {
   AdapterResult,
@@ -57,7 +57,7 @@ export async function scrapeTextListing(config: TextListingConfig): Promise<Adap
         if (seen.has(event.externalId)) continue;
         seen.add(event.externalId);
         events.push(
-          tagScrapedEventKids(tagScrapedEventLocation(withSourceLocation(event, config))),
+          tagScrapedListingAudience(tagScrapedEventLocation(withSourceLocation(event, config))),
         );
       }
     }

@@ -49,6 +49,13 @@ export const ScrapedEventSchema = z.object({
     .describe(
       'True len ak je aktivita vyslovene pre deti (pre deti, detský, Kidstown, mini, U6–U12). Nie junior/ITF do 18.',
     ),
+  forWomen: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'True len ak je aktivita vyslovene pre ženy (pre ženy, ladies only, W4W, dámsky). Nie mix ženy+muži.',
+    ),
 });
 
 export type ScrapedEvent = z.infer<typeof ScrapedEventSchema>;
@@ -119,6 +126,11 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
             type: 'boolean',
             description:
               'True len ak je aktivita vyslovene pre deti (pre deti, detský, Kidstown, mini, U6–U12). Nie junior/ITF do 18.',
+          },
+          forWomen: {
+            type: 'boolean',
+            description:
+              'True len ak je aktivita vyslovene pre ženy (pre ženy, ladies only, W4W, dámsky). Nie mix ženy+muži.',
           },
         },
         required: [

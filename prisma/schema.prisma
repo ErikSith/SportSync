@@ -301,6 +301,8 @@ model Event {
   participationMode  String    @default("participate") @map("participation_mode")
   /// Kids-oriented activity (e.g. CityLife Kidstown / "pre deti").
   forKids            Boolean   @default(false) @map("for_kids")
+  /// Women-only activity (pre ženy, ladies only, W4W).
+  forWomen           Boolean   @default(false) @map("for_women")
 
   /// Paid homepage promoted / sponsored banner slot.
   isPromoted     Boolean   @default(false) @map("is_promoted")
@@ -519,6 +521,10 @@ model Tournament {
   sourceUrl          String?   @map("source_url")
   ticketUrl          String?   @map("ticket_url")
   scrapedAt          DateTime? @map("scraped_at") @db.Timestamp(6)
+  /// Kids-only tournament (mini / U6–U12 / pre deti).
+  forKids            Boolean   @default(false) @map("for_kids")
+  /// Women-only tournament (pre ženy, ladies, W4W).
+  forWomen           Boolean   @default(false) @map("for_women")
 
   /// Paid homepage promoted / sponsored banner slot.
   isPromoted     Boolean   @default(false) @map("is_promoted")

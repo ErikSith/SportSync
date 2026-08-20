@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getApiAuthUser } from '@/lib/auth/api-user';
+import { ensureProfileForUser } from '@/lib/auth/ensure-profile';
 import { LOBBY_SPORTS } from '@/lib/constants/sports';
 import { getMyGroups } from '@/lib/data/sport-groups';
 import { generateInviteCode } from '@/lib/utils/invite-code';
@@ -27,6 +28,14 @@ export async function POST(request: Request) {
   const { user, supabase } = await getApiAuthUser();
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  const profileReady = await ensureProfileForUser(supabase, user);
+  if (!profileReady.ok) {
+    return NextResponse.json(
+      { error: profileReady.error || 'Could not prepare player profile' },
+      { status: 500 },
+    );
   }
 
   const json = await request.json().catch(() => null);

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { lobbyActiveSinceIso } from '@/lib/retention/lobbies';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
 
 export interface VenueCardData {
@@ -617,12 +618,11 @@ async function fetchUpcomingTournaments(venueId: string): Promise<VenueTournamen
 async function fetchUpcomingLobbies(venueId: string): Promise<VenueLobbyPreview[]> {
   try {
     const supabase = await createClient();
-    const now = new Date().toISOString();
     const { data, error } = await supabase
       .from('lobbies')
       .select('id, sport, format, scheduled_at, status, spots_total, spots_filled')
       .eq('venue_id', venueId)
-      .gte('scheduled_at', now)
+      .gte('scheduled_at', lobbyActiveSinceIso())
       .order('scheduled_at', { ascending: true })
       .limit(5);
 

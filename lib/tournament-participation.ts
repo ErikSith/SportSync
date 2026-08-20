@@ -101,6 +101,8 @@ export function spectatorEventToTournamentCard(event: EventCardData): Tournament
     sourceUrl: event.sourceUrl,
     ticketUrl: event.ticketUrl,
     isAggregated: event.isAggregated || Boolean(event.source),
+    forKids: event.forKids,
+    forWomen: event.forWomen,
   };
 }
 
