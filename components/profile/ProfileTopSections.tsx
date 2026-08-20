@@ -43,7 +43,7 @@ export function ProfileTopSections({
   const safeSports = profile.preferredSports ?? [];
 
   return (
-    <>
+    <div className="flex flex-col gap-5">
       <ProfileHero
         profile={{ ...profile, sportSkills: safeSkills, preferredSports: safeSports }}
         heroStats={heroStats}
@@ -66,6 +66,6 @@ export function ProfileTopSections({
           <StatsGrid profile={profile} stats={stats} embedded />
         </section>
       ) : null}
-    </>
+    </div>
   );
 }

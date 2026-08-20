@@ -65,102 +65,122 @@ export function ProfileHero({
   }
 
   const statCards = [
-    { label: 'Odohrané hry', value: String(heroStats.gamesPlayed) },
+    { label: 'Zápasy', value: String(heroStats.gamesPlayed) },
     { label: 'Skupiny', value: String(heroStats.groupsCount) },
     { label: 'Úroveň', value: heroStats.levelLabel },
   ];
 
   return (
     <>
-      <section className="flex flex-col items-center text-center gap-4">
-        <div className="relative w-full">
-          <div className="relative h-36 w-full overflow-hidden rounded-2xl border border-white/8 bg-surface-container-high">
+      <section className="flex flex-col gap-4">
+        {/* Full-bleed cover — breaks out of page padding on mobile */}
+        <div className="relative -mx-container-margin-mobile md:mx-0">
+          <div className="relative h-44 w-full overflow-hidden bg-surface-container-high md:h-48 md:rounded-2xl md:border md:border-white/8">
             {profile.coverUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                className="h-full w-full object-cover"
-                src={profile.coverUrl}
-                alt=""
-              />
+              <img className="h-full w-full object-cover" src={profile.coverUrl} alt="" />
             ) : (
               <div
-                className="h-full w-full bg-gradient-to-br from-primary-container/35 via-surface-container to-secondary-container/20"
+                className="h-full w-full bg-gradient-to-br from-primary-container/40 via-surface-container to-secondary-container/25"
                 aria-hidden
               />
             )}
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/20 to-black/25" />
+
+            <div className="absolute right-3 top-3 flex gap-2 md:right-4 md:top-4">
+              {editable ? (
+                <button
+                  type="button"
+                  onClick={() => setEditOpen(true)}
+                  aria-label="Upraviť profil"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md transition-transform active:scale-90"
+                >
+                  <span className="material-symbols-outlined text-[22px]">edit</span>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void handleShare()}
+                aria-label="Zdieľať profil"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md transition-transform active:scale-90"
+              >
+                <span className="material-symbols-outlined text-[22px]">ios_share</span>
+              </button>
+            </div>
           </div>
 
-          <div className="relative -mt-14 flex justify-center">
-            <div className="relative">
-              <div className="h-28 w-28 overflow-hidden rounded-full border-[3px] border-primary-container bg-surface-container-high shadow-[0_0_24px_rgba(200,75,36,0.35)]">
+          <div className="relative z-[1] -mt-12 flex items-end justify-between gap-3 px-container-margin-mobile md:px-0">
+            <div className="relative shrink-0">
+              <div className="h-[88px] w-[88px] overflow-hidden rounded-full border-[3px] border-background bg-surface-container-high shadow-[0_8px_28px_rgba(0,0,0,0.45)]">
                 {profile.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img className="h-full w-full object-cover" src={profile.avatarUrl} alt={displayName} />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center font-headline-md text-headline-md text-on-surface">
+                  <div className="flex h-full w-full items-center justify-center font-headline-md text-[1.35rem] text-on-surface">
                     {initials}
                   </div>
                 )}
               </div>
               {verified ? (
                 <span
-                  className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-primary-container text-white"
+                  className="absolute bottom-0.5 right-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-primary-container text-white"
                   title="Overený profil"
                 >
-                  <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  <span
+                    className="material-symbols-outlined text-[15px]"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
+                  >
                     verified
                   </span>
                 </span>
               ) : null}
             </div>
+
+            {editable ? (
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="mb-1 inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-surface-container px-4 font-label-caps text-[11px] uppercase tracking-[0.12em] text-on-surface transition-transform active:scale-[0.97] hover:border-white/25 hover:bg-surface-container-high"
+              >
+                <span className="material-symbols-outlined text-[18px]">tune</span>
+                Upraviť
+              </button>
+            ) : null}
           </div>
         </div>
 
-        <div className="space-y-1.5 max-w-md">
-          <h1 className="font-headline-md text-headline-md text-on-surface md:text-[1.75rem]">{displayName}</h1>
-          <p className="flex items-center justify-center gap-1 font-body-md text-sm text-on-surface-variant">
+        <div className="space-y-1.5 px-0.5">
+          <h1 className="font-headline-md text-[1.45rem] leading-tight tracking-wide text-on-surface md:text-[1.75rem]">
+            {displayName}
+          </h1>
+          <p className="font-body-md text-sm text-on-surface-variant">@{profile.username}</p>
+          <p className="flex items-center gap-1 font-body-md text-sm text-on-surface-variant">
             <span className="material-symbols-outlined text-[16px] text-primary-container">location_on</span>
             {city}, Slovakia
           </p>
           {profile.bio ? (
-            <p className="line-clamp-2 font-body-md text-sm leading-relaxed text-on-surface">{profile.bio}</p>
+            <p className="pt-1 font-body-md text-sm leading-relaxed text-on-surface">{profile.bio}</p>
           ) : editable ? (
-            <p className="font-body-md text-sm text-on-surface-variant/70">Pridaj bio v úprave profilu.</p>
-          ) : null}
-        </div>
-
-        <div className="flex w-full max-w-md gap-2">
-          {editable ? (
             <button
               type="button"
               onClick={() => setEditOpen(true)}
-              className="flex-1 rounded-xl bg-primary-container py-3 font-label-caps text-[11px] uppercase tracking-[0.14em] text-white transition-colors hover:brightness-110"
+              className="pt-1 text-left font-body-md text-sm text-on-surface-variant/70 active:text-primary-container"
             >
-              Upraviť profil
+              Pridaj bio…
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => void handleShare()}
-            className={`rounded-xl border border-white/15 bg-surface-container py-3 font-label-caps text-[11px] uppercase tracking-[0.14em] text-on-surface transition-colors hover:border-white/25 hover:bg-surface-container-high ${
-              editable ? 'flex-1' : 'w-full'
-            }`}
-          >
-            Zdieľať
-          </button>
+          {shareHint ? (
+            <p className="pt-1 font-label-caps text-[10px] uppercase tracking-widest text-secondary">
+              {shareHint}
+            </p>
+          ) : null}
         </div>
-        {shareHint ? (
-          <p className="font-label-caps text-[10px] uppercase tracking-widest text-secondary">{shareHint}</p>
-        ) : null}
 
-        <div className="grid w-full grid-cols-3 gap-2">
+        {/* Instagram-style compact stats — no heavy cards */}
+        <div className="grid grid-cols-3 divide-x divide-white/8 rounded-2xl border border-white/8 bg-surface-container/60 py-3.5">
           {statCards.map((card) => (
-            <div
-              key={card.label}
-              className="rounded-2xl border border-white/5 bg-surface-container px-2 py-3.5 text-center"
-            >
-              <div className="font-display-lg-mobile text-[1.65rem] leading-none text-primary-container">
+            <div key={card.label} className="px-2 text-center">
+              <div className="font-display-lg-mobile text-[1.35rem] leading-none text-on-surface">
                 {card.value}
               </div>
               <div className="mt-1.5 font-label-caps text-[9px] uppercase tracking-[0.12em] text-on-surface-variant">

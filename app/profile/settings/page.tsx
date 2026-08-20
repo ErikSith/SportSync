@@ -24,7 +24,7 @@ export default async function ProfileSettingsPage() {
     <>
       <TopAppBar avatarUrl={profile.avatarUrl} name={displayName} />
 
-      <main className="pt-24 pb-28 px-container-margin-mobile md:px-container-margin-desktop max-w-lg md:max-w-2xl mx-auto flex flex-col gap-5 relative z-10 md:pt-28">
+      <main className="relative z-10 mx-auto flex max-w-lg flex-col gap-5 px-container-margin-mobile pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-[calc(4.25rem+env(safe-area-inset-top,0px))] md:pt-28">
         <div className="flex items-center gap-3">
           <Link
             href="/profile"

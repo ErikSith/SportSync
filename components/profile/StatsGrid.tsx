@@ -14,33 +14,35 @@ interface StatsGridProps {
 
 export function StatsGrid({ profile, stats, embedded = false }: StatsGridProps) {
   const tiles: StatTile[] = [
-    { label: 'Matches Played', value: stats.gamesPlayed || stats.completedLobbies, icon: 'sports_score' },
-    { label: 'Groups', value: stats.groupsCount, icon: 'groups' },
-    { label: 'Karma Score', value: profile.karmaScore, icon: 'favorite' },
-    { label: 'Season Points', value: profile.seasonPts, icon: 'military_tech' },
-    { label: 'Tournaments', value: stats.tournamentRegistrations, icon: 'emoji_events' },
-    { label: 'Lessons Booked', value: stats.lessonsBooked, icon: 'school' },
-    { label: 'Lobbies Hosted', value: stats.lobbiesHosted, icon: 'stadium' },
+    { label: 'Zápasy', value: stats.gamesPlayed || stats.completedLobbies, icon: 'sports_score' },
+    { label: 'Skupiny', value: stats.groupsCount, icon: 'groups' },
+    { label: 'Karma', value: profile.karmaScore, icon: 'favorite' },
+    { label: 'Sezóna', value: profile.seasonPts, icon: 'military_tech' },
+    { label: 'Turnaje', value: stats.tournamentRegistrations, icon: 'emoji_events' },
+    { label: 'Lekcie', value: stats.lessonsBooked, icon: 'school' },
+    { label: 'Hostené', value: stats.lobbiesHosted, icon: 'stadium' },
   ];
 
   return (
-    <div className={embedded ? 'flex flex-col gap-3' : undefined}>
-      {embedded && (
-        <h3 className="font-label-caps text-[10px] uppercase text-on-surface-variant tracking-widest">Stats</h3>
-      )}
-      <section className={`grid grid-cols-2 md:grid-cols-3 gap-3 ${embedded ? '' : ''}`}>
-      {tiles.map((tile) => (
-        <div
-          key={tile.label}
-          className="glass-card rounded-xl p-4 flex flex-col items-center text-center gap-2 glow-hover transition-all"
-        >
-          <span className="material-symbols-outlined text-secondary text-2xl">{tile.icon}</span>
-          <div className="font-display-lg-mobile text-display-lg-mobile text-primary-container leading-none">
-            {tile.value.toLocaleString('en-US')}
+    <div className={embedded ? 'flex flex-col gap-2.5' : undefined}>
+      {embedded ? (
+        <h3 className="px-0.5 font-headline-md text-[1.05rem] text-on-surface">Štatistiky</h3>
+      ) : null}
+      <section className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {tiles.map((tile) => (
+          <div
+            key={tile.label}
+            className="flex min-h-[88px] flex-col items-center justify-center gap-1.5 rounded-2xl border border-white/8 bg-surface-container px-2 py-3 text-center"
+          >
+            <span className="material-symbols-outlined text-[20px] text-secondary">{tile.icon}</span>
+            <div className="font-display-lg-mobile text-[1.35rem] leading-none text-primary-container">
+              {tile.value.toLocaleString('sk-SK')}
+            </div>
+            <div className="font-label-caps text-[9px] uppercase tracking-[0.12em] text-on-surface-variant">
+              {tile.label}
+            </div>
           </div>
-          <div className="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-widest">{tile.label}</div>
-        </div>
-      ))}
+        ))}
       </section>
     </div>
   );

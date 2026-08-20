@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import type { Profile } from '@/lib/data/profile-shared';
 import { SUPPORTED_CITIES } from '@/lib/cities';
@@ -12,6 +13,7 @@ import {
   type SportSkillLevel,
   type SportSkillsMap,
 } from '@/lib/profile/sport-skills';
+import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 
 interface ProfileEditSheetProps {
   open: boolean;
@@ -34,6 +36,8 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
   const [coverPreview, setCoverPreview] = useState(profile.coverUrl);
   const [error, setError] = useState<string | null>(null);
 
+  useBodyScrollLock(open);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -54,18 +58,11 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
 
   useEffect(() => {
     if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
     }
-
     document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', onKeyDown);
-    };
+    return () => document.removeEventListener('keydown', onKeyDown);
   }, [open, onClose]);
 
   function toggleSport(sport: string) {
@@ -166,208 +163,266 @@ export function ProfileEditSheet({ open, onClose, profile }: ProfileEditSheetPro
     router.refresh();
   }
 
-  if (!open || !mounted) return null;
+  if (!mounted) return null;
 
-  const modal = (
-    <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      role="presentation"
-      onClick={onClose}
-    >
-      <div
-        className="glass-panel rounded-2xl p-6 md:p-8 w-full max-w-lg border border-secondary/10 space-y-5 max-h-[90vh] overflow-y-auto relative z-[101]"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="edit-profile-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h3 id="edit-profile-title" className="font-headline-md text-headline-md text-on-surface">
-            Upraviť profil
-          </h3>
-          <button type="button" onClick={onClose} className="text-on-surface-variant hover:text-secondary transition-colors">
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
+  return createPortal(
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          className="fixed inset-0 z-[100] flex items-end justify-center overscroll-none sm:items-center sm:p-6"
+          role="presentation"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <motion.button
+            type="button"
+            aria-label="Zavrieť"
+            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
 
-        <div className="flex gap-4">
-          <label className="flex-1 cursor-pointer space-y-2">
-            <span className="font-label-caps text-[10px] uppercase text-on-surface-variant block">
-              Profilovka
-            </span>
-            <span className="relative flex h-20 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-surface-container hover:border-secondary/30 transition-colors">
-              {avatarPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarPreview} alt="" className="absolute inset-0 h-full w-full object-cover" />
-              ) : null}
-              <span className="relative z-[1] flex items-center justify-center gap-2 rounded-lg bg-black/55 px-3 py-1.5 text-sm text-white">
-                <span className="material-symbols-outlined text-lg">photo_camera</span>
-                {uploading === 'avatar' ? 'Nahrávam…' : 'Zmeniť'}
-              </span>
-            </span>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="sr-only"
-              disabled={uploading !== null}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void uploadImage('avatar', file);
-                e.target.value = '';
-              }}
-            />
-          </label>
-          <label className="flex-1 cursor-pointer space-y-2">
-            <span className="font-label-caps text-[10px] uppercase text-on-surface-variant block">
-              Banner / pozadie
-            </span>
-            <span className="relative flex h-20 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-surface-container hover:border-secondary/30 transition-colors">
-              {coverPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={coverPreview} alt="" className="absolute inset-0 h-full w-full object-cover" />
-              ) : null}
-              <span className="relative z-[1] flex items-center justify-center gap-2 rounded-lg bg-black/55 px-3 py-1.5 text-sm text-white">
-                <span className="material-symbols-outlined text-lg">wallpaper</span>
-                {uploading === 'cover' ? 'Nahrávam…' : 'Zmeniť'}
-              </span>
-            </span>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="sr-only"
-              disabled={uploading !== null}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void uploadImage('cover', file);
-                e.target.value = '';
-              }}
-            />
-          </label>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <label className="block space-y-1">
-            <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">Display name</span>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              maxLength={80}
-              className="w-full rounded-lg bg-surface-container border border-white/10 px-3 py-2 text-on-surface"
-            />
-          </label>
-
-          <label className="block space-y-1">
-            <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">Username</span>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              maxLength={30}
-              pattern="^[a-zA-Z0-9_]+$"
-              className="w-full rounded-lg bg-surface-container border border-white/10 px-3 py-2 text-on-surface"
-            />
-          </label>
-
-          <label className="block space-y-1">
-            <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">Bio</span>
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              maxLength={160}
-              rows={3}
-              placeholder="Čo hráš a s kým hľadáš partiu?"
-              className="w-full rounded-lg bg-surface-container border border-white/10 px-3 py-2 text-on-surface resize-none"
-            />
-            <span className="font-label-caps text-[10px] text-on-surface-variant">{bio.length}/160</span>
-          </label>
-
-          <label className="block space-y-1">
-            <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">City</span>
-            <select
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className="w-full rounded-lg bg-surface-container border border-white/10 px-3 py-2 text-on-surface"
-            >
-              {SUPPORTED_CITIES.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="space-y-2">
-            <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">Preferred sports</span>
-            <div className="flex flex-wrap gap-2">
-              {EVENT_SPORTS.map((sport) => {
-                const active = preferredSports.includes(sport);
-                return (
-                  <button
-                    key={sport}
-                    type="button"
-                    onClick={() => toggleSport(sport)}
-                    className={`font-label-caps text-[10px] uppercase px-2.5 py-1 rounded-full border transition-colors ${
-                      active
-                        ? 'bg-primary-container/20 text-primary-container border-primary-container/40'
-                        : 'bg-surface-container text-on-surface-variant border-white/10 hover:border-white/20'
-                    }`}
-                  >
-                    {sportDisplayLabel(sport)}
-                  </button>
-                );
-              })}
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-profile-title"
+            className="relative z-[101] flex max-h-[92dvh] w-full max-w-none flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#141210] sm:max-h-[min(88vh,720px)] sm:max-w-lg sm:rounded-2xl"
+            initial={{ opacity: 0, y: 48 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 32 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
+              <span className="h-1 w-10 rounded-full bg-white/25" />
             </div>
-          </div>
 
-          {preferredSports.length > 0 ? (
-            <div className="space-y-3">
-              <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">Úroveň športov</span>
-              {preferredSports.map((sport) => {
-                const level = (sportSkills[sport as keyof SportSkillsMap] ?? 2) as SportSkillLevel;
-                return (
-                  <div key={sport} className="rounded-xl border border-white/8 bg-surface-container/80 p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-body-md text-sm text-on-surface">{sportDisplayLabel(sport)}</span>
-                      <span className="font-label-caps text-[9px] uppercase text-primary-container">
-                        {sportSkillLabel(level)}
+            <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 pb-3 pt-2 sm:px-5 sm:pt-4">
+              <h3 id="edit-profile-title" className="font-headline-md text-[1.15rem] text-on-surface">
+                Upraviť profil
+              </h3>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Zavrieť"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-on-surface-variant transition-transform active:scale-90"
+              >
+                <span className="material-symbols-outlined text-[22px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+              <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+                <div className="flex gap-3">
+                  <label className="flex-1 cursor-pointer space-y-2">
+                    <span className="block font-label-caps text-[10px] uppercase text-on-surface-variant">
+                      Profilovka
+                    </span>
+                    <span className="relative flex min-h-[88px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-surface-container">
+                      {avatarPreview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={avatarPreview}
+                          alt=""
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      ) : null}
+                      <span className="relative z-[1] flex min-h-11 items-center justify-center gap-2 rounded-full bg-black/55 px-3.5 text-sm text-white backdrop-blur-sm">
+                        <span className="material-symbols-outlined text-lg">photo_camera</span>
+                        {uploading === 'avatar' ? 'Nahrávam…' : 'Zmeniť'}
                       </span>
-                    </div>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {([1, 2, 3, 4] as const).map((step) => (
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="sr-only"
+                      disabled={uploading !== null}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void uploadImage('avatar', file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  <label className="flex-1 cursor-pointer space-y-2">
+                    <span className="block font-label-caps text-[10px] uppercase text-on-surface-variant">
+                      Banner
+                    </span>
+                    <span className="relative flex min-h-[88px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-surface-container">
+                      {coverPreview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={coverPreview}
+                          alt=""
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      ) : null}
+                      <span className="relative z-[1] flex min-h-11 items-center justify-center gap-2 rounded-full bg-black/55 px-3.5 text-sm text-white backdrop-blur-sm">
+                        <span className="material-symbols-outlined text-lg">wallpaper</span>
+                        {uploading === 'cover' ? 'Nahrávam…' : 'Zmeniť'}
+                      </span>
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="sr-only"
+                      disabled={uploading !== null}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void uploadImage('cover', file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <label className="block space-y-1.5">
+                  <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">
+                    Meno
+                  </span>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    maxLength={80}
+                    className="min-h-12 w-full rounded-xl border border-white/10 bg-surface-container px-3.5 text-on-surface outline-none focus:border-primary-container/50"
+                  />
+                </label>
+
+                <label className="block space-y-1.5">
+                  <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">
+                    Username
+                  </span>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    maxLength={30}
+                    pattern="^[a-zA-Z0-9_]+$"
+                    className="min-h-12 w-full rounded-xl border border-white/10 bg-surface-container px-3.5 text-on-surface outline-none focus:border-primary-container/50"
+                  />
+                </label>
+
+                <label className="block space-y-1.5">
+                  <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">Bio</span>
+                  <textarea
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    maxLength={160}
+                    rows={3}
+                    placeholder="Čo hráš a s kým hľadáš partiu?"
+                    className="w-full resize-none rounded-xl border border-white/10 bg-surface-container px-3.5 py-3 text-on-surface outline-none focus:border-primary-container/50"
+                  />
+                  <span className="font-label-caps text-[10px] text-on-surface-variant">
+                    {bio.length}/160
+                  </span>
+                </label>
+
+                <label className="block space-y-1.5">
+                  <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">
+                    Mesto
+                  </span>
+                  <select
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="min-h-12 w-full rounded-xl border border-white/10 bg-surface-container px-3.5 text-on-surface outline-none focus:border-primary-container/50"
+                  >
+                    {SUPPORTED_CITIES.map((c) => (
+                      <option key={c.name} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="space-y-2">
+                  <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">
+                    Preferované športy
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {EVENT_SPORTS.map((sport) => {
+                      const active = preferredSports.includes(sport);
+                      return (
                         <button
-                          key={step}
+                          key={sport}
                           type="button"
-                          onClick={() => setSkill(sport, step)}
-                          className={`rounded-lg py-2 font-label-caps text-[10px] uppercase transition-colors ${
-                            level === step
-                              ? 'bg-primary-container text-white'
-                              : 'bg-black/25 text-on-surface-variant hover:bg-black/40'
+                          onClick={() => toggleSport(sport)}
+                          className={`min-h-10 rounded-full border px-3.5 font-label-caps text-[10px] uppercase transition-colors active:scale-95 ${
+                            active
+                              ? 'border-primary-container/40 bg-primary-container/20 text-primary-container'
+                              : 'border-white/10 bg-surface-container text-on-surface-variant'
                           }`}
                         >
-                          {step}
+                          {sportDisplayLabel(sport)}
                         </button>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          ) : null}
+                </div>
 
-          {error && <p className="text-primary text-sm">{error}</p>}
+                {preferredSports.length > 0 ? (
+                  <div className="space-y-3">
+                    <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">
+                      Úroveň športov
+                    </span>
+                    {preferredSports.map((sport) => {
+                      const level = (sportSkills[sport as keyof SportSkillsMap] ?? 2) as SportSkillLevel;
+                      return (
+                        <div
+                          key={sport}
+                          className="space-y-2 rounded-2xl border border-white/8 bg-surface-container/80 p-3.5"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-body-md text-sm text-on-surface">
+                              {sportDisplayLabel(sport)}
+                            </span>
+                            <span className="font-label-caps text-[9px] uppercase text-primary-container">
+                              {sportSkillLabel(level)}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {([1, 2, 3, 4] as const).map((step) => (
+                              <button
+                                key={step}
+                                type="button"
+                                onClick={() => setSkill(sport, step)}
+                                className={`min-h-11 rounded-xl font-label-caps text-[10px] uppercase transition-transform active:scale-95 ${
+                                  level === step
+                                    ? 'bg-primary-container text-white'
+                                    : 'bg-black/25 text-on-surface-variant'
+                                }`}
+                              >
+                                {step}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
 
-          <button
-            type="submit"
-            disabled={submitting || uploading !== null}
-            className="w-full font-label-caps text-label-caps uppercase px-4 py-2.5 rounded-lg bg-primary-container text-white disabled:opacity-50"
-          >
-            {submitting ? 'Ukladám…' : 'Uložiť zmeny'}
-          </button>
-        </form>
-      </div>
-    </div>
+                {error ? <p className="text-sm text-primary">{error}</p> : null}
+              </div>
+
+              <div className="shrink-0 border-t border-white/5 px-4 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom,0px))] sm:px-5">
+                <button
+                  type="submit"
+                  disabled={submitting || uploading !== null}
+                  className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-primary-container font-label-caps text-[12px] uppercase tracking-[0.14em] text-white transition-transform active:scale-[0.98] disabled:opacity-50"
+                >
+                  {submitting ? 'Ukladám…' : 'Uložiť zmeny'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>,
+    document.body,
   );
-
-  return createPortal(modal, document.body);
 }

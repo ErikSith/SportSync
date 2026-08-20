@@ -44,8 +44,8 @@ function resultLabel(result: MatchActivityCard['result']): { text: string; class
 
 export function ProfileMatchActivity({ matches, karmaFallback = [] }: ProfileMatchActivityProps) {
   return (
-    <section className="space-y-3">
-      <h2 className="font-headline-md text-[1.1rem] text-on-surface">Posledná aktivita</h2>
+    <section className="space-y-2.5">
+      <h2 className="px-0.5 font-headline-md text-[1.05rem] text-on-surface">Posledná aktivita</h2>
 
       {matches.length > 0 ? (
         <ul className="space-y-3">

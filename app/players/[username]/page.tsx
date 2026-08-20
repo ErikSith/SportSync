@@ -51,14 +51,14 @@ export default async function PlayerProfilePage({ params }: PlayerProfilePagePro
 
       <TopAppBar avatarUrl={viewer.avatarUrl} name={viewer.fullName ?? viewer.username} />
 
-      <main className="pt-24 pb-28 px-container-margin-mobile md:px-container-margin-desktop max-w-lg md:max-w-2xl mx-auto flex flex-col gap-6 relative z-10 md:pt-28">
-        <div className="flex items-start justify-between gap-4">
+      <main className="relative z-10 mx-auto flex max-w-lg flex-col gap-5 px-container-margin-mobile pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-[calc(4.25rem+env(safe-area-inset-top,0px))] md:pt-28">
+        <div className="flex items-center justify-between gap-3">
           <Link
             href="/profile"
-            className="flex items-center gap-1 text-on-surface-variant hover:text-secondary transition-colors shrink-0 mt-1"
+            className="inline-flex min-h-11 items-center gap-1 rounded-full border border-white/10 bg-surface-container px-3 text-on-surface-variant transition-transform active:scale-95"
           >
             <span className="material-symbols-outlined text-lg">arrow_back</span>
-            <span className="font-label-caps text-[10px] uppercase">Back</span>
+            <span className="font-label-caps text-[10px] uppercase">Späť</span>
           </Link>
           <FriendActionButton
             targetUsername={profile.username}
