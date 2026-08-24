@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { MapPin } from 'lucide-react';
 import type { EventCardData } from '@/lib/data/events';
+import { isFormFactoryListing } from '@/lib/media/listing-cover';
 import { resolveSportAtmosphereCover } from '@/lib/venues/venue-media';
 import { AtmosphereTabMedia } from '@/components/shared/AtmosphereTabMedia';
 import { SportLabel } from '@/components/shared/SportLabel';
@@ -46,7 +47,9 @@ export function EventAtmosphereTab({
   layout = 'rail',
 }: EventAtmosphereTabProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
-  const cover = resolveSportAtmosphereCover(event.sport, event.coverUrl);
+  const cover = isFormFactoryListing(event)
+    ? null
+    : resolveSportAtmosphereCover(event.sport, event.coverUrl);
   const free = priceLabel(event) === 'Free';
   const venue = event.venueName ?? event.city;
   const startsAt = alignStartsAtWithCopyTime(asDate(event.startsAt), event.description);

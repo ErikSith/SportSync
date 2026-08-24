@@ -88,8 +88,6 @@ const VENUE_COVER_BY_NAME: Array<{ match: RegExp; cover: string }> = [
 
 /** Brand mark by website host or venue name. */
 const LOGO_BY_HOST: Record<string, string> = {
-  'formfactory.sk': 'https://www.google.com/s2/favicons?domain=formfactory.sk&sz=128',
-  'fitcamp.formfactory.sk': 'https://www.google.com/s2/favicons?domain=formfactory.sk&sz=128',
   'aurialpadel.sk': 'https://www.google.com/s2/favicons?domain=aurialpadel.sk&sz=128',
   'arenapadel.sk': 'https://www.google.com/s2/favicons?domain=arenapadel.sk&sz=128',
   'gopassarena.sk': 'https://www.google.com/s2/favicons?domain=gopassarena.sk&sz=128',
@@ -115,7 +113,11 @@ export function resolveVenueCover(input: {
   sports?: string[];
   coverUrl?: string | null;
 }): string {
-  if (input.coverUrl) return input.coverUrl;
+  const stored =
+    input.coverUrl && /formfactory|form-factory|form\s*factory/i.test(input.coverUrl)
+      ? null
+      : input.coverUrl;
+  if (stored) return stored;
   for (const entry of VENUE_COVER_BY_NAME) {
     if (entry.match.test(input.name)) return entry.cover;
   }
@@ -140,12 +142,16 @@ export function resolveVenueLogo(input: {
   logoUrl?: string | null;
   websiteUrl?: string | null;
 }): string | null {
+  if (input.logoUrl && /formfactory|form-factory/i.test(input.logoUrl)) {
+    return null;
+  }
   if (input.logoUrl) return input.logoUrl;
   const host = hostFromUrl(input.websiteUrl);
+  if (host && /formfactory/i.test(host)) return null;
   if (host && LOGO_BY_HOST[host]) return LOGO_BY_HOST[host];
   if (host) return `https://www.google.com/s2/favicons?domain=${host}&sz=128`;
   // Name-based fallbacks when website missing
-  if (/form\s*factory|fitcamp/i.test(input.name)) return LOGO_BY_HOST['formfactory.sk'] ?? null;
+  if (/form\s*factory|fitcamp/i.test(input.name)) return null;
   if (/aurial|arena\s*padel/i.test(input.name)) return LOGO_BY_HOST['aurialpadel.sk'] ?? null;
   if (/gopass/i.test(input.name)) return LOGO_BY_HOST['gopassarena.sk'] ?? null;
   if (/stz|ntc|n[aá]rodn[eé]\s+tenis/i.test(input.name)) return LOGO_BY_HOST['stz.sk'] ?? null;

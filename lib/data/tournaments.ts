@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
+import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
 import { titleIsOutsideBratislava, isBratislavaCity } from '@/lib/cities';
 
@@ -127,7 +128,13 @@ function mapTournamentRow(row: TournamentRow): TournamentCardData {
     entryFee: Number(row.entry_fee),
     currentParticipants: row.current_participants,
     maxParticipants: row.max_participants,
-    coverUrl: row.cover_url,
+    coverUrl: sanitizeListingCoverUrl(row.cover_url, {
+      source: row.source,
+      sourceUrl: row.source_url,
+      ticketUrl: row.ticket_url,
+      venueName: venue?.name ?? null,
+      name: row.name,
+    }),
     startsAt: parseDbInstant(row.starts_at),
     endsAt: row.ends_at ? parseDbInstant(row.ends_at) : null,
     registrationDeadline: row.registration_deadline

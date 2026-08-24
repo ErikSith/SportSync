@@ -7,8 +7,7 @@ import type { FeaturedEventsResult } from '@/lib/data/homepage';
 import type { FeedAreaId } from '@/lib/cities';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
-
-const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80';
+import { ListingCover } from '@/components/shared/ListingCover';
 
 function formatWhen(date: Date): string {
   const now = new Date();
@@ -61,7 +60,7 @@ function FeaturedEventItem({
   areaLabel: string;
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
-  const cover = event.coverUrl ?? DEFAULT_COVER;
+  const cover = event.coverUrl;
   const price = priceLabel(event);
   const free = price === 'FREE';
 
@@ -77,8 +76,7 @@ function FeaturedEventItem({
         <div className="absolute inset-0 bg-gradient-to-r from-secondary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
 
         <div className="relative z-10 h-10 w-10 shrink-0 overflow-hidden rounded-md border border-secondary/20">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="h-full w-full object-cover" src={cover} alt="" />
+          <ListingCover className="h-full w-full object-cover" src={cover} alt="" />
         </div>
 
         <div className="relative z-10 min-w-0 flex-1">

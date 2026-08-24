@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { MapPin } from 'lucide-react';
 import type { TournamentCardData } from '@/lib/data/tournaments';
+import { isFormFactoryListing } from '@/lib/media/listing-cover';
 import { resolveSportAtmosphereCover } from '@/lib/venues/venue-media';
 import { AtmosphereTabMedia } from '@/components/shared/AtmosphereTabMedia';
 import { SportLabel } from '@/components/shared/SportLabel';
@@ -63,7 +64,16 @@ export function TournamentAtmosphereTab({
   index = 0,
 }: TournamentAtmosphereTabProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
-  const cover = resolveSportAtmosphereCover(tournament.sport, tournament.coverUrl);
+  const cover = isFormFactoryListing({
+    source: tournament.source,
+    sourceUrl: tournament.sourceUrl,
+    ticketUrl: tournament.ticketUrl,
+    venueName: tournament.venueName,
+    name: tournament.name,
+    coverUrl: tournament.coverUrl,
+  })
+    ? null
+    : resolveSportAtmosphereCover(tournament.sport, tournament.coverUrl);
   const status = statusMeta(tournament.status);
   const venue = tournament.venueName ?? tournament.venueCity ?? 'Venue TBA';
   const filled = tournament.currentParticipants;

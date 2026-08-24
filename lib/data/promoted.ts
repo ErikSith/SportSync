@@ -4,6 +4,7 @@ import type { TournamentCardData } from '@/lib/data/tournaments';
 import { sportColor } from '@/lib/utils/sport-icons';
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
+import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
 
 export type { PromotedBannerItem, PromotedKind } from '@/lib/data/promoted-types';
 
@@ -93,7 +94,13 @@ export async function getActivePromotedBanners(
         price,
         priceCents,
         currency: String(row.currency ?? 'EUR'),
-        coverUrl: (row.cover_url as string | null) ?? null,
+        coverUrl: sanitizeListingCoverUrl(row.cover_url as string | null, {
+          source: row.source as string | null,
+          sourceUrl: row.source_url as string | null,
+          ticketUrl: row.ticket_url as string | null,
+          venueName: venue?.name ?? null,
+          title: String(row.title),
+        }),
         capacity: (row.capacity as number | null) ?? null,
         maxParticipants: (row.max_participants as number | null) ?? null,
         registeredCount: Number(row.registered_count ?? 0),
@@ -156,7 +163,13 @@ export async function getActivePromotedBanners(
       entryFee,
       currentParticipants: Number(row.current_participants ?? 0),
       maxParticipants: Number(row.max_participants ?? 0),
-      coverUrl: (row.cover_url as string | null) ?? null,
+      coverUrl: sanitizeListingCoverUrl(row.cover_url as string | null, {
+        source: row.source as string | null,
+        sourceUrl: row.source_url as string | null,
+        ticketUrl: row.ticket_url as string | null,
+        venueName: venue?.name ?? null,
+        name: String(row.name),
+      }),
       startsAt,
       endsAt: row.ends_at ? new Date(String(row.ends_at)) : null,
       registrationDeadline: row.registration_deadline

@@ -6,8 +6,7 @@ import { eventTypeBadge } from '@/lib/constants/events';
 import { resolveTheme } from '@/lib/ai/theme-config-client';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
-
-const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80';
+import { ListingCover } from '@/components/shared/ListingCover';
 
 /** Fixed carousel tile — every card shares the same width + height. */
 export const CAROUSEL_CARD_WIDTH = 'w-[min(272px,82vw)] sm:w-[300px]';
@@ -48,7 +47,7 @@ export function EventCarouselCard({
   const [previewOpen, setPreviewOpen] = useState(false);
   const isSpectator = event.participationMode === 'spectator' || accent === 'spectator';
   const isLive = event.status === 'live';
-  const cover = event.coverUrl ?? DEFAULT_COVER;
+  const cover = event.coverUrl;
   const theme = resolveTheme(event.sportType, event.themeConfig);
   const typeBadge = isLive
     ? { label: 'LIVE', className: 'bg-error/90 text-on-error', icon: undefined as string | undefined }
@@ -76,8 +75,7 @@ export function EventCarouselCard({
         ].join(' ')}
       >
         <div className="relative h-[172px] shrink-0 overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <ListingCover
             className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             src={cover}
             alt=""

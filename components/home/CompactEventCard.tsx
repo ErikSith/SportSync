@@ -5,8 +5,8 @@ import type { EventCardData } from '@/lib/data/events';
 import { eventTypeBadge } from '@/lib/constants/events';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
+import { ListingCover } from '@/components/shared/ListingCover';
 
-const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80';
 const LAST_SPOTS_MAX_REMAINING = 2;
 
 export interface CompactEventBadge {
@@ -33,7 +33,7 @@ function formatTime(date: Date): string {
 export function CompactEventCard({ event, badge }: CompactEventCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const typeBadge = coverBadge(event);
-  const cover = event.coverUrl ?? DEFAULT_COVER;
+  const cover = event.coverUrl;
   const isOfficial = event.type === 'official';
 
   return (
@@ -50,8 +50,7 @@ export function CompactEventCard({ event, badge }: CompactEventCardProps) {
         ].join(' ')}
       >
         <div className="relative h-36 overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <ListingCover
             className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
             src={cover}
             alt={event.title}

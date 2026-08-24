@@ -3,6 +3,7 @@ import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
 import { lobbyActiveSinceIso } from '@/lib/retention/lobbies';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
+import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
 
 export interface VenueCardData {
   id: string;
@@ -296,6 +297,9 @@ interface ActivityRow {
   sport: string;
   starts_at: string;
   cover_url: string | null;
+  source?: string | null;
+  source_url?: string | null;
+  ticket_url?: string | null;
 }
 
 /** Batch-attach upcoming events + tournaments to venue cards (one query each). */
@@ -313,7 +317,7 @@ async function attachVenueActivities(venues: VenueCardData[]): Promise<VenueCard
     const [eventsRes, tournamentsRes] = await Promise.all([
       supabase
         .from('events')
-        .select('id, venue_id, title, sport, starts_at, cover_url, status')
+        .select('id, venue_id, title, sport, starts_at, cover_url, status, source, source_url, ticket_url')
         .in('venue_id', chunk)
         .in('status', ['open', 'live', 'full'])
         .gte('starts_at', activeSince)
@@ -321,7 +325,7 @@ async function attachVenueActivities(venues: VenueCardData[]): Promise<VenueCard
         .limit(Math.min(400, chunk.length * 8)),
       supabase
         .from('tournaments')
-        .select('id, venue_id, name, sport, starts_at, cover_url, status')
+        .select('id, venue_id, name, sport, starts_at, cover_url, status, source, source_url, ticket_url')
         .in('venue_id', chunk)
         .in('status', ['REGISTRATION_OPEN', 'IN_PROGRESS'])
         .gte('starts_at', activeSince)
@@ -356,7 +360,12 @@ async function attachVenueActivities(venues: VenueCardData[]): Promise<VenueCard
       title: row.title ?? 'Event',
       sport: row.sport,
       startsAt: row.starts_at,
-      coverUrl: row.cover_url,
+      coverUrl: sanitizeListingCoverUrl(row.cover_url, {
+        source: row.source,
+        sourceUrl: row.source_url,
+        ticketUrl: row.ticket_url,
+        title: row.title ?? 'Event',
+      }),
     });
   }
 
@@ -371,7 +380,12 @@ async function attachVenueActivities(venues: VenueCardData[]): Promise<VenueCard
       title: row.name ?? 'Tournament',
       sport: row.sport,
       startsAt: row.starts_at,
-      coverUrl: row.cover_url,
+      coverUrl: sanitizeListingCoverUrl(row.cover_url, {
+        source: row.source,
+        sourceUrl: row.source_url,
+        ticketUrl: row.ticket_url,
+        name: row.name ?? 'Tournament',
+      }),
     });
   }
 

@@ -3,6 +3,7 @@ import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '
 import type { EventType } from '@/lib/constants/events';
 import { activeFeedSince, feedStartsAtFloor } from '@/lib/retention/feed-window';
 import { parseDbInstant, alignStartsAtWithCopyTime } from '@/lib/datetime/bratislava';
+import { sanitizeListingCoverUrl, sanitizeListingPhotos } from '@/lib/media/listing-cover';
 
 export { EVENT_SPORTS, type EventSport } from '@/lib/constants/sports';
 
@@ -165,7 +166,13 @@ function mapEventCard(event: EventRow, d: number): EventCardData {
     price: Number(event.price),
     priceCents: event.price_cents ?? Math.round(Number(event.price) * 100),
     currency: event.currency ?? 'EUR',
-    coverUrl: event.cover_url,
+    coverUrl: sanitizeListingCoverUrl(event.cover_url, {
+      source: event.source,
+      sourceUrl: event.source_url,
+      ticketUrl: event.ticket_url,
+      venueName: resolveVenueName(event.venues),
+      title: event.title,
+    }),
     status: event.status,
     capacity: event.capacity,
     maxParticipants: event.max_participants ?? null,
@@ -661,7 +668,13 @@ function mapEventDetail(data: unknown): EventDetailData {
     price: Number(row.price),
     priceCents: row.price_cents ?? Math.round(Number(row.price) * 100),
     currency: row.currency ?? 'EUR',
-    coverUrl: row.cover_url,
+    coverUrl: sanitizeListingCoverUrl(row.cover_url, {
+      source: row.source,
+      sourceUrl: row.source_url,
+      ticketUrl: row.ticket_url,
+      venueName: venue?.name ?? null,
+      title: row.title,
+    }),
     capacity: row.capacity,
     maxParticipants: row.max_participants ?? null,
     registeredCount: row.registered_count,
@@ -675,7 +688,13 @@ function mapEventDetail(data: unknown): EventDetailData {
     venueCity: venue?.city ?? null,
     organizerId: (row.organizer_id as string | null) ?? '',
     organizerName: organizer?.full_name ?? organizer?.username ?? 'Unknown',
-    photos: row.photos ?? [],
+    photos: sanitizeListingPhotos(row.photos, {
+      source: row.source,
+      sourceUrl: row.source_url,
+      ticketUrl: row.ticket_url,
+      venueName: venue?.name ?? null,
+      title: row.title,
+    }),
     sponsors,
     themeConfig: (row.theme_config as Record<string, unknown>) ?? {},
     sponsorsJson: (row.sponsors_json as SponsorExtracted[]) ?? [],

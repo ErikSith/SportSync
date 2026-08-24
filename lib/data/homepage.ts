@@ -15,6 +15,7 @@ import {
 } from '@/lib/feed/aggregate-routine-lessons';
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
+import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
 import { FEED_ACTIVE_GRACE_HOURS, activeFeedSinceIso } from '@/lib/retention/feed-window';
 import { lobbyActiveSinceIso } from '@/lib/retention/lobbies';
 import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
@@ -211,7 +212,13 @@ function toEventCard(event: EventRow, distKm: number): EventCardData {
     price: Number(event.price),
     priceCents: event.price_cents ?? Math.round(Number(event.price) * 100),
     currency: event.currency ?? 'EUR',
-    coverUrl: event.cover_url,
+    coverUrl: sanitizeListingCoverUrl(event.cover_url, {
+      source: event.source,
+      sourceUrl: event.source_url,
+      ticketUrl: event.ticket_url,
+      venueName: resolveVenueName(event.venues),
+      title: event.title,
+    }),
     status: event.status,
     capacity: event.capacity,
     maxParticipants: event.max_participants ?? null,
@@ -926,7 +933,13 @@ function toFeaturedCard(event: EventRow, distKm: number): FeaturedEventCard {
     city: event.city,
     startsAt: parseDbInstant(event.starts_at),
     price: Number(event.price),
-    coverUrl: event.cover_url,
+    coverUrl: sanitizeListingCoverUrl(event.cover_url, {
+      source: event.source,
+      sourceUrl: event.source_url,
+      ticketUrl: event.ticket_url,
+      venueName: resolveVenueName(event.venues),
+      title: event.title,
+    }),
     distanceKm: Math.round(distKm * 10) / 10,
   };
 }

@@ -15,6 +15,7 @@ import {
   type ParticipationMode,
 } from '@/lib/data/events';
 import type { EventType } from '@/lib/constants/events';
+import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
 
 interface RawEventRow {
   id: string;
@@ -72,7 +73,13 @@ function mapRow(event: RawEventRow, lat: number, lng: number): EventCardData {
     price: Number(event.price),
     priceCents: event.price_cents ?? Math.round(Number(event.price) * 100),
     currency: event.currency ?? 'EUR',
-    coverUrl: event.cover_url,
+    coverUrl: sanitizeListingCoverUrl(event.cover_url, {
+      source: event.source,
+      sourceUrl: event.source_url,
+      ticketUrl: event.ticket_url,
+      venueName: venueName(event.venues),
+      title: event.title,
+    }),
     status: event.status,
     capacity: event.capacity,
     maxParticipants: event.max_participants ?? null,

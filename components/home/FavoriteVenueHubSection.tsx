@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import type { FavoriteVenue } from '@/lib/data/homepage';
 import type { TournamentCardData } from '@/lib/data/tournaments';
-
-const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80';
+import { ListingCover } from '@/components/shared/ListingCover';
 
 function formatTournamentWhen(startsAt: Date): string {
   const now = new Date();
@@ -17,7 +16,7 @@ function formatTournamentWhen(startsAt: Date): string {
 }
 
 function TournamentAtVenueItem({ tournament, index }: { tournament: TournamentCardData; index: number }) {
-  const cover = tournament.coverUrl ?? DEFAULT_COVER;
+  const cover = tournament.coverUrl;
   const spotsLeft = tournament.maxParticipants - tournament.currentParticipants;
 
   return (
@@ -30,8 +29,7 @@ function TournamentAtVenueItem({ tournament, index }: { tournament: TournamentCa
       <div className="absolute inset-0 bg-gradient-to-r from-secondary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
       <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 border border-secondary/20 relative z-10">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="w-full h-full object-cover" src={cover} alt={tournament.name} />
+        <ListingCover className="w-full h-full object-cover" src={cover} alt={tournament.name} />
       </div>
 
       <div className="flex-grow min-w-0 relative z-10">

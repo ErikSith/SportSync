@@ -5,8 +5,7 @@ import type { EventCardData } from '@/lib/data/events';
 import { eventTypeBadge } from '@/lib/constants/events';
 import { sportDisplayLabel } from '@/lib/constants/sports';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
-
-const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80';
+import { ListingCover } from '@/components/shared/ListingCover';
 
 function formatShortWhen(date: Date): string {
   const day = date.toLocaleDateString('en-GB', {
@@ -36,7 +35,7 @@ function priceLabel(event: EventCardData): string {
 export function EventActionRow({ event }: { event: EventCardData }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const isSpectator = event.participationMode === 'spectator';
-  const cover = event.coverUrl ?? DEFAULT_COVER;
+  const cover = event.coverUrl;
   const capacity = capacityMeta(event);
   const typeBadge = eventTypeBadge(event.type);
 
@@ -54,8 +53,7 @@ export function EventActionRow({ event }: { event: EventCardData }) {
           onClick={() => setPreviewOpen(true)}
           className="relative h-28 w-full shrink-0 overflow-hidden rounded-xl bg-surface-container sm:h-[104px] sm:w-[104px]"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" src={cover} alt="" />
+          <ListingCover className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" src={cover} alt="" />
           <span
             className={`absolute left-2 top-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-label-caps text-[9px] uppercase tracking-wide backdrop-blur-md ${typeBadge.className}`}
           >

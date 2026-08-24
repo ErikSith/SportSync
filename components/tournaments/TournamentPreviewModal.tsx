@@ -14,8 +14,7 @@ import { SportLabel } from '@/components/shared/SportLabel';
 import { RegisterButton } from '@/components/tournaments/RegisterButton';
 import { TournamentExternalCta } from '@/components/tournaments/TournamentExternalCta';
 import { formatAppDate, formatAppTime } from '@/lib/datetime/bratislava';
-
-const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80';
+import { ListingCover } from '@/components/shared/ListingCover';
 
 const BRASS = '#c4a035';
 const BRASS_SOFT = 'rgba(196, 160, 53, 0.14)';
@@ -86,7 +85,7 @@ export function TournamentPreviewModal({
   onClose,
 }: TournamentPreviewModalProps) {
   const titleId = useId();
-  const cover = tournament.coverUrl ?? DEFAULT_COVER;
+  const cover = tournament.coverUrl;
   const status = statusMeta(tournament.status);
   const filled = tournament.currentParticipants;
   const max = Math.max(1, tournament.maxParticipants);
@@ -167,8 +166,7 @@ export function TournamentPreviewModal({
             />
 
             <div className="relative min-h-0 flex-1 overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <ListingCover src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#14120e] via-[#14120e]/55 to-black/30" />
               <div
                 className="absolute inset-0"

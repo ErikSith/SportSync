@@ -11,12 +11,11 @@ import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { EventRegisterButton } from '@/components/events/EventRegisterButton';
+import { ListingCover } from '@/components/shared/ListingCover';
 import { EventExternalCta } from '@/components/events/EventExternalCta';
 import { EventAggregatedDisclaimer } from '@/components/events/EventAggregatedDisclaimer';
 import { ReportEventDataButton } from '@/components/events/ReportEventDataButton';
 import { alignStartsAtWithCopyTime, formatAppDate, formatAppTime } from '@/lib/datetime/bratislava';
-
-const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80';
 
 function formatWhen(date: Date): string {
   return formatAppDate(date, {
@@ -60,7 +59,7 @@ interface EventPreviewModalProps {
 
 export function EventPreviewModal({ event, open, onClose }: EventPreviewModalProps) {
   const titleId = useId();
-  const cover = event.coverUrl ?? DEFAULT_COVER;
+  const cover = event.coverUrl;
   const isLive = event.status === 'live';
   const typeBadge = isLive
     ? { label: 'LIVE', className: 'bg-error/90 text-on-error' }
@@ -133,8 +132,7 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
 
             {/* Hero fills remaining phone height */}
             <div className="relative min-h-0 flex-1 overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <ListingCover src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#141210] via-[#141210]/55 to-black/30" />
               <div className="absolute inset-0 bg-gradient-to-br from-primary-container/20 to-transparent" />
 

@@ -2,7 +2,7 @@ import type { Client } from 'pg';
 import { SPORT_TYPE_THEMES } from '@/lib/ai/theme-config';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { resolveEventCover } from '@/lib/media/cover-factory';
-import { aggregatorNotice, isAllowedScrapedCoverUrl, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
+import { aggregatorNotice, persistScrapedCoverUrl, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
 import { classifyListingAudience } from '@/lib/events/audience';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import {
@@ -68,7 +68,8 @@ function numEq(a: unknown, b: unknown): boolean {
 async function coverForEvent(
   event: NormalizedScrapedEvent,
   venueId: string | null,
-): Promise<string> {
+): Promise<string | null> {
+  if (event.source === 'form-factory') return null;
   if (SCRAPE_ETHICS.allowThirdPartyMedia && event.coverUrl && event.requiresAiGraphic === false) {
     return event.coverUrl;
   }
@@ -274,25 +275,38 @@ export async function upsertEventsPg(
             Boolean(existing.is_aggregated) === SCRAPE_ETHICS.isAggregatedRedirector;
 
           if (same) {
-            await client.query(`update events set scraped_at = now() where id = $1::uuid`, [
-              existing.id,
-            ]);
+            if (event.source === 'form-factory' && existing.cover_url) {
+              await client.query(
+                `update events set cover_url = null, photos = '{}', scraped_at = now() where id = $1::uuid`,
+                [existing.id],
+              );
+            } else {
+              await client.query(`update events set scraped_at = now() where id = $1::uuid`, [
+                existing.id,
+              ]);
+            }
             stats.unchanged += 1;
             continue;
           }
         }
 
-        let cover = isAllowedScrapedCoverUrl(existing?.cover_url)
-          ? String(existing!.cover_url)
-          : await coverForEvent(event, venueId);
+        let cover = persistScrapedCoverUrl(
+          event.source,
+          existing?.cover_url,
+          await coverForEvent(event, venueId),
+        );
 
         if (existing?.id) {
           const identityChanged =
             !strEq(existing.title, event.title) ||
             !strEq(existing.sport, event.sport) ||
             !strEq(existing.venue_id, venueId);
-          if (identityChanged || !isAllowedScrapedCoverUrl(existing.cover_url)) {
-            cover = await coverForEvent(event, venueId);
+          if (identityChanged || event.source === 'form-factory') {
+            cover = persistScrapedCoverUrl(
+              event.source,
+              null,
+              await coverForEvent(event, venueId),
+            );
           }
 
           await client.query(
@@ -594,21 +608,30 @@ export async function upsertTournamentsPg(
             Boolean(existing.for_women) === forWomen;
 
           if (same) {
-            await client.query(`update tournaments set scraped_at = now() where id = $1::uuid`, [
-              existing.id,
-            ]);
+            if (item.source === 'form-factory' && existing.cover_url) {
+              await client.query(
+                `update tournaments set cover_url = null, scraped_at = now() where id = $1::uuid`,
+                [existing.id],
+              );
+            } else {
+              await client.query(`update tournaments set scraped_at = now() where id = $1::uuid`, [
+                existing.id,
+              ]);
+            }
             stats.unchanged += 1;
             continue;
           }
         }
 
-        const cover =
-          isAllowedScrapedCoverUrl(existing?.cover_url) &&
+        const keepExistingCover =
           strEq(existing?.name, item.title) &&
           strEq(existing?.sport, item.sport) &&
-          strEq(existing?.venue_id, venueId)
-            ? String(existing!.cover_url)
-            : await coverForEvent(item, venueId);
+          strEq(existing?.venue_id, venueId);
+        const cover = persistScrapedCoverUrl(
+          item.source,
+          keepExistingCover ? existing?.cover_url : null,
+          await coverForEvent(item, venueId),
+        );
 
         if (existing?.id) {
           await client.query(

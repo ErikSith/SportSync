@@ -6,9 +6,8 @@ import { eventMatchesKids, eventMatchesWomen } from '@/lib/event-audience-filter
 import { lobbyTierLabel } from '@/lib/utils/lobby';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { TournamentPreviewModal } from '@/components/tournaments/TournamentPreviewModal';
+import { ListingCover } from '@/components/shared/ListingCover';
 import { formatAppDate } from '@/lib/datetime/bratislava';
-
-const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80';
 
 /** Fixed grid tile — matches event carousel card footprint. */
 export const TOURNAMENT_CARD_HEIGHT = 'h-[420px]';
@@ -45,7 +44,7 @@ function formatEntryFee(fee: number): string {
 
 export function TournamentCard({ tournament }: { tournament: TournamentCardData }) {
   const [previewOpen, setPreviewOpen] = useState(false);
-  const cover = tournament.coverUrl ?? DEFAULT_COVER;
+  const cover = tournament.coverUrl;
   const formatLabel = FORMAT_LABELS[tournament.format] ?? tournament.format;
   const isLive = tournament.status === 'IN_PROGRESS';
   const tier = lobbyTierLabel(tournament.skillLevelMax ?? tournament.skillLevelMin);
@@ -78,8 +77,7 @@ export function TournamentCard({ tournament }: { tournament: TournamentCardData 
         />
 
         <div className="relative h-[168px] shrink-0 overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <ListingCover
             className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             src={cover}
             alt=""

@@ -37,7 +37,19 @@ export function aggregatorNotice(sourceName: string, sourceUrl?: string | null):
 export function isAllowedScrapedCoverUrl(url: string | null | undefined): boolean {
   if (!url?.trim()) return false;
   const value = url.trim().toLowerCase();
+  if (value.includes('formfactory')) return false;
   if (value.includes('/storage/v1/object/public/event-covers/')) return true;
   if (value.includes('images.unsplash.com/')) return true;
   return false;
+}
+
+/** Form Factory listings stay text-only — no Unsplash plate, no Cover Factory file. */
+export function persistScrapedCoverUrl(
+  source: string,
+  existingCover: string | null | undefined,
+  generated: string | null,
+): string | null {
+  if (source === 'form-factory') return null;
+  if (isAllowedScrapedCoverUrl(existingCover)) return existingCover!.trim();
+  return generated;
 }

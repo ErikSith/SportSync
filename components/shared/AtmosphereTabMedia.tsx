@@ -3,7 +3,7 @@
  * Goal: sport readable at a glance, still clearly a background — never a loud hero.
  */
 interface AtmosphereTabMediaProps {
-  src: string;
+  src: string | null;
   /** Soft brand wash — coral for events, brass for tournaments. */
   wash?: 'coral' | 'brass' | 'none';
 }
@@ -11,20 +11,27 @@ interface AtmosphereTabMediaProps {
 export function AtmosphereTabMedia({ src, wash = 'coral' }: AtmosphereTabMediaProps) {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt=""
-        // Cover + upper-third focus keeps courts/gym equipment in frame on short tabs.
-        // Low saturation + mid opacity = atmosphere, not a competing photo.
-        className={[
-          'absolute inset-0 h-full w-full object-cover object-[center_32%]',
-          'scale-[1.06] opacity-[0.55] saturate-[0.65] brightness-[0.88] contrast-[0.92]',
-          'transition-[transform,opacity,filter] duration-700 ease-out',
-          'group-hover:scale-100 group-hover:opacity-[0.64] group-hover:saturate-[0.78] group-hover:brightness-[0.92]',
-        ].join(' ')}
-        draggable={false}
-      />
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt=""
+          className={[
+            'absolute inset-0 h-full w-full object-cover object-[center_32%]',
+            'scale-[1.06] opacity-[0.55] saturate-[0.65] brightness-[0.88] contrast-[0.92]',
+            'transition-[transform,opacity,filter] duration-700 ease-out',
+            'group-hover:scale-100 group-hover:opacity-[0.64] group-hover:saturate-[0.78] group-hover:brightness-[0.92]',
+          ].join(' ')}
+          draggable={false}
+        />
+      ) : (
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(145deg, #3a342e 0%, #1a1714 48%, #241f1b 100%)',
+          }}
+        />
+      )}
 
       {/* Even mute so busy photos don't punch through mid-card text. */}
       <div className="absolute inset-0 bg-[#12110f]/40" />

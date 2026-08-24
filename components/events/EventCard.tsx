@@ -6,8 +6,7 @@ import { eventTypeBadge } from '@/lib/constants/events';
 import { resolveTheme } from '@/lib/ai/theme-config-client';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
-
-const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80';
+import { ListingCover } from '@/components/shared/ListingCover';
 
 function formatEventDate(date: Date): string {
   return date
@@ -46,7 +45,7 @@ export function EventCard({ event }: { event: EventCardData }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const { label, className: badgeClass, icon } = coverBadge(event);
   const mode = modeBadge(event);
-  const cover = event.coverUrl ?? DEFAULT_COVER;
+  const cover = event.coverUrl;
   const theme = resolveTheme(event.sportType, event.themeConfig);
   const accent = theme.accent;
   const distance =
@@ -68,8 +67,7 @@ export function EventCard({ event }: { event: EventCardData }) {
         />
 
         <div className="relative aspect-[4/3] overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <ListingCover
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             src={cover}
             alt={event.title}

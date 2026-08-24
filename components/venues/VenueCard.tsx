@@ -5,14 +5,10 @@ import Link from 'next/link';
 import type { VenueCardActivity, VenueCardData } from '@/lib/data/venues';
 import { sportDisplayLabel } from '@/lib/constants/sports';
 import { resolveVenueCover, resolveVenueLogo } from '@/lib/venues/venue-media';
+import { ListingCover } from '@/components/shared/ListingCover';
 
 /** Fixed grid tile — same footprint family as event/tournament cards. */
 export const VENUE_CARD_HEIGHT = 'h-[420px]';
-
-const EVENT_FALLBACK =
-  'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=640&q=80';
-const CUP_FALLBACK =
-  'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=640&q=80';
 
 function formatDistance(km: number): string {
   if (km < 1) return `${Math.round(km * 10) / 10} km`;
@@ -42,9 +38,8 @@ function nextUpLabel(iso: string): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase();
 }
 
-function activityThumb(activity: VenueCardActivity): string {
-  if (activity.coverUrl) return activity.coverUrl;
-  return activity.kind === 'tournament' ? CUP_FALLBACK : EVENT_FALLBACK;
+function activityThumb(activity: VenueCardActivity): string | null {
+  return activity.coverUrl;
 }
 
 function ActivityThumbs({
@@ -91,8 +86,7 @@ function ActivityThumbs({
                   : 'ring-1 ring-primary-container/60',
             ].join(' ')}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={activityThumb(activity)} alt="" className="h-full w-full object-cover" />
+            <ListingCover src={activityThumb(activity)} alt="" className="h-full w-full object-cover" />
           </button>
         );
       })}

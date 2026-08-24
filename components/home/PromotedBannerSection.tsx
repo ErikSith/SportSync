@@ -9,8 +9,8 @@ import { getPromotedBannerPreviews } from '@/lib/data/promoted-previews';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
 import { TournamentPreviewModal } from '@/components/tournaments/TournamentPreviewModal';
+import { ListingCover } from '@/components/shared/ListingCover';
 
-const DEFAULT_COVER = 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1200&q=80';
 const AUTOPLAY_MS = 5000;
 
 function formatWhen(date: Date): string {
@@ -93,7 +93,7 @@ function PromotedBannerCard({
   item: PromotedBannerItem;
   onOpen: () => void;
 }) {
-  const cover = item.coverUrl ?? DEFAULT_COVER;
+  const cover = item.coverUrl;
   const accent = item.accentColor;
   const venue = item.venueName
     ? item.city
@@ -110,8 +110,7 @@ function PromotedBannerCard({
         boxShadow: `0 0 0 1px ${hexToRgba(accent, 0.12)}, 0 18px 48px rgba(0,0,0,0.45), 0 0 40px ${hexToRgba(accent, 0.12)}`,
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      <ListingCover src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-[#0c0b09] via-[#0c0b09]/75 to-black/35" />
       <div
         className="pointer-events-none absolute inset-0"

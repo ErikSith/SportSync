@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SPORT_TYPE_THEMES } from '@/lib/ai/theme-config';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
-import { aggregatorNotice, isAllowedScrapedCoverUrl, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
+import { aggregatorNotice, persistScrapedCoverUrl, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
 import { classifyListingAudience } from '@/lib/events/audience';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import { scrapeTextListing } from '@/lib/scrape/adapters/_text-listing';
@@ -221,9 +221,10 @@ async function syncVenueBorough(
 async function coverForEvent(
   event: NormalizedScrapedEvent,
   _venueId: string | null,
-): Promise<string> {
+): Promise<string | null> {
   // Scraped events always require AI graphics — never persist third-party photos.
   // Cover factory uses `sharp` (Node-only); Edge cron uses SportSync plates.
+  if (event.source === 'form-factory') return null;
   if (SCRAPE_ETHICS.allowThirdPartyMedia && event.coverUrl && event.requiresAiGraphic === false) {
     return event.coverUrl;
   }
@@ -323,19 +324,25 @@ async function upsertEvents(
 
       if (same) {
         // Touch scraped_at only — proves last successful poll without rewriting content
-        await supabase
-          .from('events')
-          .update({ scraped_at: new Date().toISOString() })
-          .eq('id', existing.id);
+        const touch: { scraped_at: string; cover_url?: null; photos?: string[] } = {
+          scraped_at: new Date().toISOString(),
+        };
+        if (event.source === 'form-factory' && existing.cover_url) {
+          touch.cover_url = null;
+          touch.photos = [];
+        }
+        await supabase.from('events').update(touch).eq('id', existing.id);
         stats.unchanged += 1;
         continue;
       }
     }
 
     // Keep only Cover Factory / SportSync plates — never venue CDN photos.
-    let cover = isAllowedScrapedCoverUrl(existing?.cover_url as string | null)
-      ? String(existing!.cover_url)
-      : await coverForEvent(event, venueId);
+    let cover = persistScrapedCoverUrl(
+      event.source,
+      existing?.cover_url as string | null,
+      await coverForEvent(event, venueId),
+    );
 
     const row = {
       type: 'official',
@@ -386,8 +393,12 @@ async function upsertEvents(
         !strEq(existing.title, event.title) ||
         !strEq(existing.sport, event.sport) ||
         !strEq(existing.venue_id, venueId);
-      if (identityChanged || !isAllowedScrapedCoverUrl(existing.cover_url as string | null)) {
-        row.cover_url = await coverForEvent(event, venueId);
+      if (identityChanged || event.source === 'form-factory') {
+        row.cover_url = persistScrapedCoverUrl(
+          event.source,
+          null,
+          await coverForEvent(event, venueId),
+        );
       }
 
       const { error } = await supabase.from('events').update(row).eq('id', existing.id);
@@ -467,22 +478,27 @@ async function upsertTournaments(
             Boolean((existing as { for_women?: boolean | null }).for_women) === forWomen));
 
       if (same) {
-        await supabase
-          .from('tournaments')
-          .update({ scraped_at: new Date().toISOString() })
-          .eq('id', existing.id);
+        const touch: { scraped_at: string; cover_url?: null } = {
+          scraped_at: new Date().toISOString(),
+        };
+        if (item.source === 'form-factory' && existing.cover_url) {
+          touch.cover_url = null;
+        }
+        await supabase.from('tournaments').update(touch).eq('id', existing.id);
         stats.unchanged += 1;
         continue;
       }
     }
 
-    const cover =
-      isAllowedScrapedCoverUrl(existing?.cover_url as string | null) &&
+    const keepExistingCover =
       strEq(existing?.name, item.title) &&
       strEq(existing?.sport, item.sport) &&
-      strEq(existing?.venue_id, venueId)
-        ? String(existing!.cover_url)
-        : await coverForEvent(item, venueId);
+      strEq(existing?.venue_id, venueId);
+    const cover = persistScrapedCoverUrl(
+      item.source,
+      keepExistingCover ? (existing?.cover_url as string | null) : null,
+      await coverForEvent(item, venueId),
+    );
 
     const row: Record<string, unknown> = {
       organizer_id: null,
