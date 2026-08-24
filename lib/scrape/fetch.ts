@@ -42,17 +42,34 @@ export async function fetchHtml(url: string): Promise<string> {
   const host = hostFromUrl(url);
   await waitForHostSlot(host);
 
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': UA,
-      Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'sk-SK,sk;q=0.9,en;q=0.8',
-    },
-    // Next.js route context; scripts ignore this
-    next: { revalidate: 0 },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-  return res.text();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25_000);
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': UA,
+        Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'sk-SK,sk;q=0.9,en;q=0.8',
+        'Cache-Control': 'no-cache',
+      },
+      redirect: 'follow',
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    // Text only — never follow image assets from the document.
+    const contentType = res.headers.get('content-type') ?? '';
+    if (contentType && !/text\/html|application\/xhtml|text\/plain|application\/xml/i.test(contentType)) {
+      throw new Error(`Unexpected content-type ${contentType} for ${url}`);
+    }
+    return await res.text();
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Timeout fetching ${url}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function slugify(input: string): string {
@@ -77,6 +94,18 @@ function bratislavaDateAtDefaultHour(
 /** Parse Slovak-ish dates like 1.8.2026, 01.08.2026, 7. 8. 2026, 1. augusta 2026 */
 export function parseSlovakDate(raw: string, fallbackYear = new Date().getFullYear()): Date | null {
   const cleaned = raw.trim().replace(/\s+/g, ' ');
+
+  // ISO first — otherwise 2019-12-31 is misread as day=19, month=12, year=31 → 2031.
+  const iso = cleaned.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    if (year >= 2024 && year <= 2030 && month >= 1 && month <= 12) {
+      return bratislavaDateAtDefaultHour(year, month - 1, day);
+    }
+    return null;
+  }
 
   const numeric = cleaned.match(/(\d{1,2})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{2,4})/);
   if (numeric) {
@@ -146,12 +175,6 @@ export function parseSlovakDate(raw: string, fallbackYear = new Date().getFullYe
     if (month === undefined) return null;
     const year = named[3] ? Number(named[3]) : fallbackYear;
     return bratislavaDateAtDefaultHour(year, month, day);
-  }
-
-  // ISO-ish
-  const iso = cleaned.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) {
-    return bratislavaDateAtDefaultHour(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
   }
 
   return null;

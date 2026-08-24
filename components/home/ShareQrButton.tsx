@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const SHARE_URL = 'https://sportsync-ct5.pages.dev';
-const QR_IMAGE_SRC = '/share/sportsync-qr.png?v=2';
+const QR_IMAGE_SRC = '/share/sportsync-qr.png?v=3';
 
 export function ShareQrButton() {
   const [open, setOpen] = useState(false);

@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SPORT_TYPE_THEMES } from '@/lib/ai/theme-config';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
-import { aggregatorNotice, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
+import { aggregatorNotice, isAllowedScrapedCoverUrl, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
 import { classifyListingAudience } from '@/lib/events/audience';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import { scrapeTextListing } from '@/lib/scrape/adapters/_text-listing';
@@ -332,8 +332,9 @@ async function upsertEvents(
       }
     }
 
-    const cover = existing?.cover_url
-      ? String(existing.cover_url)
+    // Keep only Cover Factory / SportSync plates — never venue CDN photos.
+    let cover = isAllowedScrapedCoverUrl(existing?.cover_url as string | null)
+      ? String(existing!.cover_url)
       : await coverForEvent(event, venueId);
 
     const row = {
@@ -380,12 +381,12 @@ async function upsertEvents(
     }
 
     if (existing?.id) {
-      // Recompute cover only when title/sport/venue changed (identity of SportAvatar)
+      // Recompute cover when identity changed or existing cover is third-party media
       const identityChanged =
         !strEq(existing.title, event.title) ||
         !strEq(existing.sport, event.sport) ||
         !strEq(existing.venue_id, venueId);
-      if (identityChanged || !existing.cover_url) {
+      if (identityChanged || !isAllowedScrapedCoverUrl(existing.cover_url as string | null)) {
         row.cover_url = await coverForEvent(event, venueId);
       }
 
@@ -476,11 +477,11 @@ async function upsertTournaments(
     }
 
     const cover =
-      existing?.cover_url &&
-      strEq(existing.name, item.title) &&
-      strEq(existing.sport, item.sport) &&
-      strEq(existing.venue_id, venueId)
-        ? String(existing.cover_url)
+      isAllowedScrapedCoverUrl(existing?.cover_url as string | null) &&
+      strEq(existing?.name, item.title) &&
+      strEq(existing?.sport, item.sport) &&
+      strEq(existing?.venue_id, venueId)
+        ? String(existing!.cover_url)
         : await coverForEvent(item, venueId);
 
     const row: Record<string, unknown> = {

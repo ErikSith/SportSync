@@ -16,6 +16,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
+import { THUMB_BUTTON_ENABLED } from '@/components/navigation/thumb-button-flags';
 
 type NavItem = {
   href: string;
@@ -78,7 +79,9 @@ const HIDDEN_PREFIXES = ['/login', '/auth'];
 export function ThumbButton() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const hidden = HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const hidden =
+    !THUMB_BUTTON_ENABLED ||
+    HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   const close = useCallback(() => setOpen(false), []);
 

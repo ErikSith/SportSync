@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ThumbButton } from '@/components/navigation/ThumbButton';
+import { THUMB_BUTTON_ENABLED } from '@/components/navigation/thumb-button-flags';
 import { ServiceWorkerRegister } from '@/components/pwa/ServiceWorkerRegister';
 
 export const runtime = 'edge';
@@ -50,7 +51,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="bg-background text-on-surface font-body-md min-h-dvh max-w-[100vw] overflow-x-clip selection:bg-primary-container selection:text-white pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]">
+      <body
+        className={[
+          'bg-background text-on-surface font-body-md min-h-dvh max-w-[100vw] overflow-x-clip',
+          'selection:bg-primary-container selection:text-white',
+          THUMB_BUTTON_ENABLED
+            ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]'
+            : 'pb-[env(safe-area-inset-bottom,0px)]',
+        ].join(' ')}
+      >
         {children}
         <ThumbButton />
         <ServiceWorkerRegister />

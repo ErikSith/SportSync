@@ -383,10 +383,16 @@ export async function listVenuesWithWebsites(limit = 40): Promise<
     }));
 }
 
+const LISTING_KIND_ORDER = ['tournaments', 'events', 'schedule'] as const;
+
 export async function listEnabledScrapePages(opts: {
   borough?: string;
+  boroughs?: string[];
   limit?: number;
   kinds?: string[];
+  /** Skip pages scraped at/after this instant (ISO). */
+  skipScrapedAfter?: string;
+  neverScrapedOnly?: boolean;
 } = {}): Promise<
   Array<{
     id: string;
@@ -400,32 +406,53 @@ export async function listEnabledScrapePages(opts: {
   }>
 > {
   const supabase = createAdminClient();
+  const fetchLimit = Math.min(800, Math.max(opts.limit ?? 250, 400));
   let q = supabase
     .from('venue_scrape_pages')
     .select(
-      'id, url, kind, borough, venue_id, venues ( id, name, latitude, longitude )',
+      'id, url, kind, borough, venue_id, last_scraped_at, venues ( id, name, latitude, longitude )',
     )
     .eq('enabled', true)
     .order('last_scraped_at', { ascending: true, nullsFirst: true })
-    .limit(opts.limit ?? 250);
+    .limit(fetchLimit);
 
-  if (opts.borough) q = q.eq('borough', opts.borough);
+  const boroughs = [
+    ...new Set(
+      [opts.borough, ...(opts.boroughs ?? [])]
+        .filter((b): b is string => Boolean(b?.trim()))
+        .map((b) => b.trim().toLowerCase()),
+    ),
+  ];
+  if (boroughs.length === 1) q = q.eq('borough', boroughs[0]!);
+  else if (boroughs.length > 1) q = q.in('borough', boroughs);
   if (opts.kinds?.length) q = q.in('kind', opts.kinds);
+  if (opts.neverScrapedOnly) q = q.is('last_scraped_at', null);
+  else if (opts.skipScrapedAfter) {
+    q = q.or(`last_scraped_at.is.null,last_scraped_at.lt.${opts.skipScrapedAfter}`);
+  }
 
   const { data, error } = await q;
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((r) => {
+  const rows = (data ?? []).map((r) => {
     const venue = Array.isArray(r.venues) ? r.venues[0] : r.venues;
     return {
-      id: r.id,
-      url: r.url,
-      kind: r.kind,
-      borough: r.borough,
-      venueId: r.venue_id,
+      id: r.id as string,
+      url: r.url as string,
+      kind: String(r.kind ?? 'website'),
+      borough: (r.borough as string | null) ?? null,
+      venueId: (r.venue_id as string | null) ?? null,
       venueName: venue?.name ?? null,
-      latitude: venue?.latitude ?? null,
-      longitude: venue?.longitude ?? null,
+      latitude: (venue?.latitude as number | null) ?? null,
+      longitude: (venue?.longitude as number | null) ?? null,
     };
   });
+
+  const kindRank = (kind: string) => {
+    const i = LISTING_KIND_ORDER.indexOf(kind as (typeof LISTING_KIND_ORDER)[number]);
+    return i === -1 ? LISTING_KIND_ORDER.length : i;
+  };
+  rows.sort((a, b) => kindRank(a.kind) - kindRank(b.kind));
+
+  return rows.slice(0, opts.limit ?? 250);
 }

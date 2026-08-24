@@ -26,7 +26,7 @@ export function LobbyStackHeader({ city }: LobbyStackHeaderProps) {
       </div>
 
       <h1 className="text-xs font-semibold uppercase tracking-[0.22em] text-[#FF5722]">
-        Lobby &amp; Recurring
+        Lobby
       </h1>
     </header>
   );

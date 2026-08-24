@@ -29,3 +29,15 @@ export function aggregatorNotice(sourceName: string, sourceUrl?: string | null):
     ` (${sourceName}).${link}`
   );
 }
+
+/**
+ * Covers we may keep on scraped rows: SportSync Cover Factory storage or
+ * our Unsplash sport plates. Never keep venue CDN / og:image / Predpredaj media.
+ */
+export function isAllowedScrapedCoverUrl(url: string | null | undefined): boolean {
+  if (!url?.trim()) return false;
+  const value = url.trim().toLowerCase();
+  if (value.includes('/storage/v1/object/public/event-covers/')) return true;
+  if (value.includes('images.unsplash.com/')) return true;
+  return false;
+}

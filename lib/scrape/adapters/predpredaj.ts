@@ -127,7 +127,10 @@ function detectSport(
   const t = `${title} ${location}`;
   if (/davis\s*cup|tenis|ntc/i.test(t)) return { sport: 'TENNIS', sportType: 'TENNIS' };
   if (/hokej|hc\s|zimn[yý]\s+[sš]tadi/i.test(t)) return { sport: 'HOCKEY', sportType: 'OTHER' };
-  if (/futbal|fc\s|mfk\s|[sš]tadi[oó]n/i.test(t)) return { sport: 'FOOTBALL', sportType: 'FOOTBALL' };
+  if (/futbal|fc\s|mfk\s|[sš]tadi[oó]n|dac\s*1904|slovan|inter\s*bratislav|spartak|podbrezov/i.test(t)) {
+    return { sport: 'FOOTBALL', sportType: 'FOOTBALL' };
+  }
+  if (/kr[aá]li\s+ulice|streetball|3x3/i.test(t)) return { sport: 'BASKETBALL', sportType: 'BASKETBALL' };
   if (/fight\s*night|gladi[aá]tor|mma|box/i.test(t)) return { sport: 'COMBAT', sportType: 'OTHER' };
   if (/h[aá]dzan/i.test(t)) return { sport: 'HANDBALL', sportType: 'OTHER' };
   if (/basket/i.test(t)) return { sport: 'BASKETBALL', sportType: 'BASKETBALL' };

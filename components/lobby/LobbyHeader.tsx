@@ -9,7 +9,6 @@ const TABS: { id: LobbyFilterTab; label: string }[] = [
   { id: 'ALL', label: 'All' },
   { id: LobbyType.SINGLE_PLAYER_1, label: '+1 Partner' },
   { id: LobbyType.TEAM_VS_TEAM, label: 'Team vs Team' },
-  { id: LobbyType.RECURRING_SQUAD, label: 'Recurring' },
 ];
 
 interface LobbyHeaderProps {

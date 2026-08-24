@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Home,
-  Repeat,
   Search,
   Swords,
   UserRound,
@@ -95,7 +94,6 @@ interface CreateLobbyModalProps {
 const TYPE_OPTIONS: { type: LobbyType; icon: typeof Users; desc: string }[] = [
   { type: LobbyType.SINGLE_PLAYER_1, icon: Users, desc: 'Doplň voľné miesto v zápase' },
   { type: LobbyType.TEAM_VS_TEAM, icon: Swords, desc: 'Vyzvi iný tím na zápas' },
-  { type: LobbyType.RECURRING_SQUAD, icon: Repeat, desc: 'Založ pravidelnú partiu' },
 ];
 
 const chip =

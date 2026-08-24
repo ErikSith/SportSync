@@ -92,7 +92,7 @@ function extractJsonLdEvents(
       const type = String(obj['@type'] ?? '');
       if (!/Event|SportsEvent|Festival|Competition/i.test(type)) continue;
 
-      const title = String(obj.name ?? obj.headline ?? '').trim();
+      const title = cleanListingTitle(String(obj.name ?? obj.headline ?? '').trim());
       if (!title || title.length < 3) continue;
 
       const startRaw = String(obj.startDate ?? obj.startTime ?? '');
@@ -100,7 +100,7 @@ function extractJsonLdEvents(
       if (!startsAt || Number.isNaN(startsAt.getTime())) {
         startsAt = parseSlovakDate(startRaw);
       }
-      if (!startsAt) continue;
+      if (!startsAt || !isUpcomingListingDate(startsAt)) continue;
 
       const desc = String(obj.description ?? '').slice(0, 400);
       const loc =
@@ -191,15 +191,18 @@ function extractDomEvents(
 
       const timeMatch = text.match(/\b(\d{1,2}[:.]\d{2})\b/);
       const startsAt = parseTimeOnDate(startsAtBase, timeMatch?.[1] ?? null);
+      if (!isUpcomingListingDate(startsAt)) return;
 
       const link = $el.find('a[href]').first();
       const hrefRaw = link.attr('href');
       const href = hrefRaw ? absoluteUrl(hrefRaw, pageUrl) : pageUrl;
+      if (/vysledky|results\.aspx|kphb-2020/i.test(href)) return;
 
-      const title =
+      const title = cleanListingTitle(
         $el.find('h1, h2, h3, h4, .title, .card-title').first().text().replace(/\s+/g, ' ').trim() ||
-        link.text().replace(/\s+/g, ' ').trim() ||
-        text.slice(0, 80).trim();
+          link.text().replace(/\s+/g, ' ').trim() ||
+          text.slice(0, 80).trim(),
+      );
       if (!title || title.length < 3) return;
       if (/cookie|privacy|gdpr|newsletter|prihlás|login/i.test(title)) return;
 
@@ -236,13 +239,13 @@ function extractDomEvents(
   if (out.length === 0) {
     $('a[href]').each((_, el) => {
       const $a = $(el);
-      const title = $a.text().replace(/\s+/g, ' ').trim();
+      const title = cleanListingTitle($a.text().replace(/\s+/g, ' ').trim());
       if (!title || title.length < 4 || title.length > 120) return;
       const parentText = $a.parent().text().replace(/\s+/g, ' ').trim();
       const dateMatch = parentText.match(DATE_RE) ?? title.match(DATE_RE);
       if (!dateMatch?.[1]) return;
       const startsAtBase = parseSlovakDate(dateMatch[1]);
-      if (!startsAtBase) return;
+      if (!startsAtBase || !isUpcomingListingDate(startsAtBase)) return;
       const href = absoluteUrl($a.attr('href') ?? '', pageUrl);
       const externalId = slugify(`${config.source}-${href}-${startsAtBase.toISOString().slice(0, 10)}`);
       if (seen.has(externalId)) return;
@@ -280,11 +283,33 @@ function withSourceLocation(
   const address = event.address ?? '';
   return {
     ...event,
+    title: cleanListingTitle(event.title),
     locationName,
     address,
     requiresAiGraphic: true,
     coverUrl: null,
   };
+}
+
+/** Keep titles as readable text — strip glued dates / "Dátum …" tails from listings. */
+function cleanListingTitle(raw: string): string {
+  let title = raw.replace(/\s+/g, ' ').trim();
+  title = title.replace(/^\d{1,2}\s+\d{1,2}\s+/, '');
+  title = title.replace(/^\d{1,2}\.\s*\d{1,2}\.\s*\d{2,4}\s*[–-]?\s*/i, '');
+  title = title.replace(/^\d{4}-\d{2}-\d{2}\s+/, '');
+  const datumCut = title.search(/\sDátum\b/i);
+  if (datumCut > 8) title = title.slice(0, datumCut).trim();
+  title = title.replace(/["']{2,}/g, '"').replace(/\s{2,}/g, ' ').trim();
+  return title.slice(0, 90);
+}
+
+function isUpcomingListingDate(startsAt: Date): boolean {
+  const t = startsAt.getTime();
+  if (Number.isNaN(t)) return false;
+  const now = Date.now();
+  if (t < now - 36 * 60 * 60 * 1000) return false;
+  if (t > now + 400 * 24 * 60 * 60 * 1000) return false;
+  return true;
 }
 
 function resolveListingSport(title: string, fallback: string) {

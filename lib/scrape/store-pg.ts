@@ -2,7 +2,7 @@ import type { Client } from 'pg';
 import { SPORT_TYPE_THEMES } from '@/lib/ai/theme-config';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { resolveEventCover } from '@/lib/media/cover-factory';
-import { aggregatorNotice, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
+import { aggregatorNotice, isAllowedScrapedCoverUrl, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
 import { classifyListingAudience } from '@/lib/events/audience';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import {
@@ -282,8 +282,8 @@ export async function upsertEventsPg(
           }
         }
 
-        let cover = existing?.cover_url
-          ? String(existing.cover_url)
+        let cover = isAllowedScrapedCoverUrl(existing?.cover_url)
+          ? String(existing!.cover_url)
           : await coverForEvent(event, venueId);
 
         if (existing?.id) {
@@ -291,7 +291,7 @@ export async function upsertEventsPg(
             !strEq(existing.title, event.title) ||
             !strEq(existing.sport, event.sport) ||
             !strEq(existing.venue_id, venueId);
-          if (identityChanged || !existing.cover_url) {
+          if (identityChanged || !isAllowedScrapedCoverUrl(existing.cover_url)) {
             cover = await coverForEvent(event, venueId);
           }
 
@@ -603,11 +603,11 @@ export async function upsertTournamentsPg(
         }
 
         const cover =
-          existing?.cover_url &&
-          strEq(existing.name, item.title) &&
-          strEq(existing.sport, item.sport) &&
-          strEq(existing.venue_id, venueId)
-            ? String(existing.cover_url)
+          isAllowedScrapedCoverUrl(existing?.cover_url) &&
+          strEq(existing?.name, item.title) &&
+          strEq(existing?.sport, item.sport) &&
+          strEq(existing?.venue_id, venueId)
+            ? String(existing!.cover_url)
             : await coverForEvent(item, venueId);
 
         if (existing?.id) {
