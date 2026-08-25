@@ -6,6 +6,8 @@ import { eventTypeBadge } from '@/lib/constants/events';
 import { sportDisplayLabel } from '@/lib/constants/sports';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
 import { ListingCover } from '@/components/shared/ListingCover';
+import { useT } from '@/components/i18n/LocaleProvider';
+import type { EventType } from '@/lib/constants/events';
 
 function formatShortWhen(date: Date): string {
   const day = date.toLocaleDateString('en-GB', {
@@ -24,20 +26,28 @@ function capacityMeta(event: EventCardData): { filled: number; total: number; pc
   return { filled, total, pct: Math.round((filled / total) * 100) };
 }
 
-function priceLabel(event: EventCardData): string {
+function priceLabel(event: EventCardData, freeText: string): string {
   if (event.priceCents > 0) {
     return `€${(event.priceCents / 100).toFixed(event.priceCents % 100 === 0 ? 0 : 2)}`;
   }
   if (event.price > 0) return `€${event.price}`;
-  return 'Free';
+  return freeText;
+}
+
+function typeBadgeLabel(type: EventType, t: ReturnType<typeof useT>): string {
+  return type === 'official'
+    ? t('common.official').toUpperCase()
+    : t('common.community').toUpperCase();
 }
 
 export function EventActionRow({ event }: { event: EventCardData }) {
+  const t = useT();
   const [previewOpen, setPreviewOpen] = useState(false);
   const isSpectator = event.participationMode === 'spectator';
   const cover = event.coverUrl;
   const capacity = capacityMeta(event);
   const typeBadge = eventTypeBadge(event.type);
+  const badgeLabel = typeBadgeLabel(event.type, t);
 
   return (
     <>
@@ -62,7 +72,7 @@ export function EventActionRow({ event }: { event: EventCardData }) {
                 {typeBadge.icon}
               </span>
             )}
-            {typeBadge.label}
+            {badgeLabel}
           </span>
         </button>
 
@@ -106,7 +116,7 @@ export function EventActionRow({ event }: { event: EventCardData }) {
               </span>
             )}
             <span className="inline-flex items-center gap-1 font-label-caps text-[11px] uppercase tracking-wide text-on-surface">
-              {priceLabel(event)}
+              {priceLabel(event, t('common.free'))}
             </span>
           </div>
 
@@ -129,7 +139,7 @@ export function EventActionRow({ event }: { event: EventCardData }) {
               : 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary'
           }`}
         >
-          {isSpectator ? 'Watch' : 'Join'}
+          {isSpectator ? t('common.watch') : t('common.join')}
         </button>
       </article>
 

@@ -1,14 +1,22 @@
-import type { Metadata, Viewport } from 'next';
-import './globals.css';
+import { cookies } from 'next/headers';
+import {
+  LOCALE_COOKIE,
+  localeToHtmlLang,
+  parseLocale,
+} from '@/lib/i18n/config';
+import { LocaleProvider } from '@/components/i18n/LocaleProvider';
 import { ThumbButton } from '@/components/navigation/ThumbButton';
 import { THUMB_BUTTON_ENABLED } from '@/components/navigation/thumb-button-flags';
 import { ServiceWorkerRegister } from '@/components/pwa/ServiceWorkerRegister';
+import type { Metadata, Viewport } from 'next';
+import './globals.css';
 
 export const runtime = 'edge';
 
 export const metadata: Metadata = {
   title: 'SportSync - Apex Elite',
-  description: 'Find local sports partners, official venue events, and elite training near you.',
+  description:
+    'Nájdi športových partnerov, oficiálne eventy na športoviskách a tréningy v okolí.',
   applicationName: 'SportSync',
   appleWebApp: {
     capable: true,
@@ -36,10 +44,11 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = parseLocale(cookies().get(LOCALE_COOKIE)?.value);
+
   return (
-    <html lang="en" className="dark">
+    <html lang={localeToHtmlLang(locale)} className="dark">
       <head>
-        {/* Ported 1:1 from the Stitch export - see FrontEnd/apex_elite_homepage_refined_branding/code.html */}
         <link href="https://fonts.googleapis.com" rel="preconnect" />
         <link crossOrigin="" href="https://fonts.gstatic.com" rel="preconnect" />
         <link
@@ -60,9 +69,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             : 'pb-[env(safe-area-inset-bottom,0px)]',
         ].join(' ')}
       >
-        {children}
-        <ThumbButton />
-        <ServiceWorkerRegister />
+        <LocaleProvider initialLocale={locale}>
+          {children}
+          <ThumbButton />
+          <ServiceWorkerRegister />
+        </LocaleProvider>
       </body>
     </html>
   );

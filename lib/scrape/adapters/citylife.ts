@@ -2,11 +2,14 @@ import * as cheerio from 'cheerio';
 import {
   errResult,
   fetchHtml,
+  MAX_LOOP_ITERATIONS,
   okResult,
   parsePriceCents,
   parseSlovakDate,
   parseTimeOnDate,
   slugify,
+  truncateHtmlForParse,
+  withUrlProcessingTimeout,
 } from '@/lib/scrape/fetch';
 import { detectExplicitKidsAudience } from '@/lib/events/for-kids';
 import { detectExplicitWomenAudience } from '@/lib/events/for-women';
@@ -41,7 +44,7 @@ const WEEKDAY_TO_JS: Record<string, number> = {
 export async function scrapeCitylife(): Promise<AdapterResult> {
   try {
     const html = await fetchHtml(SPORT_URL);
-    const $ = cheerio.load(html);
+    const $ = cheerio.load(truncateHtmlForParse(html));
     const listings: Array<{ title: string; href: string; intro: string; datumcas: string }> = [];
     const seenHref = new Set<string>();
 
@@ -69,21 +72,37 @@ export async function scrapeCitylife(): Promise<AdapterResult> {
     const seenExternal = new Set<string>();
 
     for (const listing of listings.slice(0, 25)) {
-      let detailHtml: string | null = null;
       try {
-        detailHtml = await fetchHtml(listing.href);
-      } catch {
-        detailHtml = null;
-      }
+        await withUrlProcessingTimeout(listing.href, async () => {
+          let detailHtml: string | null = null;
+          try {
+            detailHtml = await fetchHtml(listing.href);
+          } catch {
+            detailHtml = null;
+          }
 
-      const enriched = detailHtml
-        ? parseDetailPage(detailHtml, listing)
-        : parseListingFallback(listing);
+          const enriched = detailHtml
+            ? parseDetailPage(detailHtml, listing)
+            : parseListingFallback(listing);
 
-      for (const event of enriched) {
-        if (seenExternal.has(event.externalId)) continue;
-        seenExternal.add(event.externalId);
-        events.push(tagScrapedEventLocation(event));
+          for (const event of enriched) {
+            if (seenExternal.has(event.externalId)) continue;
+            seenExternal.add(event.externalId);
+            events.push(tagScrapedEventLocation(event));
+          }
+        });
+      } catch (err) {
+        console.warn(
+          '[scrape.citylife] skip detail',
+          listing.href,
+          err instanceof Error ? err.message : err,
+        );
+        const enriched = parseListingFallback(listing);
+        for (const event of enriched) {
+          if (seenExternal.has(event.externalId)) continue;
+          seenExternal.add(event.externalId);
+          events.push(tagScrapedEventLocation(event));
+        }
       }
     }
 
@@ -97,7 +116,7 @@ function parseDetailPage(
   html: string,
   listing: { title: string; href: string; intro: string; datumcas: string },
 ): NormalizedScrapedEvent[] {
-  const $ = cheerio.load(html);
+  const $ = cheerio.load(truncateHtmlForParse(html));
   const title =
     $('h1').first().text().replace(/\s+/g, ' ').trim() || listing.title;
 
@@ -388,7 +407,12 @@ function parseCalendarOccurrences(text: string): Date[] {
   const seen = new Set<number>();
   const re = /(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2})[:.](\d{2})/g;
   let m: RegExpExecArray | null;
+  let passes = 0;
   while ((m = re.exec(text)) !== null) {
+    if (++passes > MAX_LOOP_ITERATIONS) {
+      console.warn('[scrape.citylife] calendar occurrence loop safety break');
+      break;
+    }
     const day = Number(m[1]);
     const month = Number(m[2]);
     const year = Number(m[3]);

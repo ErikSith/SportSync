@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 import type { TournamentCardData } from '@/lib/data/tournaments';
+import { tournamentParticipationMode } from '@/lib/tournament-participation';
 import { eventMatchesKids, eventMatchesWomen } from '@/lib/event-audience-filter';
 import { lobbyTierLabel } from '@/lib/utils/lobby';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { TournamentPreviewModal } from '@/components/tournaments/TournamentPreviewModal';
 import { ListingCover } from '@/components/shared/ListingCover';
 import { formatAppDate } from '@/lib/datetime/bratislava';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 /** Fixed grid tile — matches event carousel card footprint. */
 export const TOURNAMENT_CARD_HEIGHT = 'h-[420px]';
@@ -37,17 +39,19 @@ function countdownLabel(startsAt: Date): string {
   return formatTournamentDate(startsAt, null);
 }
 
-function formatEntryFee(fee: number): string {
-  if (fee === 0) return 'Free';
+function formatEntryFee(fee: number, freeText: string): string {
+  if (fee === 0) return freeText;
   return `€${fee.toLocaleString()}`;
 }
 
 export function TournamentCard({ tournament }: { tournament: TournamentCardData }) {
+  const t = useT();
   const [previewOpen, setPreviewOpen] = useState(false);
   const cover = tournament.coverUrl;
   const formatLabel = FORMAT_LABELS[tournament.format] ?? tournament.format;
   const isLive = tournament.status === 'IN_PROGRESS';
   const tier = lobbyTierLabel(tournament.skillLevelMax ?? tournament.skillLevelMin);
+  const isSpectatorCup = tournamentParticipationMode(tournament) === 'spectator';
   const spotsLeft = Math.max(0, tournament.maxParticipants - tournament.currentParticipants);
   const fillPercent = Math.min(
     100,
@@ -107,7 +111,7 @@ export function TournamentCard({ tournament }: { tournament: TournamentCardData 
                 {isLive ? 'sensors' : 'emoji_events'}
               </span>
               <span className="font-label-caps text-[10px] uppercase tracking-wide">
-                {isLive ? 'Live' : tier}
+                {isLive ? t('common.live') : tier}
               </span>
             </span>
 
@@ -175,23 +179,25 @@ export function TournamentCard({ tournament }: { tournament: TournamentCardData 
           <div className="mt-auto flex min-h-[96px] flex-col justify-end gap-2.5 border-t border-secondary/15 pt-3">
             <div className="grid min-h-[28px] grid-cols-2 gap-3 font-label-caps text-[10px] uppercase tracking-wide">
               <div>
-                <p className="mb-0.5 text-on-surface-variant">Entry</p>
-                <p className="text-secondary">{formatEntryFee(tournament.entryFee)}</p>
+                <p className="mb-0.5 text-on-surface-variant">{t('common.entry')}</p>
+                <p className="text-secondary">{formatEntryFee(tournament.entryFee, t('common.free'))}</p>
               </div>
               <div className="text-right">
-                <p className="mb-0.5 text-on-surface-variant">Spots</p>
+                <p className="mb-0.5 text-on-surface-variant">{isSpectatorCup ? t('common.watch') : t('common.spots')}</p>
                 <p className="text-on-surface">
-                  {spotsLeft}/{tournament.maxParticipants}
+                  {isSpectatorCup ? t('common.watch') : `${spotsLeft}/${tournament.maxParticipants}`}
                 </p>
               </div>
             </div>
 
-            <div className="h-1.5 w-full rounded-full bg-surface-container-lowest">
-              <div
-                className="h-1.5 rounded-full bg-secondary transition-[width]"
-                style={{ width: `${fillPercent}%` }}
-              />
-            </div>
+            {!isSpectatorCup ? (
+              <div className="h-1.5 w-full rounded-full bg-surface-container-lowest">
+                <div
+                  className="h-1.5 rounded-full bg-secondary transition-[width]"
+                  style={{ width: `${fillPercent}%` }}
+                />
+              </div>
+            ) : null}
 
             <span
               className="self-stretch rounded-full border border-secondary/40 py-2 text-center font-label-caps text-[11px] uppercase tracking-wider text-white transition-colors group-hover:border-secondary"
@@ -199,7 +205,7 @@ export function TournamentCard({ tournament }: { tournament: TournamentCardData 
                 background: 'linear-gradient(135deg, rgb(176, 47, 0) 0%, rgb(95, 21, 0) 100%)',
               }}
             >
-              Enter Cup
+              {isSpectatorCup ? t('common.watch') : t('tournaments.enterCup')}
             </span>
           </div>
         </div>

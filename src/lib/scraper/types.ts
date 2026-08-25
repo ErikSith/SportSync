@@ -8,7 +8,7 @@ export const ScrapedEventSchema = z.object({
   isTournament: z
     .boolean()
     .describe(
-      'True ak ide o turnaj/súťaž, False ak ide o tréning alebo rekreačnú lekciu',
+      'True len ak ide o turnaj s otvorenou prihláškou hráča. False pre ligový zápas Tím vs Tím (divák / Sledovať).',
     ),
   isGroupClass: z
     .boolean()
@@ -86,7 +86,7 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
           isTournament: {
             type: 'boolean',
             description:
-              'True ak ide o turnaj/súťaž, False ak ide o tréning alebo rekreačnú lekciu',
+              'True len pre turnaj s otvorenou prihláškou. False pre zápas Tím vs Tím (divák).',
           },
           isGroupClass: {
             type: 'boolean',

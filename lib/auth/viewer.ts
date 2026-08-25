@@ -20,7 +20,7 @@ export function guestProfile(): Profile {
     id: '00000000-0000-4000-a000-000000000001',
     email: 'guest@sportsync.demo',
     username: 'guest',
-    fullName: 'Guest',
+    fullName: 'Hosť',
     avatarUrl: null,
     coverUrl: null,
     bio: null,

@@ -1,34 +1,51 @@
-import Link from 'next/link';
+'use client';
 
-const ACTIONS = [
-  { href: '/lobby', label: 'Find Partners', icon: 'group', color: 'text-primary' },
-  { href: '/tournaments', label: 'Tournaments', icon: 'emoji_events', color: 'text-secondary' },
-  { href: '/events', label: 'Events', icon: 'event', color: 'text-primary' },
+import Link from 'next/link';
+import { useT } from '@/components/i18n/LocaleProvider';
+import type { MessageKey } from '@/lib/i18n/messages';
+
+const ACTIONS: Array<{
+  href: string;
+  labelKey: MessageKey;
+  icon: string;
+  color: string;
+  comingSoon?: boolean;
+}> = [
+  { href: '/lobby', labelKey: 'home.quick.lobby', icon: 'group', color: 'text-primary' },
+  {
+    href: '/tournaments',
+    labelKey: 'home.quick.tournaments',
+    icon: 'emoji_events',
+    color: 'text-secondary',
+  },
+  { href: '/events', labelKey: 'home.quick.events', icon: 'event', color: 'text-primary' },
   {
     href: '/trainers',
-    label: 'Trainers',
+    labelKey: 'home.quick.trainers',
     icon: 'school',
     color: 'text-secondary',
     comingSoon: true,
   },
-  { href: '/venues', label: 'Venues', icon: 'stadium', color: 'text-primary' },
+  { href: '/venues', labelKey: 'home.quick.venues', icon: 'stadium', color: 'text-primary' },
   {
     href: '/leaderboard',
-    label: 'Rankings',
+    labelKey: 'home.quick.rankings',
     icon: 'leaderboard',
     color: 'text-secondary',
     comingSoon: true,
   },
-] as const;
+];
 
 const cardClassName =
   'glass-card relative flex h-full min-h-[7.5rem] w-full flex-col items-start gap-2.5 overflow-hidden rounded-xl p-3 sm:min-h-[8.25rem] sm:gap-3 sm:p-4';
 
 export function QuickActions() {
+  const t = useT();
+
   return (
     <div className="grid auto-rows-fr grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 lg:grid-cols-6">
       {ACTIONS.map((action) => {
-        const comingSoon = 'comingSoon' in action && action.comingSoon;
+        const comingSoon = Boolean(action.comingSoon);
 
         const body = (
           <>
@@ -59,7 +76,7 @@ export function QuickActions() {
                     : 'text-on-surface transition-colors group-hover:text-secondary',
                 ].join(' ')}
               >
-                {action.label}
+                {t(action.labelKey)}
               </span>
               <span
                 className={[
@@ -68,7 +85,7 @@ export function QuickActions() {
                 ].join(' ')}
                 aria-hidden={!comingSoon}
               >
-                Pripravuje sa
+                {t('common.comingSoon')}
               </span>
             </div>
           </>
@@ -79,7 +96,7 @@ export function QuickActions() {
             <div
               key={action.href}
               aria-disabled="true"
-              title="Pripravuje sa"
+              title={t('common.comingSoon')}
               className={`${cardClassName} cursor-not-allowed opacity-55`}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-outline-variant/10 to-transparent" />

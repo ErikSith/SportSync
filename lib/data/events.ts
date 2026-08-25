@@ -4,6 +4,7 @@ import type { EventType } from '@/lib/constants/events';
 import { activeFeedSince, feedStartsAtFloor } from '@/lib/retention/feed-window';
 import { parseDbInstant, alignStartsAtWithCopyTime } from '@/lib/datetime/bratislava';
 import { sanitizeListingCoverUrl, sanitizeListingPhotos } from '@/lib/media/listing-cover';
+import { listingParticipationMode } from '@/lib/participation/fixture-match';
 
 export { EVENT_SPORTS, type EventSport } from '@/lib/constants/sports';
 
@@ -110,10 +111,6 @@ interface EventRow {
   venues?: { name: string } | { name: string }[] | null;
 }
 
-function normalizeParticipationMode(mode: string | null | undefined): ParticipationMode {
-  return mode === 'spectator' ? 'spectator' : 'participate';
-}
-
 function resolveVenueName(venues: EventRow['venues']): string | null {
   if (!venues) return null;
   return Array.isArray(venues) ? (venues[0]?.name ?? null) : venues.name;
@@ -183,7 +180,7 @@ function mapEventCard(event: EventRow, d: number): EventCardData {
     venueId: event.venue_id,
     venueName: resolveVenueName(event.venues),
     themeConfig: (event.theme_config as Record<string, unknown>) ?? {},
-    participationMode: normalizeParticipationMode(event.participation_mode),
+    participationMode: listingParticipationMode(event.title, event.participation_mode),
     ticketUrl: event.ticket_url ?? null,
     sourceUrl: event.source_url ?? null,
     sourceName: event.source_name ?? null,
@@ -698,7 +695,7 @@ function mapEventDetail(data: unknown): EventDetailData {
     sponsors,
     themeConfig: (row.theme_config as Record<string, unknown>) ?? {},
     sponsorsJson: (row.sponsors_json as SponsorExtracted[]) ?? [],
-    participationMode: normalizeParticipationMode(row.participation_mode),
+    participationMode: listingParticipationMode(row.title, row.participation_mode),
     ticketUrl: row.ticket_url ?? null,
     sourceUrl: row.source_url ?? null,
     sourceName: row.source_name ?? null,

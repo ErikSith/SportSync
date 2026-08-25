@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
+import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { getSessionById, getBookingOptionsForCity } from '@/lib/data/sport-groups';
 import { formatGroupSchedule, GROUP_SPORT_ICONS, sportDisplayLabel } from '@/lib/data/sport-groups-shared';
 import { SessionCoordinationHub } from '@/components/lobby/groups/SessionCoordinationHub';
@@ -14,11 +15,7 @@ interface SessionDetailPageProps {
 export default async function SessionDetailPage({ params }: SessionDetailPageProps) {
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {
-    return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
-        <p className="font-body-md text-body-md text-tertiary-container">Setting up your profile…</p>
-      </main>
-    );
+    return <SetupNotice />;
   }
 
   const { profile } = viewer;

@@ -16,6 +16,7 @@ import {
 } from '@/lib/data/events';
 import type { EventType } from '@/lib/constants/events';
 import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
+import { listingParticipationMode } from '@/lib/participation/fixture-match';
 
 interface RawEventRow {
   id: string;
@@ -90,7 +91,7 @@ function mapRow(event: RawEventRow, lat: number, lng: number): EventCardData {
     venueId: event.venue_id,
     venueName: venueName(event.venues),
     themeConfig: event.theme_config ?? {},
-    participationMode: event.participation_mode === 'spectator' ? 'spectator' : 'participate',
+    participationMode: listingParticipationMode(event.title, event.participation_mode),
     ticketUrl: event.ticket_url ?? null,
     sourceUrl: event.source_url ?? null,
     sourceName: event.source_name ?? null,

@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { EVENT_SPORTS, sportDisplayLabel } from '@/lib/constants/sports';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 export function MercenaryOptIn({ initialSports }: { initialSports: string[] }) {
+  const t = useT();
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>(initialSports.map((s) => s.toUpperCase()));
   const [saving, setSaving] = useState(false);
@@ -36,11 +38,10 @@ export function MercenaryOptIn({ initialSports }: { initialSports: string[] }) {
     <section className="glass-panel rounded-xl p-6">
       <div className="flex items-center gap-2 mb-1">
         <span className="material-symbols-outlined text-secondary">campaign</span>
-        <h3 className="font-headline-md text-headline-md text-on-surface">Mercenary Mode</h3>
+        <h3 className="font-headline-md text-headline-md text-on-surface">{t('profile.mercenaryTitle')}</h3>
       </div>
       <p className="font-body-md text-body-md text-on-surface-variant mb-4">
-        Opt in as a mercenary for specific sports. When a nearby lobby or crew is missing a player,
-        we'll send you an SOS and you can jump in as an emergency +1.
+        {t('profile.mercenaryBody')}
       </p>
 
       <div className="flex flex-wrap gap-2 mb-4">
@@ -70,12 +71,12 @@ export function MercenaryOptIn({ initialSports }: { initialSports: string[] }) {
           disabled={saving}
           className="bg-gradient-to-br from-primary-container to-secondary-container text-white font-headline-md text-headline-md font-bold py-2.5 px-6 rounded-lg hover:shadow-[0_0_20px_rgba(255,87,34,0.4)] transition-all active:scale-[0.98] disabled:opacity-50"
         >
-          {saving ? 'SAVING…' : 'SAVE MERCENARY SPORTS'}
+          {saving ? t('common.saving').toUpperCase() : t('profile.mercenarySave').toUpperCase()}
         </button>
         {saved && (
           <span className="font-label-caps text-label-caps text-secondary flex items-center gap-1">
             <span className="material-symbols-outlined text-[16px]">check_circle</span>
-            Saved
+            {t('common.saved')}
           </span>
         )}
       </div>

@@ -4,17 +4,15 @@ import { TopAppBar } from '@/components/home/TopAppBar';
 import { MercenaryOptIn } from '@/components/profile/MercenaryOptIn';
 import { ProfileAccountSwitcher } from '@/components/profile/ProfileAccountSwitcher';
 import { SignOutButton } from '@/components/profile/SignOutButton';
+import { SetupNotice } from '@/components/i18n/SetupNotice';
+import { t } from '@/lib/i18n/server';
 
 export const runtime = 'edge';
 
 export default async function ProfileSettingsPage() {
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {
-    return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
-        <p className="font-body-md text-body-md text-tertiary-container">Setting up your profile…</p>
-      </main>
-    );
+    return <SetupNotice />;
   }
 
   const { profile } = viewer;
@@ -28,20 +26,20 @@ export default async function ProfileSettingsPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/profile"
-            className="flex items-center gap-1 text-on-surface-variant hover:text-primary-container transition-colors"
+            className="flex items-center gap-1 text-on-surface-variant transition-colors hover:text-primary-container"
           >
             <span className="material-symbols-outlined text-lg">arrow_back</span>
-            <span className="font-label-caps text-[10px] uppercase">Späť</span>
+            <span className="font-label-caps text-[10px] uppercase">{t('common.back')}</span>
           </Link>
         </div>
 
-        <h1 className="font-headline-md text-headline-md text-on-surface">Nastavenia Aplikácie</h1>
+        <h1 className="font-headline-md text-headline-md text-on-surface">{t('profile.appSettings')}</h1>
 
         <MercenaryOptIn initialSports={profile.mercenarySports} />
 
-        <section className="glass-panel rounded-xl p-5 space-y-4">
+        <section className="glass-panel space-y-4 rounded-xl p-5">
           <h2 className="font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
-            Účet
+            {t('profile.account')}
           </h2>
           <ProfileAccountSwitcher currentEmail={profile.email} />
           <SignOutButton />

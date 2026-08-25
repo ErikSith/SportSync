@@ -1,7 +1,7 @@
 import { SCRAPE_TARGETS } from '@/lib/scrape/sources';
 import { SCRAPING_SOURCES } from '@/lib/scrape/scraping-sources';
 import { extractEventsFromText } from './extractor';
-import { fetchCleanText, sleep, HOST_DELAY_MS } from './fetcher';
+import { fetchCleanText, sleep, HOST_DELAY_MS, withUrlProcessingTimeout } from './fetcher';
 import { upsertScrapedEvents, type UpsertScrapedOptions } from './db-service';
 import { purgePastListings } from './purge';
 import type {
@@ -12,6 +12,10 @@ import type {
   ScraperUrlResult,
 } from './types';
 import { shouldForceGroupClassFromUrl } from '@/lib/feed/group-class';
+import {
+  recordUrlResult,
+  shouldSkipUrl,
+} from '@/lib/scrape/source-health';
 
 export interface VenueScrapeTarget {
   url: string;
@@ -200,28 +204,44 @@ export async function runGeminiScraper(
     const target = targets[i]!;
     const result: ScraperUrlResult = { url: target.url, events: [] };
 
+    if (await shouldSkipUrl(target.url)) {
+      result.error = 'skipped: source marked unhealthy (3+ consecutive failures)';
+      console.warn(`[scraper] skip unhealthy ${target.url}`);
+      results.push(result);
+      continue;
+    }
+
     try {
       console.log(`[scraper] (${i + 1}/${targets.length}) fetch ${target.url}`);
-      const text = await fetchCleanText(target.url);
-      const events = await extractEventsFromText(target.url, text);
-      result.events = events;
-      extracted += events.length;
-      console.log(`[scraper] ${target.url} → ${events.length} event(s)`);
+      await withUrlProcessingTimeout(target.url, async () => {
+        const text = await fetchCleanText(target.url);
+        const events = await extractEventsFromText(target.url, text);
+        result.events = events;
+        extracted += events.length;
+        console.log(`[scraper] ${target.url} → ${events.length} event(s)`);
 
-      if (!dryRun && events.length > 0) {
-        const opts: UpsertScrapedOptions = {
-          venueId: target.venueId,
-          latitude: target.latitude,
-          longitude: target.longitude,
-          forceGroupClass: target.forceGroupClass,
-          scrapePageUrl: target.url,
-        };
-        upsert = addStats(upsert, await upsertScrapedEvents(events, opts));
-      }
+        if (!dryRun && events.length > 0) {
+          const opts: UpsertScrapedOptions = {
+            venueId: target.venueId,
+            latitude: target.latitude,
+            longitude: target.longitude,
+            forceGroupClass: target.forceGroupClass,
+            scrapePageUrl: target.url,
+          };
+          upsert = addStats(upsert, await upsertScrapedEvents(events, opts));
+        }
+      });
     } catch (err) {
       result.error = err instanceof Error ? err.message : String(err);
       console.warn(`[scraper] skip ${target.url}: ${result.error}`);
     }
+
+    await recordUrlResult({
+      url: target.url,
+      eventCount: result.events.length,
+      error: result.error ?? null,
+      adapterId: 'venue-web',
+    });
 
     results.push(result);
 

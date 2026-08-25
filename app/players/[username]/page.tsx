@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
+import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { getProfileByUsername } from '@/lib/data/profile';
 import { getProfileDashboard } from '@/lib/data/profile-dashboard';
 import {
@@ -20,11 +21,7 @@ interface PlayerProfilePageProps {
 export default async function PlayerProfilePage({ params }: PlayerProfilePageProps) {
   const pageViewer = await getPageViewer();
   if (pageViewer.status === 'setup') {
-    return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
-        <p className="font-body-md text-body-md text-tertiary-container">Setting up your profile…</p>
-      </main>
-    );
+    return <SetupNotice />;
   }
 
   const { profile: viewer } = pageViewer;

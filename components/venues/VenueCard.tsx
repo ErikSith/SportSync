@@ -6,6 +6,7 @@ import type { VenueCardActivity, VenueCardData } from '@/lib/data/venues';
 import { sportDisplayLabel } from '@/lib/constants/sports';
 import { resolveVenueCover, resolveVenueLogo } from '@/lib/venues/venue-media';
 import { ListingCover } from '@/components/shared/ListingCover';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 /** Fixed grid tile — same footprint family as event/tournament cards. */
 export const VENUE_CARD_HEIGHT = 'h-[420px]';
@@ -95,6 +96,7 @@ function ActivityThumbs({
 }
 
 export function VenueCard({ venue }: { venue: VenueCardData }) {
+  const t = useT();
   const cover = resolveVenueCover({
     name: venue.name,
     sports: venue.sports,
@@ -329,7 +331,7 @@ export function VenueCard({ venue }: { venue: VenueCardData }) {
             </div>
           ) : (
             <p className="line-clamp-2 font-body-md text-[12px] leading-snug text-on-surface-variant">
-              {venue.description ?? 'Courts, booking & clubs at this facility.'}
+              {venue.description ?? t('venues.fallbackDesc')}
             </p>
           )}
 
@@ -347,8 +349,8 @@ export function VenueCard({ venue }: { venue: VenueCardData }) {
               ))}
               <span className="ml-auto font-label-caps text-[9px] uppercase tracking-wide text-on-surface-variant/70">
                 {venue.eventCount + venue.tournamentCount > 0
-                  ? `${venue.eventCount + venue.tournamentCount} upcoming`
-                  : 'Open to book'}
+                  ? t('venues.upcoming', { n: venue.eventCount + venue.tournamentCount })
+                  : t('venues.openToBook')}
               </span>
             </div>
           )}

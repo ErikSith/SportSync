@@ -5,6 +5,8 @@ import type { MatchCardData, PlayerAvatar } from '@/types/lobby';
 import { LobbyType } from '@/types/lobby';
 import { skillLabel } from '@/components/lobby/lobby-ui';
 import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
+import { useT } from '@/components/i18n/LocaleProvider';
+import type { MessageKey } from '@/lib/i18n/messages';
 
 interface LobbyMatchCardProps {
   match: MatchCardData;
@@ -12,14 +14,17 @@ interface LobbyMatchCardProps {
   busyId: string | null;
 }
 
-function typeMeta(type: LobbyType): { label: string; hint: string } {
+function typeMeta(
+  type: LobbyType,
+  t: (key: MessageKey) => string,
+): { label: string; hint: string } {
   switch (type) {
     case LobbyType.TEAM_VS_TEAM:
-      return { label: 'Challenge', hint: 'Team vs team' };
+      return { label: t('lobby.challenge'), hint: t('lobby.challengeHint') };
     case LobbyType.RECURRING_SQUAD:
-      return { label: 'Recurring', hint: 'Standing group' };
+      return { label: t('lobby.recurring'), hint: t('lobby.recurringHint') };
     default:
-      return { label: '+1', hint: 'Needs a partner' };
+      return { label: t('lobby.plusOne'), hint: t('lobby.needsPartner') };
   }
 }
 
@@ -50,8 +55,9 @@ function OpenSlot({ label = '+' }: { label?: string }) {
 }
 
 export function LobbyMatchCard({ match, onAction, busyId }: LobbyMatchCardProps) {
+  const t = useT();
   const busy = busyId === match.id;
-  const meta = typeMeta(match.type);
+  const meta = typeMeta(match.type, t);
   const venueSite = toVenueHomepageUrl(match.websiteUrl);
   const openSlots = Math.max(0, match.playersTotal - match.playersFilled);
   const title =
@@ -73,6 +79,13 @@ export function LobbyMatchCard({ match, onAction, busyId }: LobbyMatchCardProps)
       : match.type === LobbyType.TEAM_VS_TEAM
         ? match.challengeTerms ?? match.teamRecord ?? 'Open challenge'
         : `${skillLabel(match.skillLevel)} · ${openSlots} open`;
+
+  const ctaLabel =
+    match.type === LobbyType.TEAM_VS_TEAM
+      ? t('common.accept')
+      : match.type === LobbyType.RECURRING_SQUAD
+        ? t('common.request')
+        : t('common.join');
 
   return (
     <article className="group flex flex-col overflow-hidden rounded-xl border border-outline-variant/15 bg-surface-container-low transition-colors hover:border-outline-variant/35">
@@ -155,13 +168,7 @@ export function LobbyMatchCard({ match, onAction, busyId }: LobbyMatchCardProps)
             disabled={busy}
             className="shrink-0 rounded-lg border border-white/10 bg-zinc-900/60 px-3 py-1.5 font-label-caps text-[10px] uppercase tracking-[0.12em] text-zinc-200 transition hover:border-primary-container/35 hover:text-white active:scale-[0.98] disabled:opacity-60"
           >
-            {busy
-              ? '…'
-              : match.type === LobbyType.TEAM_VS_TEAM
-                ? 'Accept'
-                : match.type === LobbyType.RECURRING_SQUAD
-                  ? 'Request'
-                  : 'Join'}
+            {busy ? '…' : ctaLabel}
           </button>
         </div>
 
@@ -169,7 +176,7 @@ export function LobbyMatchCard({ match, onAction, busyId }: LobbyMatchCardProps)
           <p className="mt-3 text-[11px] leading-snug text-zinc-600">
             {venueSite
               ? 'Oficiálny web športoviska — SportSync je len stretávka hráčov.'
-              : 'Court booking and payment are handled at the venue.'}
+              : t('lobby.courtDisclaimer')}
           </p>
         )}
       </div>

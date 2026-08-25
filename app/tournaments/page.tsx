@@ -1,4 +1,6 @@
 import { Suspense } from 'react';
+import { t } from '@/lib/i18n/server';
+import { SetupNotice } from '@/components/i18n/SetupNotice';
 import Link from 'next/link';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { type TournamentCardData } from '@/lib/data/tournaments';
@@ -65,11 +67,7 @@ function matchesStatus(t: TournamentCardData, status: TournamentStatusFilter): b
 export default async function TournamentsPage({ searchParams }: TournamentsPageProps) {
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {
-    return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
-        <p className="font-body-md text-body-md text-tertiary-container">Setting up your profile…</p>
-      </main>
-    );
+    return <SetupNotice />;
   }
 
   const { profile } = viewer;
@@ -122,15 +120,15 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
     : audienceFilterActive
       ? `Žiadne cups pre „${eventAudienceLabel(audience)}“.`
       : mode === 'spectator'
-        ? 'Žiadne cups na sledovanie.'
-        : 'Žiadne turnaje s otvorenou prihláškou.';
+        ? t('tournaments.empty.spectator.title')
+        : t('tournaments.empty.play.title');
   const emptySubtitle = dateFilterActive
     ? 'Skús iný termín alebo zruš dátumový filter.'
     : audienceFilterActive
       ? 'Skús iný filter publika alebo zruš výber.'
       : mode === 'spectator'
-        ? 'Vstupenky a divácke spektákle sa tu objavia, keď organizátori zverejnia termín. Na Hrať sú cups, do ktorých sa dá prihlásiť.'
-        : 'Skús iný šport alebo status — otvorené prihlášky pribúdajú priebežne. Na Sledovať sú turnaje len pre divákov.';
+        ? t('tournaments.empty.spectator.sub')
+        : t('tournaments.empty.play.sub');
 
   return (
     <>
@@ -150,16 +148,16 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
           title={
             <div className="space-y-1 min-w-0">
               <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-secondary">
-                Compete
+                {t('tournaments.eyebrow')}
               </p>
               <h1 className="font-headline-md text-[28px] leading-tight tracking-wide text-on-background sm:text-3xl md:text-4xl">
-                Tournaments
+                {t('tournaments.title')}
               </h1>
             </div>
           }
           subtitle={
             <p className="mt-1 max-w-md font-body-md text-sm text-on-surface-variant md:text-body-md">
-              Prihlášky na Hrať, vstupenky a tribúna na Sledovať.
+              {t('tournaments.subtitle')}
             </p>
           }
           actions={
@@ -174,7 +172,7 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
                 >
                   emoji_events
                 </span>
-                Create cup
+                {t('tournaments.create')}
               </Link>
             ) : undefined
           }

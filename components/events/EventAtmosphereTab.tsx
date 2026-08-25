@@ -14,6 +14,7 @@ import {
   formatAppDayLabel,
   formatAppTime,
 } from '@/lib/datetime/bratislava';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 export const EVENT_TAB_RAIL_W = 'w-[min(168px,72vw)] sm:w-[176px]';
 export const EVENT_TAB_H = 'h-[176px] sm:h-[188px]';
@@ -26,12 +27,16 @@ function formatStartTime(date: Date | string): string {
   return formatAppTime(asDate(date));
 }
 
-function priceLabel(event: EventCardData): string {
+function isFreeEvent(event: EventCardData): boolean {
+  return !(event.priceCents > 0 || event.price > 0);
+}
+
+function priceLabel(event: EventCardData, freeText: string): string {
   if (event.priceCents > 0) {
     return `€${(event.priceCents / 100).toFixed(event.priceCents % 100 === 0 ? 0 : 2)}`;
   }
   if (event.price > 0) return `€${event.price}`;
-  return 'Free';
+  return freeText;
 }
 
 interface EventAtmosphereTabProps {
@@ -46,17 +51,19 @@ export function EventAtmosphereTab({
   index = 0,
   layout = 'rail',
 }: EventAtmosphereTabProps) {
+  const t = useT();
   const [previewOpen, setPreviewOpen] = useState(false);
   const cover = isFormFactoryListing(event)
     ? null
     : resolveSportAtmosphereCover(event.sport, event.coverUrl);
-  const free = priceLabel(event) === 'Free';
+  const free = isFreeEvent(event);
   const venue = event.venueName ?? event.city;
   const startsAt = alignStartsAtWithCopyTime(asDate(event.startsAt), event.description);
   const sizeClass =
     layout === 'fill'
       ? `w-full ${EVENT_TAB_H}`
       : `${EVENT_TAB_RAIL_W} ${EVENT_TAB_H} shrink-0 snap-start`;
+  const price = priceLabel(event, t('common.free'));
 
   return (
     <>
@@ -121,7 +128,7 @@ export function EventAtmosphereTab({
                   free ? 'text-primary-container' : 'text-primary'
                 }`}
               >
-                {priceLabel(event)}
+                {price}
               </span>
             </div>
           </div>

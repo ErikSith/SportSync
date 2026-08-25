@@ -6,6 +6,7 @@ import Link from 'next/link';
 import type { LobbyCardData } from '@/lib/data/lobbies';
 import { formatLobbyLabel } from '@/lib/constants/lobbies';
 import { lobbyTierLabel } from '@/lib/utils/lobby';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 const SPORT_ICONS: Record<string, string> = {
   TENNIS: 'sports_tennis',
@@ -111,6 +112,7 @@ function JoinButton({
   lobby: LobbyCardData;
   compact?: boolean;
 }) {
+  const t = useT();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +128,7 @@ function JoinButton({
         href={`/lobby/${lobby.id}`}
         className={`${base} border border-secondary/40 text-secondary hover:bg-secondary/10`}
       >
-        View
+        {t('common.view')}
       </Link>
     );
   }
@@ -137,7 +139,7 @@ function JoinButton({
         href={`/lobby/${lobby.id}`}
         className={`${base} bg-zinc-900 text-on-surface-variant border border-white/10`}
       >
-        Details
+        {t('common.view')}
       </Link>
     );
   }
@@ -161,7 +163,7 @@ function JoinButton({
         disabled={isPending}
         className={`${base} w-full bg-primary-container text-white hover:bg-primary-container/90`}
       >
-        {isPending ? '…' : lobby.mercenaryMode ? 'Join +1' : 'Join'}
+        {isPending ? '…' : lobby.mercenaryMode ? t('common.joinPlus') : t('common.join')}
       </button>
       {error && <p className="text-error text-[10px] mt-0.5 max-w-[8rem]">{error}</p>}
     </div>
@@ -169,6 +171,7 @@ function JoinButton({
 }
 
 function ShareButton({ lobbyId }: { lobbyId: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   async function share() {
@@ -197,7 +200,7 @@ function ShareButton({ lobbyId }: { lobbyId: string }) {
       className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-label-caps text-[9px] text-on-surface-variant hover:text-on-surface transition-colors"
     >
       <span className="material-symbols-outlined text-[14px]">ios_share</span>
-      {copied ? 'Copied' : 'Share'}
+      {copied ? t('common.copied') : t('common.share')}
     </button>
   );
 }

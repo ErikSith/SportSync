@@ -16,6 +16,8 @@ import { EventExternalCta } from '@/components/events/EventExternalCta';
 import { EventAggregatedDisclaimer } from '@/components/events/EventAggregatedDisclaimer';
 import { ReportEventDataButton } from '@/components/events/ReportEventDataButton';
 import { alignStartsAtWithCopyTime, formatAppDate, formatAppTime } from '@/lib/datetime/bratislava';
+import { useT } from '@/components/i18n/LocaleProvider';
+import type { EventType } from '@/lib/constants/events';
 
 function formatWhen(date: Date): string {
   return formatAppDate(date, {
@@ -36,12 +38,18 @@ function eventInstant(event: EventCardData): Date {
   );
 }
 
-function priceLabel(event: EventCardData): string {
+function priceLabel(event: EventCardData, freeText: string): string {
   if (event.priceCents > 0) {
     return `€${(event.priceCents / 100).toFixed(event.priceCents % 100 === 0 ? 0 : 2)}`;
   }
   if (event.price > 0) return `€${event.price}`;
-  return 'Free';
+  return freeText;
+}
+
+function typeBadgeLabel(type: EventType, t: ReturnType<typeof useT>): string {
+  return type === 'official'
+    ? t('common.official').toUpperCase()
+    : t('common.community').toUpperCase();
 }
 
 function capacityMeta(event: EventCardData): { filled: number; total: number; pct: number } | null {
@@ -58,12 +66,14 @@ interface EventPreviewModalProps {
 }
 
 export function EventPreviewModal({ event, open, onClose }: EventPreviewModalProps) {
+  const t = useT();
   const titleId = useId();
   const cover = event.coverUrl;
   const isLive = event.status === 'live';
+  const freeText = t('common.free');
   const typeBadge = isLive
-    ? { label: 'LIVE', className: 'bg-error/90 text-on-error' }
-    : eventTypeBadge(event.type);
+    ? { label: t('common.live').toUpperCase(), className: 'bg-error/90 text-on-error' }
+    : { ...eventTypeBadge(event.type), label: typeBadgeLabel(event.type, t) };
   const capacity = capacityMeta(event);
   const isFull = capacity != null && capacity.filled >= capacity.total;
   const almostFull = capacity != null && capacity.pct >= 75 && !isLive && !isFull;
@@ -77,8 +87,8 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
     event.venueName && event.city
       ? `${event.venueName} · ${event.city}`
       : event.venueName ?? event.city;
-  const price = priceLabel(event);
-  const free = price === 'Free';
+  const price = priceLabel(event, freeText);
+  const free = event.priceCents <= 0 && event.price <= 0;
 
   useBodyScrollLock(open);
 
@@ -106,7 +116,7 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
         >
           <motion.button
             type="button"
-            aria-label="Close preview"
+            aria-label={t('common.close')}
             className="absolute inset-0 bg-black/80 backdrop-blur-md sm:bg-black/70"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -146,7 +156,7 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
                   type="button"
                   onClick={onClose}
                   className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-background/70 text-on-surface backdrop-blur-md transition-colors hover:border-primary-container/40 hover:text-primary"
-                  aria-label="Close"
+                  aria-label={t('common.close')}
                 >
                   <X className="h-4 w-4" strokeWidth={2.25} />
                 </button>
@@ -163,7 +173,7 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
                   {isSpectator ? (
                     <>
                       <span className="text-white/40">·</span>
-                      <span>Watch</span>
+                      <span>{t('common.watch')}</span>
                     </>
                   ) : null}
                   {eventMatchesWomen(event) ? (
@@ -203,7 +213,7 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
                 </p>
                 <p className="flex items-center gap-2 font-body-md text-sm text-on-surface">
                   <Clock className="h-4 w-4 shrink-0 text-primary-container" strokeWidth={2.25} />
-                  Starts at {formatTime(eventInstant(event))}
+                  {t('events.startsAtLabel', { time: formatTime(eventInstant(event)) })}
                 </p>
                 <p className="flex items-center gap-2 font-body-md text-sm text-on-surface">
                   <MapPin className="h-4 w-4 shrink-0 text-primary-container" strokeWidth={2.25} />
@@ -220,16 +230,16 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
                       }`}
                     >
                       <Users className="h-3.5 w-3.5" strokeWidth={2.25} />
-                      {capacity.filled}/{capacity.total} spots
+                      {capacity.filled}/{capacity.total} {t('common.spots').toLowerCase()}
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5 text-on-surface-variant">
                       <Users className="h-3.5 w-3.5" strokeWidth={2.25} />
-                      Open signup
+                      {t('events.openSignup')}
                     </span>
                   )}
                   <span className={free ? 'text-primary-container' : 'text-primary'}>
-                    Entry {price}
+                    {t('common.entry')} {price}
                   </span>
                 </div>
                 {capacity ? (
@@ -271,7 +281,7 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
                   sourceUrl={externalUrl}
                   sourceName={resolvedSourceName}
                   variant="compact"
-                  label="Registrovať sa na oficiálnej stránke ↗"
+                  label={t('events.registerOfficial')}
                 />
               ) : isSpectator && event.ticketUrl ? (
                 <a
@@ -280,15 +290,15 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
                   rel="noopener noreferrer"
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-secondary py-3.5 font-label-caps text-[12px] uppercase tracking-[0.16em] text-on-secondary transition-colors hover:bg-secondary-fixed-dim"
                 >
-                  Get tickets
+                  {t('events.getTickets')}
                 </a>
               ) : (
                 <EventRegisterButton
                   eventId={event.id}
                   canRegister={canRegister}
                   isFull={isFull}
-                  registerLabel={isSpectator ? 'Watch' : 'Join'}
-                  registeredLabel={isSpectator ? 'Watching ✓' : 'Joined ✓'}
+                  registerLabel={isSpectator ? t('common.watch') : t('common.join')}
+                  registeredLabel={isSpectator ? t('events.watching') : t('events.joined')}
                   variant="compact"
                 />
               )}

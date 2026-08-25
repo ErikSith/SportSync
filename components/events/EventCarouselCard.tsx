@@ -7,6 +7,8 @@ import { resolveTheme } from '@/lib/ai/theme-config-client';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
 import { ListingCover } from '@/components/shared/ListingCover';
+import { useT } from '@/components/i18n/LocaleProvider';
+import type { EventType } from '@/lib/constants/events';
 
 /** Fixed carousel tile — every card shares the same width + height. */
 export const CAROUSEL_CARD_WIDTH = 'w-[min(272px,82vw)] sm:w-[300px]';
@@ -29,12 +31,18 @@ function capacityMeta(event: EventCardData): { filled: number; total: number; pc
   return { filled, total, pct: Math.round((filled / total) * 100) };
 }
 
-function priceLabel(event: EventCardData): string {
+function priceLabel(event: EventCardData, freeText: string): string {
   if (event.priceCents > 0) {
     return `€${(event.priceCents / 100).toFixed(event.priceCents % 100 === 0 ? 0 : 2)}`;
   }
   if (event.price > 0) return `€${event.price}`;
-  return 'Free';
+  return freeText;
+}
+
+function typeBadgeLabel(type: EventType, t: ReturnType<typeof useT>): string {
+  return type === 'official'
+    ? t('common.official').toUpperCase()
+    : t('common.community').toUpperCase();
 }
 
 export function EventCarouselCard({
@@ -44,14 +52,15 @@ export function EventCarouselCard({
   event: EventCardData;
   accent?: 'player' | 'spectator';
 }) {
+  const t = useT();
   const [previewOpen, setPreviewOpen] = useState(false);
   const isSpectator = event.participationMode === 'spectator' || accent === 'spectator';
   const isLive = event.status === 'live';
   const cover = event.coverUrl;
   const theme = resolveTheme(event.sportType, event.themeConfig);
   const typeBadge = isLive
-    ? { label: 'LIVE', className: 'bg-error/90 text-on-error', icon: undefined as string | undefined }
-    : eventTypeBadge(event.type);
+    ? { label: t('common.live').toUpperCase(), className: 'bg-error/90 text-on-error', icon: undefined as string | undefined }
+    : { ...eventTypeBadge(event.type), label: typeBadgeLabel(event.type, t) };
   const capacity = capacityMeta(event);
   const distance =
     event.distanceKm != null && Number.isFinite(event.distanceKm)
@@ -86,7 +95,7 @@ export function EventCarouselCard({
             {isLive ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-error/90 px-2.5 py-1 text-on-error backdrop-blur-md">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-on-error" />
-                <span className="font-label-caps text-[10px] uppercase tracking-wide">Live</span>
+                <span className="font-label-caps text-[10px] uppercase tracking-wide">{t('common.live')}</span>
               </span>
             ) : (
               <span
@@ -110,7 +119,7 @@ export function EventCarouselCard({
               </span>
             )}
             <span className="rounded-full bg-background/75 px-2.5 py-1 font-label-caps text-[10px] uppercase tracking-wide text-on-surface backdrop-blur-md border border-white/10">
-              {priceLabel(event)}
+              {priceLabel(event, t('common.free'))}
             </span>
           </div>
 
@@ -138,7 +147,7 @@ export function EventCarouselCard({
                 calendar_today
               </span>
               <span className="font-label-caps text-[10px] uppercase tracking-wide text-on-surface">
-                {isLive ? `Started ${formatEventTime(event.startsAt)}` : formatEventDate(event.startsAt)}
+                {isLive ? t('events.startedAt', { time: formatEventTime(event.startsAt) }) : formatEventDate(event.startsAt)}
               </span>
             </span>
             {!isLive && (
@@ -174,17 +183,17 @@ export function EventCarouselCard({
               <div className="flex min-h-[28px] items-center justify-between gap-2 font-label-caps text-[10px] uppercase tracking-wide text-on-surface-variant">
                 <span className="inline-flex items-center gap-1 truncate">
                   <span className="material-symbols-outlined text-[14px]">confirmation_number</span>
-                  Ticket {priceLabel(event)}
+                  {t('events.ticket')} {priceLabel(event, t('common.free'))}
                 </span>
                 <span className="inline-flex shrink-0 items-center gap-1">
                   <span className="material-symbols-outlined text-[14px]">visibility</span>
-                  {capacity ? `${capacity.filled} going` : 'Open'}
+                  {capacity ? t('events.going', { n: capacity.filled }) : t('common.open')}
                 </span>
               </div>
             ) : capacity ? (
               <div className="w-full min-h-[28px]">
                 <div className="mb-1.5 flex justify-between font-label-caps text-[10px] uppercase tracking-wide text-on-surface-variant">
-                  <span>Spots</span>
+                  <span>{t('common.spots')}</span>
                   <span className="text-on-surface">
                     {capacity.filled}/{capacity.total}
                   </span>
@@ -200,7 +209,7 @@ export function EventCarouselCard({
               <div className="flex min-h-[28px] items-center font-label-caps text-[10px] uppercase tracking-wide text-on-surface-variant">
                 <span className="inline-flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[14px]">group</span>
-                  Open signup
+                  {t('events.openSignup')}
                 </span>
               </div>
             )}
@@ -212,7 +221,7 @@ export function EventCarouselCard({
                   : 'bg-primary-container text-on-primary-container group-hover:bg-primary group-hover:text-on-primary'
               }`}
             >
-              {isSpectator ? 'Watch' : 'Join event'}
+              {isSpectator ? t('common.watch') : t('events.joinEvent')}
             </span>
           </div>
         </div>

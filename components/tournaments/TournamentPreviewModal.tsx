@@ -15,6 +15,7 @@ import { RegisterButton } from '@/components/tournaments/RegisterButton';
 import { TournamentExternalCta } from '@/components/tournaments/TournamentExternalCta';
 import { formatAppDate, formatAppTime } from '@/lib/datetime/bratislava';
 import { ListingCover } from '@/components/shared/ListingCover';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 const BRASS = '#c4a035';
 const BRASS_SOFT = 'rgba(196, 160, 53, 0.14)';
@@ -53,16 +54,19 @@ function formatDateRange(startsAt: Date, endsAt: Date | null): string {
   })}`;
 }
 
-function entryLabel(fee: number): string {
-  if (fee <= 0) return 'Free';
+function entryLabel(fee: number, freeText: string): string {
+  if (fee <= 0) return freeText;
   return `€${fee}`;
 }
 
-function statusMeta(status: string): { label: string; live: boolean } {
-  if (status === 'IN_PROGRESS') return { label: 'Live', live: true };
-  if (status === 'REGISTRATION_OPEN') return { label: 'Open', live: false };
-  if (status === 'COMPLETED') return { label: 'Finished', live: false };
-  return { label: 'Cup', live: false };
+function statusMeta(
+  status: string,
+  t: ReturnType<typeof useT>,
+): { label: string; live: boolean } {
+  if (status === 'IN_PROGRESS') return { label: t('common.live'), live: true };
+  if (status === 'REGISTRATION_OPEN') return { label: t('tournaments.openReg'), live: false };
+  if (status === 'COMPLETED') return { label: t('tournaments.finished'), live: false };
+  return { label: t('common.cup'), live: false };
 }
 
 function skillLabel(min: number | null, max: number | null): string {
@@ -84,9 +88,10 @@ export function TournamentPreviewModal({
   open,
   onClose,
 }: TournamentPreviewModalProps) {
+  const t = useT();
   const titleId = useId();
   const cover = tournament.coverUrl;
-  const status = statusMeta(tournament.status);
+  const status = statusMeta(tournament.status, t);
   const filled = tournament.currentParticipants;
   const max = Math.max(1, tournament.maxParticipants);
   const fillPct = Math.min(100, Math.round((filled / max) * 100));
@@ -278,16 +283,19 @@ export function TournamentPreviewModal({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-x-4 font-label-caps text-[11px] uppercase tracking-[0.12em]">
-                  <span className="flex items-center gap-1.5" style={{ color: almostFull ? undefined : BRASS_TEXT }}>
+                  <span className="flex items-center gap-1.5" style={{ color: almostFull && !isSpectatorCup ? undefined : BRASS_TEXT }}>
                     <Users className="h-3.5 w-3.5" strokeWidth={2.25} />
-                    <span className={almostFull ? 'text-error' : undefined}>
-                      {filled}/{tournament.maxParticipants} spots
+                    <span className={almostFull && !isSpectatorCup ? 'text-error' : undefined}>
+                      {isSpectatorCup
+                        ? t('tournaments.watchFromStands')
+                        : t('tournaments.spotsCount', { filled, max: tournament.maxParticipants })}
                     </span>
                   </span>
                   <span style={{ color: BRASS }}>
-                    Entry {entryLabel(tournament.entryFee)}
+                    {t('common.entry')} {entryLabel(tournament.entryFee, t('common.free'))}
                   </span>
                 </div>
+                {!isSpectatorCup ? (
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
                   <div
                     className="h-full rounded-full transition-[width] duration-500"
@@ -301,6 +309,7 @@ export function TournamentPreviewModal({
                     }}
                   />
                 </div>
+                ) : null}
               </div>
 
               {tournament.description ? (
@@ -325,8 +334,8 @@ export function TournamentPreviewModal({
                   variant="compact"
                   label={
                     isSpectatorCup
-                      ? 'Vstupenky / sledovať ↗'
-                      : 'Registrovať sa na oficiálnej stránke ↗'
+                      ? t('tournaments.ticketsWatch')
+                      : t('tournaments.registerOfficial')
                   }
                 />
               ) : isSpectatorCup ? (
@@ -334,7 +343,7 @@ export function TournamentPreviewModal({
                   href={`/tournaments/${tournament.id}`}
                   className="flex w-full items-center justify-center rounded-xl border border-[#c4a035]/30 bg-[#c4a035]/12 py-3.5 font-label-caps text-[12px] uppercase tracking-[0.16em] text-[#e8d59a] transition-colors hover:bg-[#c4a035]/18"
                 >
-                  Sledovať turnaj
+                  {t('tournaments.watchTournament')}
                 </a>
               ) : (
                 <RegisterButton
@@ -345,8 +354,8 @@ export function TournamentPreviewModal({
                   entryFee={tournament.entryFee}
                   venueId={tournament.venueId}
                   variant="compact"
-                  registerLabel="Join"
-                  registeredLabel="Joined ✓"
+                  registerLabel={t('common.join')}
+                  registeredLabel={t('events.joined')}
                 />
               )}
             </div>

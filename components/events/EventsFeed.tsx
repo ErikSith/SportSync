@@ -1,6 +1,7 @@
 import type { EventCardData } from '@/lib/data/events';
 import type { ParticipationMode } from '@/lib/data/events';
 import type { EventType } from '@/lib/constants/events';
+import { t } from '@/lib/i18n/server';
 import {
   partitionFeedForSplitTabs,
   scheduleOverviewPillLabel,
@@ -90,11 +91,11 @@ function SchedulesOverviewHeader({ groups }: { groups: VenueScheduleGroup[] }) {
         <div className="mb-1 flex items-center gap-2">
           <span className="h-px w-6 bg-white/20" />
           <h2 className="font-headline-md text-[15px] font-semibold tracking-wide text-white">
-            Skupinové lekcie
+            {t('events.tab.schedules')}
           </h2>
         </div>
         <p className="pl-8 font-body-md text-xs text-zinc-400">
-          Opakované skupinové cvičenia podľa miesta a dňa
+          {t('events.schedulesSub')}
         </p>
       </div>
       <span className="inline-flex shrink-0 items-center rounded-full border border-white/10 bg-zinc-900/40 px-3 py-1.5 font-label-caps text-[10px] tracking-wide text-zinc-400">
@@ -112,7 +113,7 @@ function VenueSchedulesStack({ groups }: { groups: GroupedVenueSchedule[] }) {
       <SchedulesOverviewHeader groups={groups} />
       <div
         role="list"
-        aria-label="Skupinové lekcie"
+        aria-label={t('events.tab.schedules')}
         className="flex flex-col gap-2.5"
       >
         {groups.map((group, index) => (
@@ -167,7 +168,7 @@ function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
 }
 
 function countLabel(n: number): string {
-  return `${n} ${n === 1 ? 'event' : 'events'}`;
+  return n === 1 ? t('events.countOne', { n }) : t('events.count', { n });
 }
 
 function toSplitFeed(events: EventCardData[]): PartitionedFeed {
@@ -259,16 +260,16 @@ export function EventsFeed({
         {filterBar}
 
         <MatchesFeedSection
-          title="Watch live & upcoming"
-          subtitle="Official matches and shows you can attend as a spectator"
+          title={t('events.watchLive')}
+          subtitle={t('events.watchLiveSub')}
           feed={primaryFeed}
           accent="spectator"
         />
 
         {secondaryFeed.uniqueEvents.length > 0 && (
           <MatchesFeedSection
-            title="More to watch"
-            subtitle="Community sessions open for spectators"
+            title={t('events.moreWatch')}
+            subtitle={t('events.moreWatchSub')}
             feed={secondaryFeed}
             accent="spectator"
           />
@@ -320,17 +321,17 @@ export function EventsFeed({
           {matchesEmpty ? (
             revealSchedulesOnEmptyMatches ? null : (
               <EmptyState
-                title="Žiadne eventy ani zápasy v okolí."
-                subtitle="Komunitné zápasy a jednorazové eventy sa tu zobrazia, keď ich niekto vytvorí. Opakované cvičenia zo športovísk sú v tabe Skupinové lekcie."
+                title={t('events.empty.matchesTitle')}
+                subtitle={t('events.empty.matchesSub')}
               />
             )
           ) : (
             <MatchesFeedSection
-              title={typeFilter === 'community' ? 'Community games' : 'Eventy & Zápasy'}
+              title={typeFilter === 'community' ? t('events.communityGames') : t('events.eventsMatches')}
               subtitle={
                 typeFilter === 'community'
-                  ? 'Player-organized matches near you'
-                  : 'Jednorazové zápasy, turnaje a komunitné eventy'
+                  ? t('events.communityGamesSub')
+                  : t('events.eventsMatchesSub')
               }
               feed={playerFeed}
               accent="player"
@@ -345,8 +346,8 @@ export function EventsFeed({
           <VenueSchedulesStack groups={playerFeed.venueGroupedSchedules} />
         ) : schedulesEmpty ? (
           <EmptyState
-            title="Žiadne skupinové lekcie v okolí."
-            subtitle="Opakované skupinové cvičenia zo športovísk sa tu zobrazia podľa dňa."
+            title={t('events.empty.schedulesTitle')}
+            subtitle={t('events.empty.schedulesSub')}
           />
         ) : null)}
     </div>

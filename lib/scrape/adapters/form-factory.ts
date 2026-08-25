@@ -4,10 +4,12 @@ import { detectEventSport } from '@/lib/constants/sports';
 import {
   errResult,
   fetchHtml,
+  MAX_LOOP_ITERATIONS,
   okResult,
   parseSlovakDate,
   parseTimeOnDate,
   slugify,
+  truncateHtmlForParse,
 } from '@/lib/scrape/fetch';
 import type { AdapterResult, NormalizedScrapedEvent } from '@/lib/scrape/types';
 
@@ -36,7 +38,7 @@ export async function scrapeFormFactory(): Promise<AdapterResult> {
 
 async function scrapeFitCampCalendar(): Promise<NormalizedScrapedEvent[]> {
   const html = await fetchHtml(CALENDAR_URL);
-  const $ = cheerio.load(html);
+  const $ = cheerio.load(truncateHtmlForParse(html));
   const events: NormalizedScrapedEvent[] = [];
   const seen = new Set<string>();
   const monday = startOfWeekMonday(new Date());
@@ -57,7 +59,12 @@ async function scrapeFitCampCalendar(): Promise<NormalizedScrapedEvent[]> {
 
       let match: RegExpExecArray | null;
       CLASS_CHUNK.lastIndex = 0;
+      let chunkPasses = 0;
       while ((match = CLASS_CHUNK.exec(cellText)) !== null) {
+        if (++chunkPasses > MAX_LOOP_ITERATIONS) {
+          console.warn('[scrape.form-factory] CLASS_CHUNK loop safety break');
+          break;
+        }
         const startRaw = match[1];
         const nameRaw = match[3];
         if (!startRaw || !nameRaw) continue;
@@ -99,7 +106,7 @@ async function scrapeFitCampCalendar(): Promise<NormalizedScrapedEvent[]> {
 
 async function scrapeFormFactoryEventy(): Promise<NormalizedScrapedEvent[]> {
   const html = await fetchHtml(EVENTY_URL);
-  const $ = cheerio.load(html);
+  const $ = cheerio.load(truncateHtmlForParse(html));
   const drafts: Array<{
     href: string;
     title: string;
@@ -236,7 +243,7 @@ async function enrichFromDetail(url: string): Promise<{
 }> {
   try {
     const html = await fetchHtml(url);
-    const $ = cheerio.load(html);
+    const $ = cheerio.load(truncateHtmlForParse(html));
     const ogTitle = $('meta[property="og:title"]').attr('content')?.trim();
     const ogDesc = $('meta[property="og:description"]').attr('content')?.trim();
     // Intentionally skip og:image — Cover Factory owns visuals (no third-party photos).
@@ -349,6 +356,7 @@ function resolveFormFactoryVenue(
 
 function inferParticipationMode(title: string, description: string): 'participate' | 'spectator' {
   const hay = `${title} ${description}`.toLowerCase();
+  if (/\s(?:vs\.?|versus|proti)\s/.test(hay)) return 'spectator';
   if (/divák|divakov|spectator|sleduj|pozri si zápas|vstupenky na zápas/i.test(hay)) {
     return 'spectator';
   }

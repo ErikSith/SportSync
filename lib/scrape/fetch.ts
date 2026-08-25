@@ -8,6 +8,15 @@ import {
 
 const UA = SCRAPE_ETHICS.userAgent;
 
+/** Hard cap on HTML bytes passed to Cheerio — prevents CPU blow-ups on huge pages. */
+export const MAX_HTML_BYTES = 500_000;
+
+/** Wall-clock limit for fetch (+ host slot wait) of a single URL. */
+export const URL_PROCESS_TIMEOUT_MS = 10_000;
+
+const FETCH_TIMEOUT_MS = 8_000;
+export const MAX_LOOP_ITERATIONS = 500;
+
 /** Per-host last request timestamp — min gap 2–3s to avoid overloading venue servers. */
 const hostLastRequestAt = new Map<string, number>();
 const MIN_HOST_DELAY_MS = SCRAPE_ETHICS.hostDelayMs.min;
@@ -25,6 +34,51 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export class UrlProcessingTimeoutError extends Error {
+  readonly label: string;
+
+  constructor(label: string, ms = URL_PROCESS_TIMEOUT_MS) {
+    super(`URL processing timed out after ${ms}ms: ${label}`);
+    this.name = 'UrlProcessingTimeoutError';
+    this.label = label;
+  }
+}
+
+/** Abort waiting after `ms`; does not cancel in-flight sync CPU work (Cheerio). */
+export function withUrlProcessingTimeout<T>(
+  label: string,
+  fn: () => Promise<T>,
+  ms = URL_PROCESS_TIMEOUT_MS,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new UrlProcessingTimeoutError(label, ms));
+    }, ms);
+    fn()
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
+export function htmlByteCap(): number {
+  // Cheerio on Cloudflare Workers: smaller cap = less CPU. Node scripts keep 500k.
+  if (process.env.NEXT_RUNTIME === 'edge') return 180_000;
+  return MAX_HTML_BYTES;
+}
+
+function truncateHtmlForParse(rawHtml: string): string {
+  const cap = htmlByteCap();
+  if (rawHtml.length <= cap) return rawHtml;
+  console.warn(`[scrape.fetch] truncating HTML from ${rawHtml.length} to ${cap} bytes`);
+  return rawHtml.slice(0, cap);
+}
+
 async function waitForHostSlot(host: string): Promise<void> {
   const last = hostLastRequestAt.get(host) ?? 0;
   const gap =
@@ -37,13 +91,18 @@ async function waitForHostSlot(host: string): Promise<void> {
 /**
  * Fetch HTML only (text). Never follows image assets.
  * Rate-limits by domain (2–3s between requests to the same host).
+ * Hard-capped at {@link URL_PROCESS_TIMEOUT_MS} per URL; HTML truncated before return.
  */
 export async function fetchHtml(url: string): Promise<string> {
+  return withUrlProcessingTimeout(url, () => fetchHtmlOnce(url));
+}
+
+async function fetchHtmlOnce(url: string): Promise<string> {
   const host = hostFromUrl(url);
   await waitForHostSlot(host);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25_000);
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
       headers: {
@@ -61,7 +120,8 @@ export async function fetchHtml(url: string): Promise<string> {
     if (contentType && !/text\/html|application\/xhtml|text\/plain|application\/xml/i.test(contentType)) {
       throw new Error(`Unexpected content-type ${contentType} for ${url}`);
     }
-    return await res.text();
+    const rawHtml = await res.text();
+    return truncateHtmlForParse(rawHtml);
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error(`Timeout fetching ${url}`);

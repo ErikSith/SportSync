@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 interface SignOutButtonProps {
   flat?: boolean;
@@ -10,6 +11,7 @@ interface SignOutButtonProps {
 
 export function SignOutButton({ flat = false }: SignOutButtonProps) {
   const router = useRouter();
+  const t = useT();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   async function handleSignOut() {
@@ -26,9 +28,9 @@ export function SignOutButton({ flat = false }: SignOutButtonProps) {
         type="button"
         onClick={handleSignOut}
         disabled={isSigningOut}
-        className="font-label-caps text-[10px] uppercase text-on-surface-variant hover:text-secondary transition-colors disabled:opacity-50 py-2"
+        className="py-2 font-label-caps text-[10px] uppercase text-on-surface-variant transition-colors hover:text-secondary disabled:opacity-50"
       >
-        {isSigningOut ? 'Signing out…' : 'Sign out'}
+        {isSigningOut ? t('profile.signingOut') : t('profile.signOut')}
       </button>
     );
   }
@@ -38,9 +40,9 @@ export function SignOutButton({ flat = false }: SignOutButtonProps) {
       type="button"
       onClick={handleSignOut}
       disabled={isSigningOut}
-      className="w-full py-3 rounded-lg border border-secondary/30 bg-gradient-to-b from-surface/50 to-surface-container-low/50 hover:from-surface-container hover:to-surface-container-high hover:border-secondary/60 text-secondary font-label-caps text-label-caps transition-all duration-300 disabled:opacity-50"
+      className="w-full rounded-lg border border-secondary/30 bg-gradient-to-b from-surface/50 to-surface-container-low/50 py-3 font-label-caps text-label-caps text-secondary transition-all duration-300 hover:border-secondary/60 hover:from-surface-container hover:to-surface-container-high disabled:opacity-50"
     >
-      {isSigningOut ? 'SIGNING OUT…' : 'SIGN OUT'}
+      {isSigningOut ? t('profile.signingOut').toUpperCase() : t('profile.signOut').toUpperCase()}
     </button>
   );
 }

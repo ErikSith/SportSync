@@ -5,6 +5,7 @@ import { sportColor } from '@/lib/utils/sport-icons';
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
 import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
+import { listingParticipationMode } from '@/lib/participation/fixture-match';
 
 export type { PromotedBannerItem, PromotedKind } from '@/lib/data/promoted-types';
 
@@ -111,7 +112,7 @@ export async function getActivePromotedBanners(
         latitude: (row.latitude as number | null) ?? null,
         longitude: (row.longitude as number | null) ?? null,
         themeConfig: (row.theme_config as Record<string, unknown> | null) ?? {},
-        participationMode: row.participation_mode === 'spectator' ? 'spectator' : 'participate',
+        participationMode: listingParticipationMode(String(row.title), row.participation_mode as string | null),
         ticketUrl: (row.ticket_url as string | null) ?? null,
         sourceUrl: (row.source_url as string | null) ?? null,
         sourceName: (row.source_name as string | null) ?? null,

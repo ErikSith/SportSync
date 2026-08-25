@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Shared sticky brand header used on Events / Tournaments / Lobby.
@@ -28,6 +31,7 @@ interface BrandAppBarProps {
 }
 
 export function BrandAppBar({ accent = 'primary' }: BrandAppBarProps) {
+  const t = useT();
   const a = ACCENT[accent];
 
   return (
@@ -42,7 +46,7 @@ export function BrandAppBar({ accent = 'primary' }: BrandAppBarProps) {
         <span className="h-10 w-10" aria-hidden />
         <Link
           href="/"
-          aria-label="Go to homepage"
+          aria-label={t('nav.home')}
           className={[
             'font-display-lg-mobile text-display-lg-mobile tracking-tighter uppercase transition-colors',
             a.brand,
@@ -56,7 +60,7 @@ export function BrandAppBar({ accent = 'primary' }: BrandAppBarProps) {
             'rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container/50',
             a.iconHover,
           ].join(' ')}
-          aria-label="Notifications"
+          aria-label={t('nav.notifications')}
         >
           <span className="material-symbols-outlined">notifications</span>
         </button>

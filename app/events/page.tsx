@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { getPageViewer } from '@/lib/auth/viewer';
 import type { EventFeedResult, ParticipationMode } from '@/lib/data/events';
-import { ALL_EVENTS_FALLBACK_MESSAGE } from '@/lib/data/events';
+import { t } from '@/lib/i18n/server';
+import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { getAllActiveEventsFeedSafe } from '@/lib/data/fetch-active-events';
 import { getEventsForArea } from '@/lib/data/area-feed';
 import { canAccessManageHub } from '@/lib/auth/tournament-access';
@@ -52,25 +53,25 @@ function emptyStateMessage(
 ): { title: string; subtitle: string } {
   if (mode === 'spectator') {
     return {
-      title: 'No spectator events near you right now.',
-      subtitle: 'Matches and shows you can watch will appear here when venues publish them.',
+      title: t('events.empty.spectator.title'),
+      subtitle: t('events.empty.spectator.sub'),
     };
   }
   if (type === 'official') {
     return {
-      title: 'No official events near you right now.',
-      subtitle: 'Check back soon — new venue events are added regularly.',
+      title: t('events.empty.official.title'),
+      subtitle: t('events.empty.official.sub'),
     };
   }
   if (type === 'community') {
     return {
-      title: 'No community events near you right now.',
-      subtitle: 'Host a match or join a lobby — community events appear here when players organize them.',
+      title: t('events.empty.community.title'),
+      subtitle: t('events.empty.community.sub'),
     };
   }
   return {
-    title: 'No events near you right now.',
-    subtitle: 'Official venue events and community gatherings will show up here when available.',
+    title: t('events.empty.all.title'),
+    subtitle: t('events.empty.all.sub'),
   };
 }
 
@@ -85,7 +86,7 @@ function CreateEventActions({ isOrganizer }: { isOrganizer: boolean }) {
       <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
         verified
       </span>
-      Create official
+      {t('events.createOfficial')}
     </Link>
   );
 }
@@ -94,13 +95,19 @@ function parseMode(raw: string | undefined): ParticipationMode {
   return raw === 'spectator' ? 'spectator' : 'participate';
 }
 
-const EMPTY_FEED: EventFeedResult = {
-  events: [],
+const EMPTY_FEED_BASE = {
+  events: [] as EventFeedResult['events'],
   radiusKm: 0,
   showExtended: true,
   usedAllEventsFallback: true,
-  message: ALL_EVENTS_FALLBACK_MESSAGE,
 };
+
+function emptyFeed(): EventFeedResult {
+  return {
+    ...EMPTY_FEED_BASE,
+    message: t('home.allEventsFallback'),
+  };
+}
 
 /**
  * Load events via direct Supabase queries (no HTTP `/api/events`).
@@ -145,7 +152,7 @@ async function loadEventsFeed(input: {
       });
     } catch (fallbackError) {
       console.error('Events page fallback query error:', fallbackError);
-      return EMPTY_FEED;
+      return emptyFeed();
     }
   }
 }
@@ -159,18 +166,14 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
     return (
       <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
         <p className="font-body-md text-body-md text-tertiary-container">
-          Could not load events right now. Please try again shortly.
+          {t('events.loadError')}
         </p>
       </main>
     );
   }
 
   if (viewer.status === 'setup') {
-    return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
-        <p className="font-body-md text-body-md text-tertiary-container">Setting up your profile…</p>
-      </main>
-    );
+    return <SetupNotice />;
   }
 
   const { profile } = viewer;
@@ -190,7 +193,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   const needsGpsPrompt =
     requestedArea === 'near_me' && (profile.latitude === null || profile.longitude === null);
 
-  let rawFeed: EventFeedResult = EMPTY_FEED;
+  let rawFeed: EventFeedResult = emptyFeed();
 
   try {
     rawFeed = await loadEventsFeed({ hasGps, needsGpsPrompt, location, typeFilter });
@@ -200,7 +203,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
       type: typeFilter,
       lat: location.lat,
       lng: location.lng,
-    }).catch(() => EMPTY_FEED);
+    }).catch(() => emptyFeed());
   }
 
   // Area from DB → date → text search → hard sport/venue/type (chip filters must stick).
@@ -271,16 +274,16 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
           title={
             <div className="space-y-1 min-w-0">
               <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-zinc-500">
-                Discover
+                {t('events.eyebrow')}
               </p>
               <h1 className="font-headline-md text-[28px] leading-tight tracking-wide text-white sm:text-3xl md:text-4xl">
-                Events
+                {t('events.title')}
               </h1>
             </div>
           }
           subtitle={
             <p className="mt-1 max-w-md font-body-md text-sm text-zinc-400 md:text-body-md">
-              Join games or watch official matches — filtered to your area and sports.
+              {t('events.subtitle')}
             </p>
           }
           actions={<CreateEventActions isOrganizer={isOrganizer} />}
@@ -293,7 +296,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-outline-variant/15" />
                 <span className="font-label-caps text-label-caps text-on-surface-variant uppercase text-center text-xs">
-                  {rawFeed.message ?? ALL_EVENTS_FALLBACK_MESSAGE}
+                  {t('home.allEventsFallback')}
                 </span>
                 <div className="h-px flex-1 bg-outline-variant/15" />
               </div>
@@ -319,7 +322,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-outline-variant/15" />
                 <span className="font-label-caps text-label-caps text-on-surface-variant uppercase text-center text-xs">
-                  {rawFeed.message ?? ALL_EVENTS_FALLBACK_MESSAGE}
+                  {t('home.allEventsFallback')}
                 </span>
                 <div className="h-px flex-1 bg-outline-variant/15" />
               </div>

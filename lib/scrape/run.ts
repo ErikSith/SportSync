@@ -5,7 +5,17 @@ import { aggregatorNotice, persistScrapedCoverUrl, SCRAPE_ETHICS } from '@/lib/s
 import { classifyListingAudience } from '@/lib/events/audience';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import { scrapeTextListing } from '@/lib/scrape/adapters/_text-listing';
+import {
+  URL_PROCESS_TIMEOUT_MS,
+  withUrlProcessingTimeout,
+} from '@/lib/scrape/fetch';
 import { SCRAPING_SOURCES } from '@/lib/scrape/scraping-sources';
+import {
+  recordAdapterResult,
+  recordUrlResult,
+  shouldSkipAdapter,
+  shouldSkipUrl,
+} from '@/lib/scrape/source-health';
 import {
   DEFAULT_COVERS,
   VENUE_SEEDS,
@@ -14,32 +24,13 @@ import {
   type ScrapeAdapterId,
   type ScrapeRunReport,
 } from '@/lib/scrape/types';
-import { scrapeSkSlovan } from '@/lib/scrape/adapters/sk-slovan';
-import { scrapeHcSlovan } from '@/lib/scrape/adapters/hc-slovan';
-import { scrapeGopassArena } from '@/lib/scrape/adapters/gopass-arena';
-import { scrapeFormFactory } from '@/lib/scrape/adapters/form-factory';
-import { scrapeAurialPadel } from '@/lib/scrape/adapters/aurial-padel';
-import { scrapeStz } from '@/lib/scrape/adapters/stz';
-import { scrapePredpredaj } from '@/lib/scrape/adapters/predpredaj';
-import { scrapeCitylife } from '@/lib/scrape/adapters/citylife';
-import { scrapePadelBa } from '@/lib/scrape/adapters/padel-ba';
-import { scrapeNtcBa } from '@/lib/scrape/adapters/ntc-ba';
-import { scrapeOfaMma } from '@/lib/scrape/adapters/ofa-mma';
-import { scrapeChaosMma } from '@/lib/scrape/adapters/chaos-mma';
-import { scrapeProstor } from '@/lib/scrape/adapters/prostor';
-import { scrapeWakelake } from '@/lib/scrape/adapters/wakelake';
-import { scrapeDivokaVoda } from '@/lib/scrape/adapters/divoka-voda';
-import { scrapePbcBowling } from '@/lib/scrape/adapters/pbc-bowling';
-import { scrapeBncBa } from '@/lib/scrape/adapters/bnc-ba';
-import { scrapeSipkySk } from '@/lib/scrape/adapters/sipky-sk';
-import { scrapeBaMarathon } from '@/lib/scrape/adapters/ba-marathon';
-import { scrapeStupavaTrophy } from '@/lib/scrape/adapters/stupava-trophy';
-import { scrapeHorskyBeh } from '@/lib/scrape/adapters/horsky-beh';
-import { scrapeTopligaBa } from '@/lib/scrape/adapters/topliga-ba';
-import { scrapeArealNevadzova } from '@/lib/scrape/adapters/areal-nevadzova';
-import { scrapeK2Lezenie } from '@/lib/scrape/adapters/k2-lezenie';
-import { scrapeBlockDock } from '@/lib/scrape/adapters/block-dock';
-import { scrapeNivyZone } from '@/lib/scrape/adapters/nivy-zone';
+import {
+  isEdgeScrapeRuntime,
+  loadNamedScraper,
+  scrapeSlotIndex,
+  SCRAPE_ADAPTER_IDS,
+  type ScraperFn,
+} from '@/lib/scrape/adapter-registry';
 import { hasValidServiceRoleKey } from '@/lib/db/service-role';
 import { cleanupDuplicateEventsByIdentity } from '@/lib/scrape/cleanup-duplicate-events';
 import {
@@ -47,8 +38,6 @@ import {
   pickSoftIdentityMatch,
   softMatchWindow,
 } from '@/lib/scrape/dedupe-identity';
-
-type ScraperFn = () => Promise<AdapterResult>;
 
 type UpsertStats = { created: number; updated: number; skipped: number; unchanged: number };
 
@@ -61,40 +50,6 @@ async function supportsAudienceColumns(supabase: ReturnType<typeof createAdminCl
   audienceColumnsAvailable = !error;
   return audienceColumnsAvailable;
 }
-
-/** Bratislava 20 + legacy feed adapters. Run sequentially to respect rate limits. */
-const NAMED_SCRAPERS: Array<{ id: ScrapeAdapterId; run: ScraperFn }> = [
-  { id: 'aurial-padel', run: scrapeAurialPadel },
-  { id: 'padel-ba', run: scrapePadelBa },
-  { id: 'ntc-ba', run: scrapeNtcBa },
-  { id: 'ofa-mma', run: scrapeOfaMma },
-  { id: 'chaos-mma', run: scrapeChaosMma },
-  { id: 'prostor', run: scrapeProstor },
-  { id: 'wakelake', run: scrapeWakelake },
-  { id: 'divoka-voda', run: scrapeDivokaVoda },
-  { id: 'pbc-bowling', run: scrapePbcBowling },
-  { id: 'bnc-ba', run: scrapeBncBa },
-  { id: 'sipky-sk', run: scrapeSipkySk },
-  { id: 'ba-marathon', run: scrapeBaMarathon },
-  { id: 'stupava-trophy', run: scrapeStupavaTrophy },
-  { id: 'horsky-beh', run: scrapeHorskyBeh },
-  { id: 'topliga-ba', run: scrapeTopligaBa },
-  { id: 'areal-nevadzova', run: scrapeArealNevadzova },
-  { id: 'k2-lezenie', run: scrapeK2Lezenie },
-  { id: 'block-dock', run: scrapeBlockDock },
-  { id: 'form-factory', run: scrapeFormFactory },
-  { id: 'nivy-zone', run: scrapeNivyZone },
-  { id: 'sk-slovan', run: scrapeSkSlovan },
-  { id: 'hc-slovan', run: scrapeHcSlovan },
-  { id: 'gopass-arena', run: scrapeGopassArena },
-  { id: 'stz', run: scrapeStz },
-  { id: 'predpredaj', run: scrapePredpredaj },
-  { id: 'citylife', run: scrapeCitylife },
-];
-
-const SCRAPER_BY_ID = new Map<ScrapeAdapterId, ScraperFn>(
-  NAMED_SCRAPERS.map((entry) => [entry.id, entry.run]),
-);
 
 /** Midnight venue crawl — 4s between requests (polite, never burst). */
 const BETWEEN_URL_MS = 4000;
@@ -111,14 +66,16 @@ function hostnameOf(url: string): string | null {
   }
 }
 
-function specializedAdapterForUrl(url: string): { id: ScrapeAdapterId; run: ScraperFn } | null {
+async function specializedAdapterForUrl(
+  url: string,
+): Promise<{ id: ScrapeAdapterId; run: ScraperFn } | null> {
   const host = hostnameOf(url);
   if (!host) return null;
   const source = SCRAPING_SOURCES.find(
     (item) => item.adapterId && hostnameOf(item.url) === host,
   );
   if (!source?.adapterId) return null;
-  const run = SCRAPER_BY_ID.get(source.adapterId);
+  const run = await loadNamedScraper(source.adapterId);
   if (!run) return null;
   return { id: source.adapterId, run };
 }
@@ -610,17 +567,83 @@ async function persistAdapterResults(results: AdapterResult[]): Promise<ScrapeRu
   };
 }
 
+/** Safety cap when an adapter fetches + parses multiple pages in one run. */
+const ADAPTER_RUN_TIMEOUT_MS = URL_PROCESS_TIMEOUT_MS * 6;
+
+async function executeNamedAdapter(id: ScrapeAdapterId): Promise<AdapterResult> {
+  if (await shouldSkipAdapter(id)) {
+    console.warn(`[scrape] skipping unhealthy adapter ${id}`);
+    return {
+      source: id,
+      events: [],
+      error: 'skipped: source marked unhealthy (3+ consecutive failures)',
+    };
+  }
+
+  const run = await loadNamedScraper(id);
+  if (!run) {
+    return { source: id, events: [], error: `unknown adapter ${id}` };
+  }
+
+  const timeoutMs = isEdgeScrapeRuntime()
+    ? Math.min(ADAPTER_RUN_TIMEOUT_MS, 18_000)
+    : ADAPTER_RUN_TIMEOUT_MS;
+
+  try {
+    return await withUrlProcessingTimeout(`adapter:${id}`, () => run(), timeoutMs);
+  } catch (err) {
+    console.warn(`[scrape] adapter ${id} failed:`, err instanceof Error ? err.message : err);
+    return {
+      source: id,
+      events: [],
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 async function runScrapersSequentially(): Promise<AdapterResult[]> {
   const results: AdapterResult[] = [];
-  for (const scrape of NAMED_SCRAPERS) {
-    results.push(await scrape.run());
+  for (const id of SCRAPE_ADAPTER_IDS) {
+    const result = await executeNamedAdapter(id);
+    await recordAdapterResult(result);
+    results.push(result);
   }
   return results;
 }
 
 export async function runAllScrapers(): Promise<ScrapeRunReport> {
+  if (isEdgeScrapeRuntime()) {
+    throw new Error(
+      'runAllScrapers is Node-only. Cloudflare Edge must call runScrapeAdapterShard() (1 adapter / isolate).',
+    );
+  }
   const results = await runScrapersSequentially();
   return persistAdapterResults(results);
+}
+
+export interface ScrapeShardReport extends ScrapeRunReport {
+  adapter: ScrapeAdapterId;
+  slot: number;
+  totalAdapters: number;
+  /** True when this isolate parsed HTML (vs skipped). */
+  edgeSafe: true;
+}
+
+/** Cloudflare / Edge cron: exactly one adapter, then persist. */
+export async function runScrapeAdapterShard(slot = scrapeSlotIndex()): Promise<ScrapeShardReport> {
+  const total = SCRAPE_ADAPTER_IDS.length;
+  const index = ((slot % total) + total) % total;
+  const adapter = SCRAPE_ADAPTER_IDS[index]!;
+  const result = await executeNamedAdapter(adapter);
+  await recordAdapterResult(result);
+  const persisted = await persistAdapterResults([result]);
+  return {
+    ...persisted,
+    adapter,
+    slot: index,
+    totalAdapters: total,
+    edgeSafe: true,
+  };
 }
 
 export interface RunScraperReport extends ScrapeRunReport {
@@ -630,7 +653,7 @@ export interface RunScraperReport extends ScrapeRunReport {
 
 /**
  * Scrape a list of venue website URLs sequentially.
- * `dryRun = false` persists into events/tournaments (midnight cron).
+ * Full lists are Node-only; Edge cron uses {@link runScrapeAdapterShard}.
  */
 export async function runScraper(
   urls: string[],
@@ -650,6 +673,12 @@ export async function runScraper(
         }),
     ),
   ];
+
+  if (isEdgeScrapeRuntime() && unique.length > 1) {
+    throw new Error(
+      'runScraper on Edge accepts at most 1 URL. Use runScrapeAdapterShard() or Node scrape:events.',
+    );
+  }
 
   const supabase = createAdminClient();
   const { data: venueRows, error: venueError } = await supabase
@@ -681,27 +710,52 @@ export async function runScraper(
     }
 
     const url = unique[i]!;
-    const specialized = specializedAdapterForUrl(url);
+    if (await shouldSkipUrl(url)) {
+      console.warn(`[scrape] skipping unhealthy URL ${url}`);
+      results.push({
+        source: 'venue-web',
+        events: [],
+        error: `skipped: unhealthy URL ${url}`,
+      });
+      continue;
+    }
+
+    const specialized = await specializedAdapterForUrl(url);
     if (specialized) {
       if (ranAdapters.has(specialized.id)) continue;
-      ranAdapters.add(specialized.id);
-      try {
-        results.push(await specialized.run());
-      } catch (error) {
+      if (await shouldSkipAdapter(specialized.id)) {
+        console.warn(`[scrape] skipping unhealthy adapter ${specialized.id}`);
         results.push({
           source: specialized.id,
           events: [],
-          error: error instanceof Error ? error.message : String(error),
+          error: 'skipped: source marked unhealthy (3+ consecutive failures)',
         });
+        continue;
       }
+      ranAdapters.add(specialized.id);
+      let result: AdapterResult;
+      try {
+        result = await withUrlProcessingTimeout(`adapter:${specialized.id}`, () =>
+          specialized.run(),
+        );
+      } catch (error) {
+        result = {
+          source: specialized.id,
+          events: [],
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+      await recordAdapterResult(result, { url });
+      results.push(result);
       continue;
     }
 
     const venue = venueByHost.get(hostnameOf(url) ?? '') ?? null;
     const sport = venue?.sports[0] ?? 'OTHER';
+    let result: AdapterResult;
     try {
-      results.push(
-        await scrapeTextListing({
+      result = await withUrlProcessingTimeout(url, () =>
+        scrapeTextListing({
           source: 'venue-web',
           sport,
           venueKey: venue?.id ?? 'unknown',
@@ -712,12 +766,19 @@ export async function runScraper(
         }),
       );
     } catch (error) {
-      results.push({
+      result = {
         source: 'venue-web',
         events: [],
         error: error instanceof Error ? error.message : String(error),
-      });
+      };
     }
+    await recordUrlResult({
+      url,
+      eventCount: result.events.length,
+      error: result.error ?? null,
+      name: venue?.name ?? null,
+    });
+    results.push(result);
   }
 
   if (dryRun) {

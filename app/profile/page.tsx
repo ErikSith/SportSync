@@ -4,20 +4,14 @@ import { getProfileDashboard } from '@/lib/data/profile-dashboard';
 import { TopAppBar } from '@/components/home/TopAppBar';
 import { ProfileTopSections } from '@/components/profile/ProfileTopSections';
 import { ProfileNavRows } from '@/components/profile/ProfileNavRows';
+import { SetupNotice } from '@/components/i18n/SetupNotice';
 
 export const runtime = 'edge';
 
 export default async function ProfilePage() {
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {
-    return (
-      <main className="mx-auto max-w-lg px-container-margin-mobile pt-24 text-center space-y-4">
-        <h2 className="font-headline-md text-headline-md text-on-surface">Setting up your profile…</h2>
-        <p className="font-body-md text-body-md text-tertiary-container">
-          This only takes a second. Refresh the page to continue.
-        </p>
-      </main>
-    );
+    return <SetupNotice />;
   }
 
   const { profile } = viewer;

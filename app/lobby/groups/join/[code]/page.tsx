@@ -1,4 +1,5 @@
 import { getPageViewer } from '@/lib/auth/viewer';
+import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { JoinGroupClient } from '@/components/lobby/groups/JoinGroupClient';
 
 export const runtime = 'edge';
@@ -10,11 +11,7 @@ interface JoinGroupPageProps {
 export default async function JoinGroupPage({ params }: JoinGroupPageProps) {
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {
-    return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
-        <p className="font-body-md text-body-md text-tertiary-container">Setting up your profile…</p>
-      </main>
-    );
+    return <SetupNotice />;
   }
 
   const code = params.code.trim().toUpperCase();

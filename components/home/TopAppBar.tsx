@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import { ShareQrButton } from '@/components/home/ShareQrButton';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 interface TopAppBarProps {
   avatarUrl: string | null;
@@ -7,6 +10,7 @@ interface TopAppBarProps {
 }
 
 export function TopAppBar({ avatarUrl, name }: TopAppBarProps) {
+  const t = useT();
   const initials = name
     .split(' ')
     .map((part) => part[0])
@@ -19,14 +23,14 @@ export function TopAppBar({ avatarUrl, name }: TopAppBarProps) {
       <ShareQrButton />
       <Link
         href="/"
-        aria-label="Go to homepage"
+        aria-label={t('nav.home')}
         className="font-display-lg text-display-lg-mobile tracking-tighter text-primary-container md:font-display-lg hover:text-primary-fixed-dim transition-colors"
       >
         SPORTSYNC
       </Link>
       <Link
         href="/profile"
-        aria-label="Open profile"
+        aria-label={t('nav.openProfile')}
         prefetch
         className="relative z-[71] text-primary hover:text-primary-fixed-dim transition-colors active:scale-95 flex items-center justify-center w-10 h-10 rounded-full overflow-hidden border-2 border-outline-variant/30"
       >

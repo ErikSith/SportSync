@@ -1,4 +1,6 @@
 import { Suspense } from 'react';
+import { t } from '@/lib/i18n/server';
+import { SetupNotice } from '@/components/i18n/SetupNotice';
 import Link from 'next/link';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { getVenuesForHomeFilter } from '@/lib/data/homepage';
@@ -25,11 +27,7 @@ interface VenuesPageProps {
 export default async function VenuesPage({ searchParams }: VenuesPageProps) {
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {
-    return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
-        <p className="font-body-md text-body-md text-tertiary-container">Setting up your profile…</p>
-      </main>
-    );
+    return <SetupNotice />;
   }
 
   const { profile } = viewer;
@@ -74,7 +72,7 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
           <Link href="/" className="font-display-lg-mobile text-display-lg-mobile font-bold tracking-tighter gradient-text">
             SPORTSYNC
           </Link>
-          <button type="button" className="text-[#FF5722] hover:opacity-80 active:scale-95 transition-all" aria-label="Notifications">
+          <button type="button" className="text-[#FF5722] hover:opacity-80 active:scale-95 transition-all" aria-label={t('nav.notifications')}>
             <span className="material-symbols-outlined">notifications</span>
           </button>
         </div>
@@ -86,12 +84,12 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
           venues={filterVenues}
           title={
             <h1 className="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-on-surface">
-              Venues
+              {t('venues.title')}
             </h1>
           }
           subtitle={
             <p className="font-body-md text-body-md text-on-surface-variant mt-1 max-w-2xl">
-              Map-first discovery — tap a pin for courts, cups, and official links.
+              {t('venues.subtitle')}
             </p>
           }
         />

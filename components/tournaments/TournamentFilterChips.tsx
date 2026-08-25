@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { EVENT_SPORTS, sportDisplayLabel } from '@/lib/constants/sports';
+import { useT } from '@/components/i18n/LocaleProvider';
+import type { MessageKey } from '@/lib/i18n/messages';
 
 export type TournamentStatusFilter = 'upcoming' | 'open' | 'live' | 'ALL';
 
@@ -11,11 +13,11 @@ interface TournamentFilterChipsProps {
   selectedSports?: string[];
 }
 
-const STATUS_CHIPS: Array<{ key: TournamentStatusFilter; label: string }> = [
-  { key: 'upcoming', label: 'Upcoming' },
-  { key: 'open', label: 'Open Reg' },
-  { key: 'live', label: 'Live' },
-  { key: 'ALL', label: 'All Cups' },
+const STATUS_KEYS: Array<{ key: TournamentStatusFilter; labelKey: MessageKey }> = [
+  { key: 'upcoming', labelKey: 'filter.upcoming' },
+  { key: 'open', labelKey: 'filter.openReg' },
+  { key: 'live', labelKey: 'filter.live' },
+  { key: 'ALL', labelKey: 'filter.allCups' },
 ];
 
 const CHIP =
@@ -29,90 +31,68 @@ export function TournamentFilterChips({
   statusFilter = 'upcoming',
   selectedSports = [],
 }: TournamentFilterChipsProps) {
+  const t = useT();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const sportKeys = [...EVENT_SPORTS];
-
-  const selected = new Set(selectedSports.map((s) => s.toUpperCase()));
-
-  function withParams(mutate: (params: URLSearchParams) => void): string {
+  function hrefForStatus(key: TournamentStatusFilter): string {
     const params = new URLSearchParams(searchParams.toString());
-    mutate(params);
+    if (key === 'upcoming') params.delete('status');
+    else params.set('status', key === 'ALL' ? 'all' : key);
     const qs = params.toString();
     return qs ? `${pathname}?${qs}` : pathname;
   }
 
-  function hrefForStatus(status: TournamentStatusFilter): string {
-    return withParams((params) => {
-      if (status === 'upcoming') params.delete('status');
-      else params.set('status', status === 'ALL' ? 'all' : status);
-    });
-  }
-
   function hrefForSport(sport: string): string {
-    return withParams((params) => {
-      const upper = sport.toUpperCase();
-      const next = selected.has(upper)
-        ? [...selected].filter((s) => s !== upper)
-        : [...selected, upper];
-      if (next.length === 0) params.delete('sport');
-      else params.set('sport', next.join(','));
-    });
+    const params = new URLSearchParams(searchParams.toString());
+    const current = new Set(
+      (params.get('sport') ?? '')
+        .split(',')
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean),
+    );
+    if (current.has(sport)) current.delete(sport);
+    else current.add(sport);
+    if (current.size === 0) params.delete('sport');
+    else params.set('sport', [...current].join(','));
+    const qs = params.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
   }
 
-  function hrefClearSports(): string {
-    return withParams((params) => {
-      params.delete('sport');
-    });
-  }
+  const selected = new Set(selectedSports.map((s) => s.toUpperCase()));
 
   return (
-    <div className="flex flex-col gap-2 mb-1">
-      <section
-        className="flex gap-1.5 overflow-x-auto overscroll-x-contain hide-scrollbar touch-pan-x py-0.5 -mx-1 px-1 snap-x snap-mandatory"
-        aria-label="Tournament status"
-      >
-        {STATUS_CHIPS.map((chip) => {
+    <div className="space-y-2">
+      <div className="flex gap-1.5 overflow-x-auto overscroll-x-contain hide-scrollbar touch-pan-x py-0.5">
+        {STATUS_KEYS.map((chip) => {
           const active = statusFilter === chip.key;
           return (
             <Link
               key={chip.key}
               href={hrefForStatus(chip.key)}
-              scroll={false}
               className={`${CHIP} ${active ? CHIP_ACTIVE : CHIP_IDLE}`}
+              scroll={false}
             >
-              {chip.label}
+              {t(chip.labelKey)}
             </Link>
           );
         })}
-      </section>
-
-      <section
-        className="flex gap-1.5 overflow-x-auto overscroll-x-contain hide-scrollbar touch-pan-x py-0.5 -mx-1 px-1 snap-x snap-mandatory"
-        aria-label="Sport"
-      >
-        <Link
-          href={hrefClearSports()}
-          scroll={false}
-          className={`${CHIP} ${selected.size === 0 ? CHIP_ACTIVE : CHIP_IDLE}`}
-        >
-          All
-        </Link>
-        {sportKeys.map((sport) => {
+      </div>
+      <div className="flex gap-1.5 overflow-x-auto overscroll-x-contain hide-scrollbar touch-pan-x py-0.5">
+        {EVENT_SPORTS.map((sport) => {
           const active = selected.has(sport);
           return (
             <Link
               key={sport}
               href={hrefForSport(sport)}
-              scroll={false}
               className={`${CHIP} ${active ? CHIP_ACTIVE : CHIP_IDLE}`}
+              scroll={false}
             >
               {sportDisplayLabel(sport)}
             </Link>
           );
         })}
-      </section>
+      </div>
     </div>
   );
 }

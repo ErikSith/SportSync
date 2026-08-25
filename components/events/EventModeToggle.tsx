@@ -3,12 +3,14 @@
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useTransition } from 'react';
 import type { ParticipationMode } from '@/lib/data/events';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 interface EventModeToggleProps {
   mode: ParticipationMode;
 }
 
 export function EventModeToggle({ mode }: EventModeToggleProps) {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -38,7 +40,7 @@ export function EventModeToggle({ mode }: EventModeToggleProps) {
         pending ? 'opacity-80' : ''
       }`}
       role="tablist"
-      aria-label="Event mode"
+      aria-label={t('events.modeAria')}
     >
       <span
         className={`pointer-events-none absolute top-1.5 left-1.5 h-[calc(100%-12px)] w-[calc(50%-6px)] rounded-xl transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
@@ -61,7 +63,7 @@ export function EventModeToggle({ mode }: EventModeToggleProps) {
           <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
             sports
           </span>
-          Join
+          {t('common.join')}
         </button>
         <button
           type="button"
@@ -75,7 +77,7 @@ export function EventModeToggle({ mode }: EventModeToggleProps) {
           <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
             visibility
           </span>
-          Watch
+          {t('common.watch')}
         </button>
       </div>
     </div>

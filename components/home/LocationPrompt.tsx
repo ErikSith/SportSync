@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { SUPPORTED_CITIES } from '@/lib/cities';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Shown when the profile has no home coordinate yet. Covers both paths from
@@ -10,6 +11,7 @@ import { SUPPORTED_CITIES } from '@/lib/cities';
  * unsupported -> manual city picker.
  */
 export function LocationPrompt({ variant = 'default' }: { variant?: 'default' | 'inline' }) {
+  const t = useT();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +25,7 @@ export function LocationPrompt({ variant = 'default' }: { variant?: 'default' | 
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      setError('Could not save your location. Please try again.');
+      setError(t('location.errorSave'));
       return;
     }
     startTransition(() => router.refresh());
@@ -31,7 +33,7 @@ export function LocationPrompt({ variant = 'default' }: { variant?: 'default' | 
 
   function useGps() {
     if (!('geolocation' in navigator)) {
-      setError('Your browser does not support GPS. Pick your city below instead.');
+      setError(t('location.noGps'));
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -43,7 +45,7 @@ export function LocationPrompt({ variant = 'default' }: { variant?: 'default' | 
         });
       },
       () => {
-        setError('Location access was denied. Pick your city below instead.');
+        setError(t('location.denied'));
       },
       { enableHighAccuracy: false, timeout: 8000 },
     );
@@ -55,7 +57,7 @@ export function LocationPrompt({ variant = 'default' }: { variant?: 'default' | 
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span className="material-symbols-outlined text-primary shrink-0">location_on</span>
           <p className="font-body-md text-sm text-on-surface-variant">
-            Set your location to discover open lobbies within 20km.
+            {t('location.inline')}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -64,7 +66,7 @@ export function LocationPrompt({ variant = 'default' }: { variant?: 'default' | 
             disabled={isPending}
             className="px-4 py-2 rounded-lg bg-primary-container text-white font-label-caps text-[10px] hover:brightness-110 transition-all disabled:opacity-50"
           >
-            Enable GPS
+            {t('location.enableGps')}
           </button>
           <select
             value={city}
@@ -82,7 +84,7 @@ export function LocationPrompt({ variant = 'default' }: { variant?: 'default' | 
             disabled={isPending}
             className="px-3 py-2 rounded-lg border border-secondary/30 text-secondary font-label-caps text-[10px] hover:border-secondary/60 transition-all disabled:opacity-50"
           >
-            Set
+            {t('location.set')}
           </button>
         </div>
         {error && <p className="font-body-md text-sm text-error sm:w-full">{error}</p>}
@@ -94,10 +96,10 @@ export function LocationPrompt({ variant = 'default' }: { variant?: 'default' | 
     <section className="glass-panel rounded-2xl p-6 border border-secondary/10 space-y-4">
       <div className="flex items-center gap-3">
         <span className="material-symbols-outlined text-primary">location_on</span>
-        <h3 className="font-headline-md text-headline-md text-on-surface">Set your location</h3>
+        <h3 className="font-headline-md text-headline-md text-on-surface">{t('location.title')}</h3>
       </div>
       <p className="font-body-md text-body-md text-tertiary-container">
-        We use your location to find matches and events within 20km. No GPS? Pick your city instead.
+        {t('location.body')}
       </p>
 
       <button
@@ -105,12 +107,12 @@ export function LocationPrompt({ variant = 'default' }: { variant?: 'default' | 
         disabled={isPending}
         className="w-full py-3 rounded-lg bg-primary-container text-white font-label-caps text-label-caps hover:brightness-110 transition-all disabled:opacity-50"
       >
-        USE MY GPS LOCATION
+        {t('location.useGps')}
       </button>
 
       <div className="flex items-center gap-3">
         <div className="h-px flex-1 bg-outline-variant/30" />
-        <span className="font-label-caps text-label-caps text-outline">OR</span>
+        <span className="font-label-caps text-label-caps text-outline">{t('location.or')}</span>
         <div className="h-px flex-1 bg-outline-variant/30" />
       </div>
 
@@ -131,7 +133,7 @@ export function LocationPrompt({ variant = 'default' }: { variant?: 'default' | 
           disabled={isPending}
           className="px-4 py-2 rounded-lg border border-secondary/30 text-secondary font-label-caps text-label-caps hover:border-secondary/60 transition-all disabled:opacity-50"
         >
-          CONFIRM
+          {t('location.confirm')}
         </button>
       </div>
 

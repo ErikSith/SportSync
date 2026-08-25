@@ -23,6 +23,7 @@ import {
   type ResolvedListingVenue,
   type VenueUrlIndex,
 } from './resolve-venue';
+import { titleLooksLikeHeadToHeadFixture } from '@/lib/participation/fixture-match';
 
 const AGGREGATOR_NOTICE =
   'SportSync zobrazuje textový prehľad. Registrácia a lístky sú vždy u organizátora.';
@@ -289,7 +290,9 @@ async function upsertEvent(
     ticket_url: originalUrl,
     scraped_at: new Date().toISOString(),
     is_aggregated: true,
-    participation_mode: 'participate',
+    participation_mode: titleLooksLikeHeadToHeadFixture(event.title)
+      ? 'spectator'
+      : 'participate',
     ai_enriched: false,
     venue_id: venueId,
     latitude,

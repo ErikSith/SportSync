@@ -32,6 +32,7 @@ const BLOCKED_GEMINI_MODELS = new Set([
 
 const QUOTA_RETRY_BASE_MS = 10_000;
 const MAX_MODEL_ATTEMPTS = 3;
+const MAX_LOOP_ITERATIONS = 500;
 
 /** Mirrors ScrapedEventListSchema for Gemini structured output. */
 const RESPONSE_SCHEMA: ResponseSchema = {
@@ -123,11 +124,12 @@ Pravidlá:
   vygeneruj konkrétne lekcie na najbližších 7 dní od kotevného dátumu vyššie. Každý slot = 1 záznam so startTime v ISO 8601.
   Tieto sloty sú SKUPINOVÉ LEKCIE (isGroupClass = true, isTournament = false) — nie unikátne eventy.
 - KLASIFIKÁCIA (povinná pri každom zázname):
-  • isTournament = true: jednorazový turnaj/súťaž (cup, championship, liga, open ako turnaj, trophy).
+  • isTournament = true: jednorazový turnaj/súťaž s otvorenou prihláškou (cup, championship, open, trophy, kvalifikácia).
+    NIE ligový zápas „Tím A vs Tím B“ / „proti“ — to je divácky zápas (isTournament = false).
   • isGroupClass = true: niečo, čo sa STÁLE OPAKUJE na tom istom športovisku v obvykle rovnakom čase
     (týždenný rozvrh, akademia, náborové tréningy, footwork, joga, HIIT, skupinové cvičenie, online tréningový program).
   • isGroupClass = false a isTournament = false: jednorazový event s vlastným názvom
-    (workshop, exhibícia, otvorenie, koncert, jednorazový zápas).
+    (workshop, exhibícia, otvorenie, koncert, zápas A vs B na sledovanie).
 - Unikátny EVENT/turnaj = jednorazové podujatie s vlastným názvom (cup, open, marathon, workshop, zápas).
 - Bežný názov lekcie (Pilates, HIIT, Box, Yoga, Kickbox, footwork, nábor, akademia…) = skupinová lekcia, nie unikátny event.
 - Ak sú uvedené konkrétne dátumy (deň.mesiac.rok / ISO), použi ich.
@@ -141,9 +143,11 @@ Pravidlá:
   NIE junior/mládež/ITF do 18 rokov. NIE bežný dospelácky tréning len preto, že deti môžu prísť.
 - forWomen = true LEN keď je aktivita VYSLOVENE pre ženy: „pre ženy“, ladies only, W4W, dámsky, ženský turnaj.
   NIE mix „ženy a muži“, NIE open kategória kde hrajú obe pohlavia.
-- isTournament = true pre turnaje, súťaže, championshipy, cup, open (turnaj), liga, trophy, kvalifikáciu.
+- isTournament = true LEN pre turnaje, do ktorých sa hráč prihlasuje (cup, open, championship, trophy, kvalifikácia).
   Tieto záznamy idú do tabuľky Tournament (nie Event).
-- isTournament = false pre tréningy, lekcie, rekreačné zápasy a týždenný rozvrh.
+- Zápas v tvare „klub vs klub“ / „X proti Y“ (napr. FK Inter vs FC Petržalka) NIE JE turnaj s prihláškou:
+  isTournament = false, divák ide Sledovať, nie Pripojiť sa.
+- isTournament = false pre tréningy, lekcie, ligové zápasy A vs B a týždenný rozvrh.
 - Ak na stránke naozaj nie sú žiadne časy ani dátumy aktivít, vráť prázdne pole events.`;
 }
 
@@ -222,9 +226,19 @@ async function generateWithFallback(
 ): Promise<{ raw: string; model: string }> {
   const candidates = resolveModelCandidates();
   let lastError: unknown;
+  let modelPasses = 0;
 
   for (const modelName of candidates) {
-    for (let attempt = 1; attempt <= MAX_MODEL_ATTEMPTS; attempt++) {
+    if (++modelPasses > MAX_LOOP_ITERATIONS) {
+      console.warn('[scraper.extractor] model candidate loop safety break');
+      break;
+    }
+    let attempt = 0;
+    while (attempt < MAX_MODEL_ATTEMPTS) {
+      if (++attempt > MAX_LOOP_ITERATIONS) {
+        console.warn('[scraper.extractor] model retry loop safety break');
+        break;
+      }
       try {
         const model = getModel(genAI, modelName, systemInstruction);
         const result = await model.generateContent(userPrompt);

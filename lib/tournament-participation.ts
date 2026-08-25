@@ -1,6 +1,7 @@
 import type { EventCardData, ParticipationMode } from '@/lib/data/events';
 import type { TournamentCardData } from '@/lib/data/tournaments';
 import { titleIsOutsideBratislava } from '@/lib/cities';
+import { titleLooksLikeHeadToHeadFixture } from '@/lib/participation/fixture-match';
 
 type TournamentParticipationFields = {
   name: string;
@@ -45,6 +46,8 @@ function urlsOf(t: TournamentParticipationFields): string {
  * spectator signal by itself.
  */
 export function tournamentParticipationMode(t: TournamentParticipationFields): ParticipationMode {
+  if (titleLooksLikeHeadToHeadFixture(t.name)) return 'spectator';
+
   if (t.source && SPECTATOR_SOURCES.has(t.source)) return 'spectator';
 
   const urls = urlsOf(t);
@@ -70,6 +73,7 @@ const CUP_LIKE =
 /** Spectator events that belong on /tournaments Sledovať (Davis Cup tickets, etc.). */
 export function eventLooksLikeWatchOnlyCup(event: EventCardData): boolean {
   if (event.participationMode !== 'spectator') return false;
+  if (titleLooksLikeHeadToHeadFixture(event.title)) return true;
   const hay = `${event.title} ${event.description ?? ''} ${event.sourceUrl ?? ''} ${event.ticketUrl ?? ''}`;
   return CUP_LIKE.test(hay);
 }

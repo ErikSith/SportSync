@@ -5,6 +5,8 @@ import type { Profile, ProfileHeroStats } from '@/lib/data/profile-shared';
 import { profileIsVerified } from '@/lib/utils/profile-tier';
 import { initialsFromName } from '@/lib/utils/initials';
 import { ProfileEditSheet } from '@/components/profile/ProfileEditSheet';
+import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 interface ProfileHeroProps {
   profile: Profile;
@@ -22,6 +24,7 @@ export function ProfileHero({
   editOpen: controlledEditOpen,
   onEditOpenChange,
 }: ProfileHeroProps) {
+  const t = useT();
   const [internalEditOpen, setInternalEditOpen] = useState(false);
   const [shareHint, setShareHint] = useState<string | null>(null);
 
@@ -54,7 +57,7 @@ export function ProfileHero({
       }
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareUrl);
-        setShareHint('Odkaz skopírovaný');
+        setShareHint(t('profile.linkCopied'));
         window.setTimeout(() => setShareHint(null), 2000);
         return;
       }
@@ -65,9 +68,9 @@ export function ProfileHero({
   }
 
   const statCards = [
-    { label: 'Zápasy', value: String(heroStats.gamesPlayed) },
-    { label: 'Skupiny', value: String(heroStats.groupsCount) },
-    { label: 'Úroveň', value: heroStats.levelLabel },
+    { label: t('profile.stat.matches'), value: String(heroStats.gamesPlayed) },
+    { label: t('profile.stat.groups'), value: String(heroStats.groupsCount) },
+    { label: t('profile.stat.level'), value: heroStats.levelLabel },
   ];
 
   return (
@@ -87,12 +90,16 @@ export function ProfileHero({
             )}
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/20 to-black/25" />
 
+            <div className="absolute left-3 top-3 z-[1] md:left-4 md:top-4">
+              {editable ? <LanguageSwitcher /> : null}
+            </div>
+
             <div className="absolute right-3 top-3 flex gap-2 md:right-4 md:top-4">
               {editable ? (
                 <button
                   type="button"
                   onClick={() => setEditOpen(true)}
-                  aria-label="Upraviť profil"
+                  aria-label={t('common.edit')}
                   className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md transition-transform active:scale-90"
                 >
                   <span className="material-symbols-outlined text-[22px]">edit</span>
@@ -101,7 +108,7 @@ export function ProfileHero({
               <button
                 type="button"
                 onClick={() => void handleShare()}
-                aria-label="Zdieľať profil"
+                aria-label={t('common.share')}
                 className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md transition-transform active:scale-90"
               >
                 <span className="material-symbols-outlined text-[22px]">ios_share</span>
@@ -143,7 +150,7 @@ export function ProfileHero({
                 className="mb-1 inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-surface-container px-4 font-label-caps text-[11px] uppercase tracking-[0.12em] text-on-surface transition-transform active:scale-[0.97] hover:border-white/25 hover:bg-surface-container-high"
               >
                 <span className="material-symbols-outlined text-[18px]">tune</span>
-                Upraviť
+                {t('common.edit')}
               </button>
             ) : null}
           </div>
@@ -156,7 +163,7 @@ export function ProfileHero({
           <p className="font-body-md text-sm text-on-surface-variant">@{profile.username}</p>
           <p className="flex items-center gap-1 font-body-md text-sm text-on-surface-variant">
             <span className="material-symbols-outlined text-[16px] text-primary-container">location_on</span>
-            {city}, Slovakia
+            {city}
           </p>
           {profile.bio ? (
             <p className="pt-1 font-body-md text-sm leading-relaxed text-on-surface">{profile.bio}</p>
@@ -166,7 +173,7 @@ export function ProfileHero({
               onClick={() => setEditOpen(true)}
               className="pt-1 text-left font-body-md text-sm text-on-surface-variant/70 active:text-primary-container"
             >
-              Pridaj bio…
+              {t('profile.addBio')}
             </button>
           ) : null}
           {shareHint ? (

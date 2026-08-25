@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { safeRedirectPath } from '@/lib/utils/safe-redirect';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 export const runtime = 'edge';
 
@@ -32,6 +33,7 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = safeRedirectPath(searchParams.get('redirectTo'));
@@ -77,7 +79,7 @@ function LoginForm() {
       return;
     }
     if (!data.session) {
-      setNotice('Check your email to confirm your account, then sign in.');
+      setNotice(t('login.confirmEmail'));
       setMode('sign-in');
       return;
     }
@@ -104,7 +106,7 @@ function LoginForm() {
               mode === 'sign-in' ? 'bg-primary-container text-white' : 'text-tertiary-container hover:bg-surface-container'
             }`}
           >
-            SIGN IN
+            {t('login.signIn').toUpperCase()}
           </button>
           <button
             type="button"
@@ -113,7 +115,7 @@ function LoginForm() {
               mode === 'sign-up' ? 'bg-primary-container text-white' : 'text-tertiary-container hover:bg-surface-container'
             }`}
           >
-            SIGN UP
+            {t('login.signUp').toUpperCase()}
           </button>
         </div>
 
@@ -121,7 +123,7 @@ function LoginForm() {
           {mode === 'sign-up' && (
             <div className="space-y-1">
               <label className="font-label-caps text-label-caps text-tertiary uppercase" htmlFor="username">
-                Username
+                {t('login.username')}
               </label>
               <input
                 id="username"
@@ -136,7 +138,7 @@ function LoginForm() {
 
           <div className="space-y-1">
             <label className="font-label-caps text-label-caps text-tertiary uppercase" htmlFor="email">
-              Email
+              {t('login.email')}
             </label>
             <input
               id="email"
@@ -151,7 +153,7 @@ function LoginForm() {
 
           <div className="space-y-1">
             <label className="font-label-caps text-label-caps text-tertiary uppercase" htmlFor="password">
-              Password
+              {t('login.password')}
             </label>
             <input
               id="password"
@@ -168,7 +170,7 @@ function LoginForm() {
           {mode === 'sign-up' && (
             <div className="space-y-1">
               <label className="font-label-caps text-label-caps text-tertiary uppercase" htmlFor="role">
-                I am a
+                {t('login.iAm')}
               </label>
               <select
                 id="role"
@@ -176,15 +178,15 @@ function LoginForm() {
                 onChange={(e) => setRole(e.target.value as typeof role)}
                 className="w-full bg-surface-container border border-outline-variant/40 rounded-lg px-3 py-2 text-on-surface font-body-md text-body-md focus:border-primary-container focus:outline-none"
               >
-                <option value="player">Player</option>
-                <option value="coach">Coach</option>
-                <option value="venue_owner">Venue Owner</option>
+                <option value="player">{t('login.player')}</option>
+                <option value="coach">{t('login.coach')}</option>
+                <option value="venue_owner">{t('login.venueOwner')}</option>
               </select>
             </div>
           )}
 
           {authError === 'auth-callback-failed' && (
-            <p className="font-body-md text-body-md text-error">Email confirmation failed. Please try signing in again.</p>
+            <p className="font-body-md text-body-md text-error">{t('login.callbackFailed')}</p>
           )}
           {error && <p className="font-body-md text-body-md text-error">{error}</p>}
           {notice && <p className="font-body-md text-body-md text-secondary">{notice}</p>}
@@ -194,7 +196,7 @@ function LoginForm() {
             disabled={isSubmitting}
             className="w-full py-3 rounded-lg bg-primary-container text-white font-label-caps text-label-caps hover:brightness-110 transition-all disabled:opacity-50"
           >
-            {isSubmitting ? 'PLEASE WAIT…' : mode === 'sign-in' ? 'SIGN IN' : 'CREATE ACCOUNT'}
+            {isSubmitting ? t('login.wait').toUpperCase() : mode === 'sign-in' ? t('login.submitIn').toUpperCase() : t('login.submitUp').toUpperCase()}
           </button>
         </form>
       </div>

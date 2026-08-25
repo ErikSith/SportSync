@@ -17,10 +17,12 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { THUMB_BUTTON_ENABLED } from '@/components/navigation/thumb-button-flags';
+import { useT } from '@/components/i18n/LocaleProvider';
+import type { MessageKey } from '@/lib/i18n/messages';
 
 type NavItem = {
   href: string;
-  label: string;
+  labelKey: MessageKey;
   icon: LucideIcon;
   match: (pathname: string) => boolean;
 };
@@ -32,43 +34,43 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   {
     href: '/leaderboard',
-    label: 'Ranking',
+    labelKey: 'nav.ranking',
     icon: BarChart3,
     match: (p) => p === '/leaderboard' || p.startsWith('/ranking'),
   },
   {
     href: '/trainers',
-    label: 'Trainers',
+    labelKey: 'nav.trainers',
     icon: Dumbbell,
     match: (p) => p === '/trainers' || p.startsWith('/trainers/'),
   },
   {
     href: '/tournaments',
-    label: 'Tournaments',
+    labelKey: 'nav.tournaments',
     icon: Trophy,
     match: (p) => p === '/tournaments' || p.startsWith('/tournaments/'),
   },
   {
     href: '/venues',
-    label: 'Venues',
+    labelKey: 'nav.venues',
     icon: MapPin,
     match: (p) => p === '/venues' || p.startsWith('/venues/'),
   },
   {
     href: '/events',
-    label: 'Events',
+    labelKey: 'nav.events',
     icon: Calendar,
     match: (p) => p === '/events' || p.startsWith('/events/'),
   },
   {
     href: '/profile',
-    label: 'Profile',
+    labelKey: 'nav.profile',
     icon: User,
     match: (p) => p === '/profile' || p.startsWith('/profile/') || p.startsWith('/players/'),
   },
   {
     href: '/lobby',
-    label: 'Find Partners',
+    labelKey: 'nav.lobby',
     icon: UserPlus,
     match: (p) => p === '/lobby' || p.startsWith('/lobby/'),
   },
@@ -78,6 +80,7 @@ const HIDDEN_PREFIXES = ['/login', '/auth'];
 
 export function ThumbButton() {
   const pathname = usePathname();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const hidden =
     !THUMB_BUTTON_ENABLED ||
@@ -116,7 +119,7 @@ export function ThumbButton() {
           <motion.button
             key="thumb-backdrop"
             type="button"
-            aria-label="Close navigation menu"
+            aria-label={t('nav.closeMenu')}
             className="pointer-events-auto fixed inset-0 z-[55] bg-black/40 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -172,7 +175,7 @@ export function ThumbButton() {
                       ].join(' ')}
                     >
                       <span className="whitespace-nowrap pl-1 font-label-caps text-[11px] uppercase tracking-[0.12em]">
-                        {item.label}
+                        {t(item.labelKey)}
                       </span>
                       <span
                         className={[
@@ -194,7 +197,7 @@ export function ThumbButton() {
 
         <motion.button
           type="button"
-          aria-label={open ? 'Close menu' : 'Open menu'}
+          aria-label={open ? t('nav.closeMenu') : t('nav.openMenu')}
           aria-expanded={open}
           aria-haspopup="true"
           onClick={() => setOpen((v) => !v)}

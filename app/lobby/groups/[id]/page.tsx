@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
+import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { getGroupById, getSessionById } from '@/lib/data/sport-groups';
 import type { GroupDetailData } from '@/lib/data/sport-groups-shared';
 import { CrewHubDetailClient } from '@/components/lobby/groups/CrewHubDetailClient';
@@ -22,11 +23,7 @@ function asDate(value: Date | string): Date {
 export default async function GroupDetailPage({ params }: GroupDetailPageProps) {
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#121212] px-4">
-        <p className="text-sm text-gray-400">Setting up your profile…</p>
-      </main>
-    );
+    return <SetupNotice />;
   }
 
   const { profile } = viewer;

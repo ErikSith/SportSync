@@ -7,8 +7,15 @@ export const SCRAPER_USER_AGENT =
 /** Randomized gap between venue fetches (ms). Midnight cron: 3–5s, never burst. */
 export const HOST_DELAY_MS = { min: 3000, max: 5000 } as const;
 
-const FETCH_TIMEOUT_MS = 25_000;
-const MAX_RETRIES = 3;
+/** Hard cap on HTML bytes passed to Cheerio — prevents CPU blow-ups on huge pages. */
+export const MAX_HTML_BYTES = 500_000;
+
+/** Wall-clock limit for fetch + parse + extract of a single URL (cron safety). */
+export const URL_PROCESS_TIMEOUT_MS = 10_000;
+
+const FETCH_TIMEOUT_MS = 8_000;
+const MAX_RETRIES = 2;
+const MAX_LOOP_ITERATIONS = 500;
 
 const hostLastRequestAt = new Map<string, number>();
 
@@ -22,6 +29,46 @@ function hostFromUrl(url: string): string {
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export class UrlProcessingTimeoutError extends Error {
+  readonly url: string;
+
+  constructor(url: string, ms = URL_PROCESS_TIMEOUT_MS) {
+    super(`URL processing timed out after ${ms}ms: ${url}`);
+    this.name = 'UrlProcessingTimeoutError';
+    this.url = url;
+  }
+}
+
+/** Abort waiting after `ms`; does not cancel in-flight sync CPU work (Cheerio). */
+export function withUrlProcessingTimeout<T>(
+  url: string,
+  fn: () => Promise<T>,
+  ms = URL_PROCESS_TIMEOUT_MS,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new UrlProcessingTimeoutError(url, ms));
+    }, ms);
+    fn()
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
+function truncateHtml(rawHtml: string): string {
+  if (rawHtml.length <= MAX_HTML_BYTES) return rawHtml;
+  console.warn(
+    `[scraper.fetcher] truncating HTML from ${rawHtml.length} to ${MAX_HTML_BYTES} bytes`,
+  );
+  return rawHtml.slice(0, MAX_HTML_BYTES);
 }
 
 function randomDelayMs(min: number, max: number): number {
@@ -57,7 +104,8 @@ const MIN_MAIN_TEXT_CHARS = 40;
  * from the main content region only. Never follows images / assets.
  */
 export function htmlToCleanText(html: string): string {
-  const $ = cheerio.load(html);
+  const truncatedHtml = truncateHtml(html);
+  const $ = cheerio.load(truncatedHtml);
   $(
     [
       'script',
@@ -87,7 +135,12 @@ export function htmlToCleanText(html: string): string {
   ).remove();
 
   let text = '';
+  let selectorPasses = 0;
   for (const sel of MAIN_CONTENT_SELECTORS) {
+    if (++selectorPasses > MAX_LOOP_ITERATIONS) {
+      console.warn('[scraper.fetcher] selector loop safety break');
+      break;
+    }
     const nodes = $(sel);
     if (!nodes.length) continue;
     const candidate = nodes.first().text();
@@ -138,7 +191,8 @@ async function fetchHtmlOnce(url: string): Promise<string> {
       throw new Error(`Unsupported content-type ${contentType} for ${url}`);
     }
 
-    return await res.text();
+    const rawHtml = await res.text();
+    return truncateHtml(rawHtml);
   } finally {
     clearTimeout(timer);
   }
@@ -151,7 +205,12 @@ export async function fetchHtml(url: string): Promise<string> {
   const host = hostFromUrl(url);
   let lastError: unknown;
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  let attempt = 0;
+  while (attempt < MAX_RETRIES) {
+    if (++attempt > MAX_LOOP_ITERATIONS) {
+      console.warn(`[scraper.fetcher] fetch retry loop safety break for ${host}`);
+      break;
+    }
     await waitForHostSlot(host);
     try {
       return await fetchHtmlOnce(url);
@@ -162,11 +221,11 @@ export async function fetchHtml(url: string): Promise<string> {
         (err instanceof Error &&
           (err.name === 'AbortError' || /timeout|network|fetch failed/i.test(err.message)));
 
-      if (!retryable || attempt === MAX_RETRIES - 1) break;
+      if (!retryable || attempt >= MAX_RETRIES) break;
 
       const backoff = Math.min(30_000, 2_000 * 2 ** attempt) + randomDelayMs(0, 500);
       console.warn(
-        `[scraper.fetcher] retry ${attempt + 1}/${MAX_RETRIES} for ${host} in ${backoff}ms`,
+        `[scraper.fetcher] retry ${attempt}/${MAX_RETRIES} for ${host} in ${backoff}ms`,
       );
       await sleep(backoff);
     }

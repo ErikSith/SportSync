@@ -1,0 +1,25 @@
+---
+description: Pripojiť sa vs Sledovať — zápas A vs B nie je open registrácia
+alwaysApply: true
+---
+
+# Pripojiť sa vs Sledovať
+
+**Pripojiť sa / Hrať / Join / Enter Cup** = hráč sa môže prihlásiť (open cup, lobby, lekcia, registrácia).
+
+**Sledovať / Watch** = hotový zápas alebo spektákel. Divák, vstupenky, tribúna. Žiadna prihláška do zostavy.
+
+## Zápas „niekto vs niekto“
+
+Názov ako `FK Inter Bratislava vs FC Petržalka` alebo `X proti Y` je **ligový/klubový zápas**, nie turnaj s otvorenou prihláškou.
+
+- CTA: **Sledovať** (vstupenky / oficiálna stránka), nikdy **Pripojiť sa** / Join / Enter Cup / Registrovať sa ako hráč.
+- Tab: **Sledovať**, nie **Hrať**.
+- Helper: `titleLooksLikeHeadToHeadFixture` v `lib/participation/fixture-match.ts`.
+- Logika turnajov: `tournamentParticipationMode` v `lib/tournament-participation.ts`.
+
+## Čo nie je watch-only
+
+Lobby **Tím vs Tím** (hľadáme súperov) ostáva **Pripojiť sa** — to je výzva hráčov, nie scraped fixture.
+
+Amateur cup s otvorenou registráciou (`Open`, uzávierka prihlášok, štartovné) ostáva **Hrať**, aj keď v brackete neskôr padnú zápasy A vs B.

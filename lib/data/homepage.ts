@@ -16,6 +16,7 @@ import {
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
 import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
+import { listingParticipationMode } from '@/lib/participation/fixture-match';
 import { FEED_ACTIVE_GRACE_HOURS, activeFeedSinceIso } from '@/lib/retention/feed-window';
 import { lobbyActiveSinceIso } from '@/lib/retention/lobbies';
 import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
@@ -229,7 +230,7 @@ function toEventCard(event: EventRow, distKm: number): EventCardData {
     venueId: event.venue_id,
     venueName: resolveVenueName(event.venues),
     themeConfig: (event.theme_config as Record<string, unknown>) ?? {},
-    participationMode: event.participation_mode === 'spectator' ? 'spectator' : 'participate',
+    participationMode: listingParticipationMode(event.title, event.participation_mode),
     ticketUrl: event.ticket_url ?? null,
     sourceUrl: event.source_url ?? null,
     sourceName: event.source_name ?? null,

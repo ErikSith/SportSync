@@ -15,6 +15,10 @@ export {
   htmlToCleanText,
   SCRAPER_USER_AGENT,
   HOST_DELAY_MS,
+  MAX_HTML_BYTES,
+  URL_PROCESS_TIMEOUT_MS,
+  UrlProcessingTimeoutError,
+  withUrlProcessingTimeout,
   sleep,
 } from './fetcher';
 

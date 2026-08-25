@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Eye, X } from 'lucide-react';
+import { useT } from '@/components/i18n/LocaleProvider';
 import type { EventType } from '@/lib/constants/events';
 import type { ParticipationMode } from '@/lib/data/events';
 import { EVENT_SPORTS, sportDisplayLabel } from '@/lib/constants/sports';
@@ -74,6 +75,7 @@ export function EventFiltersBar({
   selectedSports = [],
   eventDayKeys = [],
 }: EventFiltersBarProps) {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -654,7 +656,7 @@ export function EventFiltersBar({
             modePending ? 'opacity-70' : ''
           }`}
           role="tablist"
-          aria-label="Hrať alebo sledovať"
+          aria-label={t('events.modeAria')}
         >
           <button
             type="button"
@@ -668,7 +670,7 @@ export function EventFiltersBar({
                 : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
             ].join(' ')}
           >
-            Hrať
+            {t('common.play')}
           </button>
           <button
             type="button"
@@ -683,7 +685,7 @@ export function EventFiltersBar({
             ].join(' ')}
           >
             <Eye className="h-3.5 w-3.5" strokeWidth={2} />
-            Sledovať
+            {t('common.watch')}
           </button>
         </div>
       </div>

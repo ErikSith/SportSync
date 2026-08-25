@@ -1,30 +1,33 @@
+'use client';
+
 import Link from 'next/link';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 interface ProfileNavRowsProps {
   showManage?: boolean;
 }
 
-const rows: { href: string; icon: string; label: string; hint: string }[] = [
-  {
-    href: '/profile/settings',
-    icon: 'settings',
-    label: 'Nastavenia',
-    hint: 'Účet, odhlásenie',
-  },
-];
-
 export function ProfileNavRows({ showManage = false }: ProfileNavRowsProps) {
-  const items = showManage
-    ? [
-        ...rows,
-        {
-          href: '/manage',
-          icon: 'stadium',
-          label: 'Správa venue',
-          hint: 'Organizátor',
-        },
-      ]
-    : rows;
+  const t = useT();
+
+  const items = [
+    {
+      href: '/profile/settings',
+      icon: 'settings',
+      label: t('profile.settings'),
+      hint: t('profile.settingsHint'),
+    },
+    ...(showManage
+      ? [
+          {
+            href: '/manage',
+            icon: 'stadium',
+            label: t('profile.manage'),
+            hint: t('profile.manageHint'),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <nav className="overflow-hidden rounded-2xl border border-white/8 bg-surface-container">

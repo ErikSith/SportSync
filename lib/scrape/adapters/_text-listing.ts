@@ -4,11 +4,14 @@ import { detectEventSport, isEventSport } from '@/lib/constants/sports';
 import {
   errResult,
   fetchHtml,
+  MAX_LOOP_ITERATIONS,
   okResult,
   parsePriceCents,
   parseSlovakDate,
   parseTimeOnDate,
   slugify,
+  truncateHtmlForParse,
+  withUrlProcessingTimeout,
 } from '@/lib/scrape/fetch';
 import { scrapingSourceByAdapter } from '@/lib/scrape/scraping-sources';
 import { tagScrapedListingAudience } from '@/lib/events/audience';
@@ -43,21 +46,38 @@ export async function scrapeTextListing(config: TextListingConfig): Promise<Adap
     const seen = new Set<string>();
 
     for (const url of config.urls) {
-      let html: string;
       try {
-        html = await fetchHtml(url);
+        await withUrlProcessingTimeout(url, async () => {
+          let html: string;
+          try {
+            html = await fetchHtml(url);
+          } catch (err) {
+            // Path may 404 on some venues — continue with other URLs
+            console.warn(
+              `[scrape.${config.source}] skip ${url}:`,
+              err instanceof Error ? err.message : err,
+            );
+            return;
+          }
+          const fromLd = extractJsonLdEvents(html, url, config);
+          const fromDom = extractDomEvents(html, url, config);
+          let mergePasses = 0;
+          for (const event of [...fromLd, ...fromDom]) {
+            if (++mergePasses > MAX_LOOP_ITERATIONS) {
+              console.warn(`[scrape.${config.source}] merge loop safety break for ${url}`);
+              break;
+            }
+            if (seen.has(event.externalId)) continue;
+            seen.add(event.externalId);
+            events.push(
+              tagScrapedListingAudience(tagScrapedEventLocation(withSourceLocation(event, config))),
+            );
+          }
+        });
       } catch (err) {
-        // Path may 404 on some venues — continue with other URLs
-        console.warn(`[scrape.${config.source}] skip ${url}:`, err instanceof Error ? err.message : err);
-        continue;
-      }
-      const fromLd = extractJsonLdEvents(html, url, config);
-      const fromDom = extractDomEvents(html, url, config);
-      for (const event of [...fromLd, ...fromDom]) {
-        if (seen.has(event.externalId)) continue;
-        seen.add(event.externalId);
-        events.push(
-          tagScrapedListingAudience(tagScrapedEventLocation(withSourceLocation(event, config))),
+        console.warn(
+          `[scrape.${config.source}] skip ${url}:`,
+          err instanceof Error ? err.message : err,
         );
       }
     }
@@ -73,7 +93,7 @@ function extractJsonLdEvents(
   pageUrl: string,
   config: TextListingConfig,
 ): NormalizedScrapedEvent[] {
-  const $ = cheerio.load(html);
+  const $ = cheerio.load(truncateHtmlForParse(html));
   const out: NormalizedScrapedEvent[] = [];
 
   $('script[type="application/ld+json"]').each((_, el) => {
@@ -86,7 +106,12 @@ function extractJsonLdEvents(
       return;
     }
     const nodes = flattenLd(data);
+    let nodePasses = 0;
     for (const node of nodes) {
+      if (++nodePasses > MAX_LOOP_ITERATIONS) {
+        console.warn(`[scrape.${config.source}] JSON-LD node loop safety break`);
+        break;
+      }
       if (!node || typeof node !== 'object') continue;
       const obj = node as Record<string, unknown>;
       const type = String(obj['@type'] ?? '');
@@ -143,11 +168,15 @@ function extractJsonLdEvents(
   return out;
 }
 
-function flattenLd(data: unknown): unknown[] {
-  if (Array.isArray(data)) return data.flatMap(flattenLd);
+function flattenLd(data: unknown, depth = 0): unknown[] {
+  if (depth > MAX_LOOP_ITERATIONS) {
+    console.warn('[scrape.text-listing] flattenLd depth safety break');
+    return [];
+  }
+  if (Array.isArray(data)) return data.flatMap((item) => flattenLd(item, depth + 1));
   if (data && typeof data === 'object') {
     const obj = data as Record<string, unknown>;
-    if (Array.isArray(obj['@graph'])) return flattenLd(obj['@graph']);
+    if (Array.isArray(obj['@graph'])) return flattenLd(obj['@graph'], depth + 1);
     return [data];
   }
   return [];
@@ -158,7 +187,7 @@ function extractDomEvents(
   pageUrl: string,
   config: TextListingConfig,
 ): NormalizedScrapedEvent[] {
-  const $ = cheerio.load(html);
+  const $ = cheerio.load(truncateHtmlForParse(html));
   const out: NormalizedScrapedEvent[] = [];
   const seen = new Set<string>();
 
@@ -178,8 +207,15 @@ function extractDomEvents(
     'li',
   ];
 
+  let selectorPasses = 0;
   for (const sel of selectors) {
+    if (++selectorPasses > MAX_LOOP_ITERATIONS) {
+      console.warn(`[scrape.${config.source}] DOM selector loop safety break`);
+      break;
+    }
+    let elementPasses = 0;
     $(sel).each((_, el) => {
+      if (++elementPasses > MAX_LOOP_ITERATIONS) return false;
       const $el = $(el);
       const text = $el.text().replace(/\s+/g, ' ').trim();
       if (!text || text.length < 12 || text.length > 1200) return;
@@ -237,7 +273,9 @@ function extractDomEvents(
 
   // Fallback: links whose surrounding text contains a date
   if (out.length === 0) {
+    let linkPasses = 0;
     $('a[href]').each((_, el) => {
+      if (++linkPasses > MAX_LOOP_ITERATIONS) return false;
       const $a = $(el);
       const title = cleanListingTitle($a.text().replace(/\s+/g, ' ').trim());
       if (!title || title.length < 4 || title.length > 120) return;

@@ -1,5 +1,6 @@
 import type { TournamentCardData } from '@/lib/data/tournaments';
 import type { ParticipationMode } from '@/lib/data/events';
+import { t } from '@/lib/i18n/server';
 import { TournamentFiltersBar } from '@/components/tournaments/TournamentFiltersBar';
 import { TournamentAtmosphereTab } from '@/components/tournaments/TournamentAtmosphereTab';
 
@@ -14,7 +15,7 @@ interface TournamentsFeedProps {
 }
 
 function countLabel(n: number): string {
-  return `${n} ${n === 1 ? 'cup' : 'cups'}`;
+  return n === 1 ? t('tournaments.countOne', { n }) : t('tournaments.count', { n });
 }
 
 export function TournamentsFeed({
@@ -54,13 +55,11 @@ export function TournamentsFeed({
               <div className="mb-1 flex items-center gap-2">
                 <span className="h-1 w-6 rounded-full bg-[#c4a035]" />
                 <h2 className="font-headline-md text-[15px] tracking-wide text-on-background">
-                  {isSpectator ? 'Watch cups' : 'Open cups'}
+                  {isSpectator ? t('tournaments.watchCups') : t('tournaments.openCups')}
                 </h2>
               </div>
               <p className="pl-8 font-body-md text-xs text-on-surface-variant">
-                {isSpectator
-                  ? 'Vstupenky a divácke spektákle — sleduj zo tribúny'
-                  : 'Otvorené prihlášky — zapoj sa ako hráč'}
+                {isSpectator ? t('tournaments.watchCupsSub') : t('tournaments.openCupsSub')}
               </p>
             </div>
             <span className="shrink-0 rounded-full border border-[#c4a035]/30 bg-[#c4a035]/10 px-2.5 py-1 font-label-caps text-[10px] uppercase tracking-wider text-[#e8d59a]">

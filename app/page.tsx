@@ -10,6 +10,8 @@ import {
   type HomepageEventInspiration,
 } from '@/lib/data/homepage';
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { t } from '@/lib/i18n/server';
+import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { TopAppBar } from '@/components/home/TopAppBar';
 import { QuickActions } from '@/components/home/QuickActions';
 import { EventsInspirationSection } from '@/components/home/EventsInspirationSection';
@@ -47,10 +49,10 @@ function HomeFallback({ message }: { message?: string }) {
     <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center space-y-4">
       <h2 className="font-headline-md text-headline-md text-on-surface">SportSync</h2>
       <p className="font-body-md text-body-md text-tertiary-container">
-        {message ?? 'We could not load the homepage feed right now. Please try again in a moment.'}
+        {message ?? t('home.loadError')}
       </p>
       <Link href="/" className="inline-flex font-label-md text-primary underline-offset-4 hover:underline">
-        Refresh
+        {t('common.refresh')}
       </Link>
     </main>
   );
@@ -127,18 +129,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   } catch (error) {
     if (isNextNavigationError(error)) throw error;
     console.error('Homepage viewer error:', error);
-    return <HomeFallback message="Authentication is temporarily unavailable. Please try again shortly." />;
+    return <HomeFallback message={t('home.authUnavailable')} />;
   }
 
   if (viewer.status === 'setup') {
-    return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center space-y-4">
-        <h2 className="font-headline-md text-headline-md text-on-surface">Setting up your profile…</h2>
-        <p className="font-body-md text-body-md text-tertiary-container">
-          This only takes a second. Refresh the page to continue.
-        </p>
-      </main>
-    );
+    return <SetupNotice />;
   }
 
   const { profile } = viewer;
@@ -201,7 +196,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <section className="space-y-5 md:space-y-6">
           <header className="space-y-2 border-b border-white/5 pb-4">
             <div className="min-w-0 space-y-2">
-              <p className="font-label-caps text-label-caps text-tertiary uppercase tracking-widest">Welcome Back</p>
+              <p className="font-label-caps text-label-caps text-tertiary uppercase tracking-widest">
+                {t('home.welcomeBack')}
+              </p>
               <h2 className="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-on-surface break-words">
                 {displayName}
               </h2>
@@ -215,8 +212,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             <div className="flex items-center gap-3 min-w-0">
               <span className="material-symbols-outlined text-secondary text-2xl shrink-0">preview</span>
               <div className="min-w-0">
-                <p className="font-headline-md text-[16px] sm:text-[18px] text-on-surface truncate">Live Design Showcase</p>
-                <p className="font-body-md text-xs sm:text-sm text-on-surface-variant line-clamp-2">Venue, Tournament, Event &amp; Lobby detail pages</p>
+                <p className="font-headline-md text-[16px] sm:text-[18px] text-on-surface truncate">
+                  {t('home.demoTitle')}
+                </p>
+                <p className="font-body-md text-xs sm:text-sm text-on-surface-variant line-clamp-2">
+                  {t('home.demoSub')}
+                </p>
               </div>
             </div>
             <span className="material-symbols-outlined text-primary group-hover:translate-x-1 transition-transform shrink-0">arrow_forward</span>

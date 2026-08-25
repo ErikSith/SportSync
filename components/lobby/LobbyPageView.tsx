@@ -32,6 +32,7 @@ import { PlayerPreferencesAside } from '@/components/home/HomeFeedFilterButton';
 import type { CreateLobbyDraft } from '@/types/lobby';
 import { buildCreateLobbyPayload } from '@/lib/lobby-create';
 import { authedFetch } from '@/lib/auth/authed-fetch';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 function mergeLobbyMatchLists(
   created: MatchCardData[],
@@ -61,6 +62,7 @@ export function LobbyPageView({
   /** Kept for later auth — create lobby is open without registration for now. */
   isGuest?: boolean;
 }) {
+  const t = useT();
   const router = useRouter();
   const [selectedSport, setSelectedSport] = useState<LobbySportKey | null>(null);
   const [search, setSearch] = useState('');
@@ -234,7 +236,7 @@ export function LobbyPageView({
               </button>
               <div className="min-w-0 flex-1">
                 <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-zinc-500">
-                  Lobby
+                  {t('lobby.title')}
                 </p>
                 <h1 className="font-headline-md text-[26px] leading-tight tracking-wide text-white sm:text-3xl">
                   {sportMeta.label}
@@ -254,13 +256,13 @@ export function LobbyPageView({
             <SearchField
               value={search}
               onChange={setSearch}
-              placeholder={`Search ${sportMeta.label.toLowerCase()} lobbies…`}
+              placeholder={t('lobby.searchSport', { sport: sportMeta.label.toLowerCase() })}
             />
 
             <LobbyGrid
               matches={visible}
               onAction={openMatch}
-              emptyMessage={`No open ${sportMeta.label} lobbies yet. Create one and invite people.`}
+              emptyMessage={t('lobby.emptySport', { sport: sportMeta.label })}
             />
           </div>
         ) : (
@@ -273,16 +275,16 @@ export function LobbyPageView({
               title={
                 <div className="min-w-0 space-y-1">
                   <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-zinc-500">
-                    Matchmaking
+                    {t('lobby.eyebrow')}
                   </p>
                   <h1 className="font-headline-md text-[28px] leading-tight tracking-wide text-white sm:text-3xl md:text-4xl">
-                    Lobby
+                    {t('lobby.title')}
                   </h1>
                 </div>
               }
               subtitle={
                 <p className="max-w-md font-body-md text-sm text-zinc-400 md:text-body-md">
-                  Pick a sport, then join an open lobby nearby — or create your own.
+                  {t('lobby.subtitle')}
                 </p>
               }
               actions={
@@ -299,7 +301,7 @@ export function LobbyPageView({
             <SearchField
               value={search}
               onChange={setSearch}
-              placeholder="Search players or teams..."
+              placeholder={t('lobby.searchPlayers')}
             />
 
             <LobbySportPicker matches={matches} onSelect={selectSport} />
@@ -307,14 +309,14 @@ export function LobbyPageView({
             <section className="space-y-3">
               <div className="flex items-baseline justify-between gap-3">
                 <h2 className="font-label-caps text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-                  Featured Activity
+                  {t('lobby.featuredActivity')}
                 </h2>
                 <p className="font-label-caps text-[9px] uppercase tracking-[0.14em] text-zinc-600">
-                  {featured.length} open
+                  {t('lobby.openCount', { n: featured.length })}
                 </p>
               </div>
               {featured.length === 0 ? (
-                <p className="text-sm text-zinc-500">No open lobbies nearby right now.</p>
+                <p className="text-sm text-zinc-500">{t('lobby.noOpenNearby')}</p>
               ) : (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                   {featured.map((match) => (

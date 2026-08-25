@@ -1,25 +1,20 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { isAuthorizedCron } from '@/lib/cron/authorize';
 import { cleanupExpiredEvents } from '@/lib/retention/events';
 import { cleanupExpiredLobbies } from '@/lib/retention/lobbies';
-import { runAllScrapers } from '@/lib/scrape/run';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
+/** DB cleanup only — no HTML scrape (that lives in /api/cron/scrape-events shards). */
+export const maxDuration = 30;
 
-function isAuthorizedCron(request: Request): boolean {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return false;
-
-  const agentKey = request.headers.get('x-agent-key');
-  if (agentKey === cronSecret) return true;
-
-  const auth = request.headers.get('authorization');
-  if (auth === `Bearer ${cronSecret}`) return true;
-
-  return false;
-}
-
+/**
+ * Midnight Worker: cheap SQL retention.
+ *
+ * Scraping used to run here via runAllScrapers() and burned Cloudflare CPU
+ * (Cheerio over every Bratislava adapter in one isolate). Do not put it back.
+ */
 export async function POST(request: Request) {
   const cronOk = isAuthorizedCron(request);
 
@@ -34,18 +29,15 @@ export async function POST(request: Request) {
   try {
     const purge = await cleanupExpiredEvents();
     const lobbyPurge = await cleanupExpiredLobbies();
-    const scrape = await runAllScrapers();
 
     return NextResponse.json({
       ok: true,
       purge,
       lobbyPurge,
       scrape: {
-        created: scrape.created,
-        updated: scrape.updated,
-        unchanged: scrape.unchanged,
-        skipped: scrape.skipped,
-        adapters: scrape.adapters,
+        skipped: true,
+        reason: 'edge-cpu-budget',
+        hint: 'HTML scrape is /api/cron/scrape-events (1 adapter / 30 min slot)',
       },
     });
   } catch (error) {

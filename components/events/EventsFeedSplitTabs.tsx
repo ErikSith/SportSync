@@ -3,13 +3,14 @@
 import { useCallback, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { EventsFeedTab } from '@/lib/feed/events-feed-tab';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 export type { EventsFeedTab } from '@/lib/feed/events-feed-tab';
 export { parseEventsFeedTab } from '@/lib/feed/events-feed-tab';
 
-const TABS: Array<{ key: EventsFeedTab; label: string }> = [
-  { key: 'matches', label: 'Eventy' },
-  { key: 'schedules', label: 'Skupinové lekcie' },
+const TAB_KEYS: Array<{ key: EventsFeedTab; messageKey: 'events.tab.matches' | 'events.tab.schedules' }> = [
+  { key: 'matches', messageKey: 'events.tab.matches' },
+  { key: 'schedules', messageKey: 'events.tab.schedules' },
 ];
 
 interface EventsFeedSplitTabsProps {
@@ -17,6 +18,7 @@ interface EventsFeedSplitTabsProps {
 }
 
 export function EventsFeedSplitTabs({ active }: EventsFeedSplitTabsProps) {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -40,10 +42,10 @@ export function EventsFeedSplitTabs({ active }: EventsFeedSplitTabsProps) {
     <div
       className={`relative w-full border-b border-white/5 ${pending ? 'opacity-85' : ''}`}
       role="tablist"
-      aria-label="Typ feedu"
+      aria-label={t('events.tab.feedAria')}
     >
       <div className="flex w-full">
-        {TABS.map((tab) => {
+        {TAB_KEYS.map((tab) => {
           const selected = active === tab.key;
           return (
             <button
@@ -58,7 +60,7 @@ export function EventsFeedSplitTabs({ active }: EventsFeedSplitTabsProps) {
                   : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
-              {tab.label}
+              {t(tab.messageKey)}
               {selected ? (
                 <span
                   className="absolute inset-x-4 bottom-0 h-px bg-primary-container/90 sm:inset-x-8"
