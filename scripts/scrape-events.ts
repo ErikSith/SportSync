@@ -3,6 +3,9 @@ config({ path: '.env' });
 config({ path: '.env.local', override: true });
 
 async function main() {
+  const { enableSourceHealthDisk } = await import('../lib/scrape/source-health-fs');
+  enableSourceHealthDisk();
+
   const { cleanupExpiredEvents } = await import('../lib/retention/events');
   const { runAllScrapers } = await import('../lib/scrape/run');
 

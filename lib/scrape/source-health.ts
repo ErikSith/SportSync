@@ -1,9 +1,10 @@
 /**
- * Tracks scrape source health in a local JSON file.
+ * Tracks scrape source health (bundled JSON + optional Node disk via attach).
  * After {@link FAILURE_SKIP_THRESHOLD} consecutive failures (error / timeout / 0 events),
  * the source is skipped on later runs until you clear or revive it.
  *
- * Writes only work in Node (local scripts). Edge cron still honors the committed skip list.
+ * Edge-safe: no `node:` imports. Local scripts call `enableSourceHealthDisk()`
+ * from `source-health-fs.ts` so writes persist to `source-health.json`.
  */
 
 import healthSnapshot from '@/lib/scrape/source-health.json';
@@ -46,9 +47,18 @@ export interface SourceOutcomeInput {
   error?: string | null;
 }
 
-const HEALTH_RELATIVE_PATH = 'lib/scrape/source-health.json';
+export type SourceHealthDiskAdapters = {
+  load: () => Promise<SourceHealthFile | null>;
+  persist: (file: SourceHealthFile) => Promise<boolean>;
+};
 
 let memoryCache: SourceHealthFile | null = null;
+let diskAdapters: SourceHealthDiskAdapters | null = null;
+
+/** Node scripts only — wires fs read/write without importing `node:` in this module. */
+export function attachSourceHealthDisk(adapters: SourceHealthDiskAdapters): void {
+  diskAdapters = adapters;
+}
 
 function cloneSnapshot(): SourceHealthFile {
   const raw = healthSnapshot as SourceHealthFile;
@@ -92,31 +102,17 @@ function classifyOutcome(input: SourceOutcomeInput): SourceHealthStatus {
   return 'ok';
 }
 
-function isNodeFsWritable(): boolean {
-  return typeof process !== 'undefined' && Boolean(process.versions?.node);
-}
-
 /**
- * Load health file (memory → disk in Node → bundled snapshot).
+ * Load health (memory → optional disk → bundled snapshot).
  */
 export async function loadSourceHealth(): Promise<SourceHealthFile> {
   if (memoryCache) return memoryCache;
 
-  if (isNodeFsWritable()) {
-    try {
-      const fs = await import('node:fs/promises');
-      const path = await import('node:path');
-      const filePath = path.join(process.cwd(), HEALTH_RELATIVE_PATH);
-      const raw = await fs.readFile(filePath, 'utf8');
-      const parsed = JSON.parse(raw) as SourceHealthFile;
-      memoryCache = {
-        version: 1,
-        updatedAt: parsed.updatedAt ?? null,
-        entries: parsed.entries ?? {},
-      };
+  if (diskAdapters) {
+    const fromDisk = await diskAdapters.load();
+    if (fromDisk) {
+      memoryCache = fromDisk;
       return memoryCache;
-    } catch {
-      // fall through to bundled snapshot
     }
   }
 
@@ -126,20 +122,8 @@ export async function loadSourceHealth(): Promise<SourceHealthFile> {
 
 async function persistSourceHealth(file: SourceHealthFile): Promise<boolean> {
   memoryCache = file;
-  if (!isNodeFsWritable()) return false;
-  try {
-    const fs = await import('node:fs/promises');
-    const path = await import('node:path');
-    const filePath = path.join(process.cwd(), HEALTH_RELATIVE_PATH);
-    await fs.writeFile(filePath, `${JSON.stringify(file, null, 2)}\n`, 'utf8');
-    return true;
-  } catch (err) {
-    console.warn(
-      '[scrape.source-health] write failed (Edge / read-only FS?) — skip list not persisted:',
-      err instanceof Error ? err.message : err,
-    );
-    return false;
-  }
+  if (!diskAdapters) return false;
+  return diskAdapters.persist(file);
 }
 
 export async function isSourceSkipped(key: string): Promise<boolean> {

@@ -2,7 +2,10 @@ import { config } from 'dotenv';
 config({ path: '.env' });
 config({ path: '.env.local', override: true });
 
+import { enableSourceHealthDisk } from '../lib/scrape/source-health-fs';
 import { runGeminiScraper } from '../src/lib/scraper/run';
+
+enableSourceHealthDisk();
 
 async function main() {
   const args = process.argv.slice(2);

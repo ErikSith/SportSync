@@ -4,6 +4,7 @@ import { isAuthorizedCron } from '@/lib/cron/authorize';
 import { scrapeSlotIndex, SCRAPE_ADAPTER_IDS } from '@/lib/scrape/adapter-registry';
 import { runScrapeAdapterShard } from '@/lib/scrape/run';
 
+/** Cloudflare Pages / Workers — keep Edge; Node FS lives only in source-health-fs (scripts). */
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 /** One Cheerio adapter — keep Worker CPU tiny. Do not raise this to run the fleet. */

@@ -12,6 +12,9 @@ config({ path: '.env' });
 config({ path: '.env.local', override: true });
 
 async function main() {
+  const { enableSourceHealthDisk } = await import('../lib/scrape/source-health-fs');
+  enableSourceHealthDisk();
+
   const {
     formatHealthEntryLine,
     listProblemSources,
