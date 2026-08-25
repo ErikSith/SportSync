@@ -72,7 +72,7 @@ export function htmlByteCap(): number {
   return MAX_HTML_BYTES;
 }
 
-function truncateHtmlForParse(rawHtml: string): string {
+export function truncateHtmlForParse(rawHtml: string): string {
   const cap = htmlByteCap();
   if (rawHtml.length <= cap) return rawHtml;
   console.warn(`[scrape.fetch] truncating HTML from ${rawHtml.length} to ${cap} bytes`);
