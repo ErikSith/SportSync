@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { authedFetch } from '@/lib/auth/authed-fetch';
+import { isUuid } from '@/lib/lobby-create';
 import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 
 interface LobbyActionsProps {
@@ -51,10 +53,15 @@ export function LobbyActions({
   const isFull = status === 'full' || spotsFilled >= spotsTotal;
   const needsPlayers = !isFull;
   const venueSite = toVenueHomepageUrl(websiteUrl);
+  const hasRealLobbyId = isUuid(lobbyId);
 
   async function join() {
     setError(null);
-    const res = await fetch(`/api/lobbies/${lobbyId}/join`, { method: 'POST' });
+    if (!hasRealLobbyId) {
+      setError('Toto lobby už nie je aktívne. Vytvor nové alebo obnov stránku.');
+      return;
+    }
+    const res = await authedFetch(`/api/lobbies/${lobbyId}/join`, { method: 'POST' });
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       setError(body?.error ?? 'Could not join lobby');
@@ -70,7 +77,11 @@ export function LobbyActions({
 
   async function leave() {
     setError(null);
-    const res = await fetch(`/api/lobbies/${lobbyId}/leave`, { method: 'DELETE' });
+    if (!hasRealLobbyId) {
+      setError('Toto lobby už nie je aktívne.');
+      return;
+    }
+    const res = await authedFetch(`/api/lobbies/${lobbyId}/leave`, { method: 'DELETE' });
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       setError(body?.error ?? 'Could not leave lobby');
@@ -86,8 +97,13 @@ export function LobbyActions({
 
   async function broadcastSos() {
     setError(null);
+    if (!hasRealLobbyId) {
+      setSosState('error');
+      setError('Toto lobby už nie je aktívne.');
+      return;
+    }
     setSosState('sending');
-    const res = await fetch(`/api/lobbies/mercenary`, {
+    const res = await authedFetch(`/api/lobbies/mercenary`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lobbyId }),

@@ -53,8 +53,12 @@ export function skillLevelToElo(level: SkillLevel): number {
   return SKILL_TO_ELO[level];
 }
 
-export function isVenueUuid(id: string | null | undefined): id is string {
+export function isUuid(id: string | null | undefined): id is string {
   return Boolean(id && UUID_RE.test(id));
+}
+
+export function isVenueUuid(id: string | null | undefined): id is string {
+  return isUuid(id);
 }
 
 export interface CreateLobbyApiPayload {

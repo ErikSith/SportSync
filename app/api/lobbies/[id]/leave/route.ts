@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isUuid } from '@/lib/lobby-create';
 import { createClient } from '@/lib/supabase/server';
 
 export const runtime = 'edge';
@@ -8,6 +9,10 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  if (!isUuid(params.id)) {
+    return NextResponse.json({ error: 'Lobby not found' }, { status: 404 });
   }
 
   const { data: lobby, error: lobbyError } = await supabase

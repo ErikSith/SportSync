@@ -151,6 +151,7 @@ model Profile {
   groupGearClaims        SportGroupActivityGearClaim[] @relation("GroupGearClaimUser")
   groupRecurringSchedulesCreated SportGroupRecurringSchedule[] @relation("GroupRecurringScheduleCreatedBy")
   groupMessagesAuthored  SportGroupMessage[]     @relation("GroupMessagesAuthored")
+  lobbyMessagesAuthored  LobbyMessage[]          @relation("LobbyMessagesAuthored")
   goals                  UserGoal[]
   eventResults           EventResult[]
   eventReports           EventReport[]
@@ -436,6 +437,7 @@ model Lobby {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   participants LobbyParticipant[]
+  messages     LobbyMessage[]
   /// Reverse side of SportGroupActivity.mercenaryLobbyId — the crew session(s)
   /// that broadcast an "Open to Mercenaries" SOS by linking to this public lobby.
   mercenaryForActivities SportGroupActivity[] @relation("ActivityMercenaryLobby")
@@ -445,6 +447,20 @@ model Lobby {
   @@index([status, sport])
   @@index([latitude, longitude])
   @@map("lobbies")
+}
+
+/// Private match chat for a lobby (host + participants only).
+model LobbyMessage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lobbyId   String   @map("lobby_id") @db.Uuid
+  lobby     Lobby    @relation(fields: [lobbyId], references: [id], onDelete: Cascade)
+  authorId  String   @map("author_id") @db.Uuid
+  author    Profile  @relation("LobbyMessagesAuthored", fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([lobbyId, createdAt(sort: Desc)])
+  @@map("lobby_messages")
 }
 
 /// Join table for Lobby membership. `update_lobby_spots` trigger recomputes

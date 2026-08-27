@@ -9,7 +9,6 @@ import {
   type LobbyCardData,
 } from '@/lib/data/lobbies';
 import { getMyGroups } from '@/lib/data/sport-groups';
-import { MOCK_MATCH_CARDS } from '@/lib/mockLobbyData';
 import { sportDisplayLabel } from '@/lib/constants/sports';
 import type { MatchCardData, SkillLevel } from '@/types/lobby';
 import { LobbyType } from '@/types/lobby';
@@ -126,8 +125,9 @@ export default async function LobbyPage() {
     }
   }
 
-  const initialMatches =
-    dbLobbies.length > 0 ? dbLobbies.map(lobbyToMatchCard) : MOCK_MATCH_CARDS;
+  // Never fall back to mock cards — their IDs are not in `lobbies`, so Join
+  // returns "Lobby not found". Empty feed + Create Lobby is the correct state.
+  const initialMatches = dbLobbies.map(lobbyToMatchCard);
   const myLobbies = myLobbyRows.map(lobbyToMatchCard);
 
   let groups: Awaited<ReturnType<typeof getMyGroups>> = [];

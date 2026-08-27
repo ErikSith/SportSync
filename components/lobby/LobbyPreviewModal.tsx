@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { VenueEventBookingLinks } from '@/components/shared/VenueEventBookingLinks';
 import { LobbyActions } from '@/components/lobby/LobbyActions';
+import { LobbyChat } from '@/components/lobby/LobbyChat';
 import { SportLinearIcon } from '@/components/lobby/SportLinearIcon';
 import {
   sportIconAccent,
@@ -38,10 +39,10 @@ function RosterSlot({
   if (!name) {
     return (
       <div
-        className="flex h-12 w-12 shrink-0 items-center justify-center border border-dashed border-white/25 text-zinc-600"
+        className="flex h-11 w-11 shrink-0 items-center justify-center border border-dashed border-white/25 text-zinc-600"
         aria-hidden
       >
-        <span className="material-symbols-outlined text-[18px]">person_add</span>
+        <span className="material-symbols-outlined text-[16px]">person_add</span>
       </div>
     );
   }
@@ -52,13 +53,13 @@ function RosterSlot({
         <img
           src={image}
           alt={name}
-          className={`h-12 w-12 object-cover ${
+          className={`h-11 w-11 object-cover ${
             isHost ? 'ring-1 ring-secondary' : 'ring-1 ring-[#FF5722]/50'
           }`}
         />
       ) : (
         <div
-          className={`flex h-12 w-12 items-center justify-center bg-[#1a1816] text-[11px] font-semibold text-zinc-200 ${
+          className={`flex h-11 w-11 items-center justify-center bg-[#1a1816] text-[10px] font-semibold text-zinc-200 ${
             isHost ? 'ring-1 ring-secondary' : 'ring-1 ring-[#FF5722]/50'
           }`}
         >
@@ -109,6 +110,7 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
   const sportTint = sportColor(preview.sport, preview.title);
   const sportName = sportDisplayLabel(preview.sport) || sportIconLabel(sportKind);
   const sportAccent = sportIconAccent(sportKind);
+  const canChat = preview.isJoined || preview.isHost;
 
   return createPortal(
     <AnimatePresence>
@@ -144,10 +146,9 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
           >
             <div className="h-px w-full shrink-0 bg-[#FF5722]" aria-hidden />
 
-            <header className="relative shrink-0 overflow-hidden border-b border-white/10 px-4 pb-5 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
-              {/* Soft sport watermark — same linear glyphs as Lobby feed */}
+            <header className="relative shrink-0 overflow-hidden border-b border-white/10 px-4 pb-4 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
               <div
-                className="pointer-events-none absolute -right-6 top-10 select-none opacity-[0.11] sm:-right-4 sm:top-8 sm:opacity-[0.13]"
+                className="pointer-events-none absolute -right-6 top-8 select-none opacity-[0.1]"
                 aria-hidden
               >
                 <SportLinearIcon
@@ -155,19 +156,7 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                   accent={sportAccent}
                   color={sportTint}
                   strokeWidth={1.35}
-                  className="h-40 w-40 rotate-[-12deg] opacity-100 blur-[0.3px] sm:h-44 sm:w-44"
-                />
-              </div>
-              <div
-                className="pointer-events-none absolute -left-8 bottom-2 select-none opacity-[0.05]"
-                aria-hidden
-              >
-                <SportLinearIcon
-                  kind={sportKind}
-                  accent={sportAccent}
-                  color={sportTint}
-                  strokeWidth={1.2}
-                  className="h-28 w-28 rotate-[18deg] opacity-100"
+                  className="h-36 w-36 rotate-[-12deg] opacity-100 blur-[0.3px]"
                 />
               </div>
 
@@ -195,7 +184,7 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                 </button>
               </div>
 
-              <div className="relative z-[1] mt-6 flex items-center justify-center gap-2">
+              <div className="relative z-[1] mt-4 flex items-center justify-center gap-1.5">
                 {heroSlots.map((player, i) => (
                   <RosterSlot
                     key={player?.id ?? `open-${i}`}
@@ -206,12 +195,9 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                 ))}
               </div>
 
-              <div className="relative z-[1] mt-5 space-y-1.5 text-center">
-                <p className="inline-flex max-w-full flex-wrap items-center justify-center gap-x-1.5 gap-y-1 font-label-caps text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-                  <span
-                    className="inline-flex items-center gap-1.5"
-                    title={sportName}
-                  >
+              <div className="relative z-[1] mt-4 space-y-1 text-center">
+                <p className="inline-flex max-w-full flex-wrap items-center justify-center gap-x-1.5 font-label-caps text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                  <span className="inline-flex items-center gap-1.5" title={sportName}>
                     <SportLinearIcon
                       kind={sportKind}
                       accent={sportAccent}
@@ -232,7 +218,7 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                 </p>
                 <h2
                   id={titleId}
-                  className="line-clamp-2 font-headline-md text-[22px] leading-snug text-white"
+                  className="line-clamp-2 font-headline-md text-[20px] leading-snug text-white"
                 >
                   {preview.title}
                 </h2>
@@ -248,27 +234,28 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
               </div>
             </header>
 
-            <div className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden">
+            {/* Info first — no page scroll */}
+            <div className="shrink-0">
               <dl className="divide-y divide-white/10 border-b border-white/10">
-                <div className="flex items-baseline justify-between gap-4 px-4 py-3">
+                <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
                   <dt className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] text-zinc-600">
                     Dátum
                   </dt>
                   <dd className="truncate text-right text-sm text-zinc-200">{preview.dateLabel}</dd>
                 </div>
-                <div className="flex items-baseline justify-between gap-4 px-4 py-3">
+                <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
                   <dt className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] text-zinc-600">
                     Kickoff
                   </dt>
                   <dd className="truncate text-right text-sm text-zinc-200">{preview.timeLabel}</dd>
                 </div>
-                <div className="flex items-baseline justify-between gap-4 px-4 py-3">
+                <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
                   <dt className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] text-zinc-600">
                     Miesto
                   </dt>
                   <dd className="truncate text-right text-sm text-zinc-200">{venueLine}</dd>
                 </div>
-                <div className="flex items-baseline justify-between gap-4 px-4 py-3">
+                <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
                   <dt className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] text-zinc-600">
                     Squad
                   </dt>
@@ -282,7 +269,7 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                 </div>
               </dl>
 
-              <div className="flex items-center gap-px px-4 py-3" aria-hidden>
+              <div className="flex items-center gap-px px-4 py-2.5" aria-hidden>
                 {Array.from({ length: Math.max(preview.spotsTotal, 1) }).map((_, i) => (
                   <div
                     key={i}
@@ -297,26 +284,26 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                 ))}
               </div>
 
-              <div className="space-y-2.5 border-t border-white/10 px-4 py-3">
-                <p className="font-label-caps text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-                  {preview.formatLabel || 'Open match'}
-                  {preview.mercenaryMode ? (
-                    <>
-                      <span className="text-white/15"> · </span>
-                      Merc +1
-                    </>
-                  ) : null}
-                </p>
-                {preview.venueId || preview.websiteUrl ? (
+              {(preview.venueId || preview.websiteUrl) && (
+                <div className="border-t border-white/10 px-4 py-2.5">
                   <VenueEventBookingLinks
                     venueId={preview.venueId}
                     venueName={preview.venueName}
                     websiteUrl={preview.websiteUrl}
                     quiet
                   />
-                ) : null}
-              </div>
+                </div>
+              )}
             </div>
+
+            {/* Compact chat panel — does not dominate the page */}
+            {canChat ? (
+              <div className="min-h-0 flex-1 border-t border-white/10 px-3 pb-1 pt-2">
+                <LobbyChat lobbyId={preview.id} compact />
+              </div>
+            ) : (
+              <div className="min-h-0 flex-1" aria-hidden />
+            )}
 
             <div className="shrink-0 border-t border-white/10 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
               <LobbyActions

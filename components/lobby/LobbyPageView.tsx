@@ -9,7 +9,6 @@ import type { HomeFilterVenue } from '@/lib/data/homepage';
 import type { GroupCardData } from '@/lib/data/sport-groups-shared';
 import { sportDisplayLabel } from '@/lib/data/sport-groups-shared';
 import type { LobbySportKey, MatchCardData } from '@/types/lobby';
-import { MOCK_MATCH_CARDS } from '@/lib/mockLobbyData';
 import {
   filterMatchesBySport,
   LOBBY_SPORT_META,
@@ -41,10 +40,9 @@ function mergeLobbyMatchLists(
   const server = initial ?? [];
   const serverIds = new Set(server.map((match) => match.id));
   const local = created.filter((match) => !serverIds.has(match.id));
-  const base = server.length > 0 ? server : local.length > 0 ? [] : MOCK_MATCH_CARDS;
-  if (local.length === 0) return base;
+  if (local.length === 0) return server;
   const localIds = new Set(local.map((match) => match.id));
-  return [...local, ...base.filter((match) => !localIds.has(match.id))];
+  return [...local, ...server.filter((match) => !localIds.has(match.id))];
 }
 
 export function LobbyPageView({
