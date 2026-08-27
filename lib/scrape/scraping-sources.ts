@@ -214,7 +214,7 @@ export const SCRAPING_SOURCES: ScrapingSource[] = [
   {
     id: 'topliga',
     name: 'Niké Topliga Bratislava',
-    url: 'https://bratislava.topliga.sk/',
+    url: 'https://www.topliga.sk/?leagueId=3',
     category: 'Small Football',
     district: 'Bratislava V',
     borough: 'Petržalka',

@@ -401,13 +401,13 @@ export const VENUE_SEEDS: Array<{
   {
     key: 'topliga-ba',
     name: 'Niké Topliga Bratislava',
-    address: 'Bratislava',
+    address: 'Mladá Garda / Pasienky, Bratislava',
     city: 'Bratislava',
     sports: ['FOOTBALL'],
     latitude: 48.1486,
     longitude: 17.1077,
-    websiteUrl: 'https://bratislava.topliga.sk/',
-    district: 'petrzalka',
+    websiteUrl: 'https://www.topliga.sk/?leagueId=3',
+    district: 'nove-mesto',
   },
   {
     key: 'areal-nevadzova',

@@ -159,7 +159,7 @@ export const SCRAPE_TARGETS: ScrapeTarget[] = [
   {
     id: 'topliga-ba',
     name: 'Niké Topliga Bratislava',
-    url: 'https://bratislava.topliga.sk/',
+    url: 'https://www.topliga.sk/?leagueId=3',
     sport: 'FOOTBALL',
     venueKey: 'topliga-ba',
   },
