@@ -148,9 +148,10 @@ function applyOutcome(
   const prev = file.entries[key];
   const status = classifyOutcome(input);
   const now = new Date().toISOString();
-  const isFailure = status !== 'ok';
-
-  const consecutiveFailures = isFailure ? (prev?.consecutiveFailures ?? 0) + 1 : 0;
+  // Hard failures only — a successful fetch with 0 dated listings (bowling/darts
+  // calendars often quiet) must not permanently skip the adapter.
+  const isHardFailure = status === 'error' || status === 'timeout';
+  const consecutiveFailures = isHardFailure ? (prev?.consecutiveFailures ?? 0) + 1 : 0;
   const skipped = consecutiveFailures >= FAILURE_SKIP_THRESHOLD;
   const skipReason = skipped
     ? `${FAILURE_SKIP_THRESHOLD}+ consecutive failures (${status})`
@@ -162,13 +163,13 @@ function applyOutcome(
     adapterId: input.adapterId ?? prev?.adapterId ?? null,
     name: input.name ?? prev?.name ?? null,
     consecutiveFailures,
-    totalFailures: (prev?.totalFailures ?? 0) + (isFailure ? 1 : 0),
-    totalSuccesses: (prev?.totalSuccesses ?? 0) + (isFailure ? 0 : 1),
+    totalFailures: (prev?.totalFailures ?? 0) + (isHardFailure ? 1 : 0),
+    totalSuccesses: (prev?.totalSuccesses ?? 0) + (isHardFailure ? 0 : 1),
     lastStatus: status,
     lastError: input.error?.trim() || null,
     lastEventCount: input.eventCount,
     lastCheckedAt: now,
-    lastSuccessAt: isFailure ? (prev?.lastSuccessAt ?? null) : now,
+    lastSuccessAt: isHardFailure ? (prev?.lastSuccessAt ?? null) : now,
     skipped,
     skipReason,
   };

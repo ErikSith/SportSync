@@ -1,49 +1,164 @@
 import * as cheerio from 'cheerio';
 import { resolveSportType } from '@/lib/ai/theme-config';
 import { detectEventSport } from '@/lib/constants/sports';
+import { bratislavaWeekDates } from '@/lib/scrape/adapters/_weekly-schedule';
 import {
   errResult,
   fetchHtml,
-  MAX_LOOP_ITERATIONS,
-  okResult,
   parseSlovakDate,
   parseTimeOnDate,
   slugify,
   truncateHtmlForParse,
+  upcomingOnly,
 } from '@/lib/scrape/fetch';
 import type { AdapterResult, NormalizedScrapedEvent } from '@/lib/scrape/types';
 
 const CALENDAR_URL = 'https://fitcamp.formfactory.sk/calendar';
 const EVENTY_URL = 'https://www.formfactory.sk/eventy/';
 
-/** Time range + class name chunks inside a day cell */
-const CLASS_CHUNK =
-  /(\d{1,2}[:.]\d{2})\s*[-–]\s*(\d{1,2}[:.]\d{2})\s+(.+?)(?=(?:\d{1,2}[:.]\d{2}\s*[-–])|$)/g;
-
-const STUDIO_SUFFIX =
-  /\s+(Sála|Sala|Gym|Floor|Spinning|Studio|FC|Box|Outdoor|Vonku)\s*$/i;
-
 export async function scrapeFormFactory(): Promise<AdapterResult> {
   try {
-    const [marketing, classes] = await Promise.all([
+    const [marketingRaw, classes] = await Promise.all([
       scrapeFormFactoryEventy(),
       scrapeFitCampCalendar(),
     ]);
+    // Keep the full published FitCamp week (incl. this morning) so rozpis matches the site.
+    // Marketing one-offs can drop already-finished listings.
+    const marketing = upcomingOnly(marketingRaw);
     const merged = dedupeByExternalId([...marketing, ...classes]);
-    return okResult('form-factory', merged.slice(0, 80));
+    return { source: 'form-factory', events: merged.slice(0, 120) };
   } catch (error) {
     return errResult('form-factory', error);
   }
 }
 
+/**
+ * FitCamp rozvrh is a weekly HTML table of `.event` cards (meta:id, time, name, room).
+ * Prefer structured DOM over regex on flattened cell text — that mixed days/rooms.
+ */
 async function scrapeFitCampCalendar(): Promise<NormalizedScrapedEvent[]> {
   const html = await fetchHtml(CALENDAR_URL);
+  // Week grid is ~65–80KB; default truncate cap is enough.
   const $ = cheerio.load(truncateHtmlForParse(html));
   const events: NormalizedScrapedEvent[] = [];
   const seen = new Set<string>();
-  const monday = startOfWeekMonday(new Date());
 
-  // Header row = day names; each following row has Mon…Sun cells with class lists
+  const dayDates = resolveFitCampWeekDates($);
+  const dataRows = $('table tr').toArray().slice(1);
+
+  for (const row of dataRows) {
+    const cells = $(row).find('td, th');
+    if (cells.length < 5) continue;
+
+    cells.each((dayIdx, cell) => {
+      if (dayIdx > 6) return;
+      const day = dayDates[dayIdx];
+      if (!day) return;
+
+      $(cell)
+        .find('.event')
+        .each((_, el) => {
+          const parsed = parseFitCampEventCard($, el, day);
+          if (!parsed) return;
+          if (seen.has(parsed.externalId)) return;
+          seen.add(parsed.externalId);
+          events.push(parsed);
+        });
+    });
+  }
+
+  // Fallback if CMS markup changes and `.event` cards disappear
+  if (events.length === 0) {
+    console.warn('[scrape.form-factory] no .event cards — falling back to cell text parse');
+    return scrapeFitCampCalendarTextFallback($, dayDates);
+  }
+
+  return events;
+}
+
+type CheerioRoot = ReturnType<typeof cheerio.load>;
+
+function resolveFitCampWeekDates($: CheerioRoot): Array<Date | null> {
+  const fromLinks: Array<Date | null> = [];
+  $('.scheduler-go-to-day').each((_, el) => {
+    const raw = ($(el).attr('meta:date') ?? $(el).text()).replace(/\s+/g, ' ').trim();
+    const parsed = parseSlovakDate(raw);
+    if (parsed) fromLinks.push(parsed);
+  });
+  if (fromLinks.length >= 7) return fromLinks.slice(0, 7);
+  return bratislavaWeekDates(new Date(), 0);
+}
+
+function parseFitCampEventCard(
+  $: CheerioRoot,
+  el: unknown,
+  day: Date,
+): NormalizedScrapedEvent | null {
+  const $el = $(el as never);
+  const metaId = ($el.attr('meta:id') ?? '').trim();
+  const timeRaw = $el.find('.eventlength').first().text().replace(/\s+/g, ' ').trim();
+  const title = $el.find('.event_name').first().text().replace(/\s+/g, ' ').trim();
+  const room = $el.find('.room').first().text().replace(/\s+/g, ' ').trim();
+  const instructor = $el.find('.instructor').first().text().replace(/\s+/g, ' ').trim();
+  const isReplacement = /n[aá]hrada/i.test(
+    $el.find('.event_kind, .replacement-bar').text(),
+  );
+
+  if (!title || title.length < 2) return null;
+
+  const timeMatch = timeRaw.match(
+    /(\d{1,2})[:.](\d{2})\s*[-–]\s*(\d{1,2})[:.](\d{2})/,
+  );
+  if (!timeMatch) return null;
+
+  const startTime = `${timeMatch[1]}:${timeMatch[2]}`;
+  const endTime = `${timeMatch[3]}:${timeMatch[4]}`;
+  const startsAt = parseTimeOnDate(day, startTime);
+
+  const externalId = metaId
+    ? `ff-class-${metaId}`
+    : `class-${startsAt.toISOString()}-${slugify(title)}-${slugify(room || 'room')}`;
+
+  const sport = detectEventSport(title, 'FITNESS');
+  const bits = [
+    `Skupinové cvičenie Form Factory FitCamp — ${title}`,
+    `${startTime}–${endTime}`,
+    room ? `miestnosť: ${room}` : null,
+    instructor ? `inštruktor: ${instructor}` : null,
+    isReplacement ? 'Náhrada' : null,
+    'Rezervuj si miesto na fitcamp.formfactory.sk.',
+  ].filter(Boolean);
+
+  return {
+    source: 'form-factory',
+    externalId,
+    title,
+    sport,
+    sportType: resolveSportType(sport),
+    category: 'fitness',
+    participationMode: 'participate',
+    startsAt,
+    city: 'Bratislava',
+    venueKey: 'form-factory-fitcamp',
+    locationName: room || 'Form Factory FitCamp',
+    description: bits.join(' · '),
+    sourceUrl: CALENDAR_URL,
+    ticketUrl: metaId
+      ? `${CALENDAR_URL}?schiid=${encodeURIComponent(metaId)}`
+      : CALENDAR_URL,
+  };
+}
+
+/** Legacy regex path — only if structured cards are missing. */
+function scrapeFitCampCalendarTextFallback(
+  $: CheerioRoot,
+  dayDates: Array<Date | null>,
+): NormalizedScrapedEvent[] {
+  const CLASS_CHUNK =
+    /(\d{1,2}[:.]\d{2})\s*[-–]\s*(\d{1,2}[:.]\d{2})\s+(.+?)(?=(?:\d{1,2}[:.]\d{2}\s*[-–])|$)/g;
+  const events: NormalizedScrapedEvent[] = [];
+  const seen = new Set<string>();
+
   $('table tr').each((rowIdx, row) => {
     if (rowIdx === 0) return;
     const cells = $(row).find('td, th');
@@ -51,32 +166,22 @@ async function scrapeFitCampCalendar(): Promise<NormalizedScrapedEvent[]> {
 
     cells.each((dayIdx, cell) => {
       if (dayIdx > 6) return;
+      const day = dayDates[dayIdx];
+      if (!day) return;
       const cellText = $(cell).text().replace(/\s+/g, ' ').trim();
       if (!cellText || cellText.length < 8) return;
 
-      const day = new Date(monday);
-      day.setUTCDate(monday.getUTCDate() + dayIdx);
-
-      let match: RegExpExecArray | null;
       CLASS_CHUNK.lastIndex = 0;
-      let chunkPasses = 0;
+      let match: RegExpExecArray | null;
       while ((match = CLASS_CHUNK.exec(cellText)) !== null) {
-        if (++chunkPasses > MAX_LOOP_ITERATIONS) {
-          console.warn('[scrape.form-factory] CLASS_CHUNK loop safety break');
-          break;
-        }
         const startRaw = match[1];
         const nameRaw = match[3];
         if (!startRaw || !nameRaw) continue;
-        const startTime = startRaw.replace('.', ':');
         const rawName = cleanClassName(nameRaw);
         if (!rawName || rawName.length < 2) continue;
         if (/^n[aá]hrada$/i.test(rawName)) continue;
 
-        const startsAt = parseTimeOnDate(day, startTime);
-        if (startsAt.getTime() < Date.now() - 3600000) continue;
-        if (startsAt.getTime() > Date.now() + 8 * 86400000) continue;
-
+        const startsAt = parseTimeOnDate(day, startRaw.replace('.', ':'));
         const externalId = `class-${startsAt.toISOString()}-${slugify(rawName)}`;
         if (seen.has(externalId)) continue;
         seen.add(externalId);
@@ -93,7 +198,7 @@ async function scrapeFitCampCalendar(): Promise<NormalizedScrapedEvent[]> {
           startsAt,
           city: 'Bratislava',
           venueKey: 'form-factory-fitcamp',
-          description: `Skupinové cvičenie Form Factory FitCamp — ${rawName}. Rezervuj si miesto a zúčastni sa.`,
+          description: `Skupinové cvičenie Form Factory FitCamp — ${rawName}.`,
           sourceUrl: CALENDAR_URL,
           ticketUrl: CALENDAR_URL,
         });
@@ -363,6 +468,9 @@ function inferParticipationMode(title: string, description: string): 'participat
   return 'participate';
 }
 
+const STUDIO_SUFFIX =
+  /\s+(Sála|Sala|Gym|Floor|Spinning|Studio|FC|Box|Outdoor|Vonku|Dráha|Terasa)\s*$/i;
+
 function cleanClassName(raw: string): string {
   return raw
     .replace(/™/g, '')
@@ -379,14 +487,6 @@ function absoluteUrl(href: string): string {
   } catch {
     return href;
   }
-}
-
-function startOfWeekMonday(d: Date): Date {
-  const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const day = x.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  x.setUTCDate(x.getUTCDate() + diff);
-  return x;
 }
 
 function dedupeByExternalId(events: NormalizedScrapedEvent[]): NormalizedScrapedEvent[] {

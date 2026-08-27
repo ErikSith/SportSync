@@ -106,7 +106,7 @@ export async function scrapeCitylife(): Promise<AdapterResult> {
       }
     }
 
-    return okResult('citylife', events.slice(0, 80));
+    return okResult('citylife', events.slice(0, 80), 'from-today');
   } catch (error) {
     return errResult('citylife', error);
   }

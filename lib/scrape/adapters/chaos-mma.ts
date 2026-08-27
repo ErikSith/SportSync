@@ -1,14 +1,15 @@
-import { scrapeTextListing } from '@/lib/scrape/adapters/_text-listing';
 import type { AdapterResult } from '@/lib/scrape/types';
-import { canonicalScrapeSport } from '@/lib/scrape/sources';
 
+/**
+ * Chaos MMA Bratislava currently has no trustworthy public HTML rozvrh
+ * (chaosgym.sk is unreachable / schedule lives on Instagram).
+ * Returning empty+error is intentional — never invent classes from dead URLs.
+ */
 export async function scrapeChaosMma(): Promise<AdapterResult> {
-  return scrapeTextListing({
+  return {
     source: 'chaos-mma',
-    sport: canonicalScrapeSport('MARTIAL_ARTS'),
-    venueKey: 'chaos-mma',
-    urls: ['https://www.chaosgym.sk/', 'https://www.chaosgym.sk/rozvrh/', 'https://www.chaosgym.sk/novinky/'],
-    defaultCategory: 'fitness',
-    participationMode: 'participate',
-  });
+    events: [],
+    error:
+      'No public Chaos MMA rozvrh URL — schedule is not on a scrapable site (do not use chaosgym.sk stubs)',
+  };
 }

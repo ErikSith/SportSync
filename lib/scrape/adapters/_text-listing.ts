@@ -37,8 +37,10 @@ export interface TextListingConfig {
 }
 
 /**
- * Specialized-enough text extractor used by Bratislava venue adapters.
+ * Dated listing extractor for news / tournament / event pages.
+ * NOT for weekly studio rozvrh grids — use `_weekly-schedule.ts` instead.
  * Collects Event JSON-LD + dated headings/links. Never reads img / og:image.
+ * Always retains `upcoming` only (one-off dated listings).
  */
 export async function scrapeTextListing(config: TextListingConfig): Promise<AdapterResult> {
   try {

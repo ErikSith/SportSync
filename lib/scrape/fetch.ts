@@ -3,6 +3,7 @@ import { SCRAPE_ETHICS } from '@/lib/scrape/ethics';
 import {
   getZonedParts,
   SCRAPE_DEFAULT_LOCAL_HOUR,
+  startOfAppDay,
   zonedLocalDateTime,
 } from '@/lib/datetime/bratislava';
 
@@ -270,7 +271,27 @@ export function upcomingOnly(events: NormalizedScrapedEvent[]): NormalizedScrape
   return events.filter((e) => e.startsAt.getTime() >= now);
 }
 
-export function okResult(source: AdapterResult['source'], events: NormalizedScrapedEvent[]): AdapterResult {
+/** Keep everything from start of today (Bratislava) — for dense same-day schedules. */
+export function fromTodayOnward(events: NormalizedScrapedEvent[]): NormalizedScrapedEvent[] {
+  const start = startOfAppDay().getTime();
+  return events.filter((e) => e.startsAt.getTime() >= start);
+}
+
+export type OkResultRetain = 'upcoming' | 'from-today' | 'all';
+
+/**
+ * Wrap adapter success.
+ * - `upcoming` (default): drop slots older than ~1h — for one-off matches/events
+ * - `from-today`: keep whole Bratislava calendar day — for studio rozvrh cards
+ * - `all`: keep every parsed slot (published week grids)
+ */
+export function okResult(
+  source: AdapterResult['source'],
+  events: NormalizedScrapedEvent[],
+  retain: OkResultRetain = 'upcoming',
+): AdapterResult {
+  if (retain === 'all') return { source, events };
+  if (retain === 'from-today') return { source, events: fromTodayOnward(events) };
   return { source, events: upcomingOnly(events) };
 }
 

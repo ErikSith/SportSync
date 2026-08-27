@@ -114,32 +114,61 @@ export async function ensureVenuesPg(): Promise<Map<string, string>> {
     const map = new Map<string, string>();
 
     for (const seed of VENUE_SEEDS) {
-      const existing = await client.query<{ id: string }>(
-        `select id from venues where city = $1 and name ilike $2 limit 1`,
+      const byName = await client.query<{ id: string }>(
+        `select id from venues
+         where city = $1 and name ilike $2
+         order by created_at asc
+         limit 1`,
         [seed.city, seed.name],
       );
 
-      if (existing.rows[0]?.id) {
+      let existingId = byName.rows[0]?.id ?? null;
+
+      if (!existingId && seed.address && seed.address !== seed.city) {
+        const byAddress = await client.query<{ id: string }>(
+          `select id from venues
+           where city = $1 and address ilike $2
+           order by created_at asc
+           limit 1`,
+          [seed.city, seed.address],
+        );
+        existingId = byAddress.rows[0]?.id ?? null;
+      }
+
+      if (!existingId) {
+        const byWebsiteName = await client.query<{ id: string }>(
+          `select id from venues
+           where city = $1 and website_url = $2 and name ilike $3
+           order by created_at asc
+           limit 1`,
+          [seed.city, seed.websiteUrl, seed.name],
+        );
+        existingId = byWebsiteName.rows[0]?.id ?? null;
+      }
+
+      if (existingId) {
         await client.query(
           `update venues set
-             website_url = $1,
-             latitude = $2,
-             longitude = $3,
-             address = $4,
-             sports = $5,
-             district = coalesce($6, district)
-           where id = $7::uuid`,
+             name = $1,
+             website_url = $2,
+             latitude = $3,
+             longitude = $4,
+             address = $5,
+             sports = $6,
+             district = coalesce($7, district)
+           where id = $8::uuid`,
           [
+            seed.name,
             seed.websiteUrl,
             seed.latitude,
             seed.longitude,
             seed.address,
             seed.sports,
             seed.district ?? null,
-            existing.rows[0].id,
+            existingId,
           ],
         );
-        map.set(seed.key, existing.rows[0].id);
+        map.set(seed.key, existingId);
         continue;
       }
 

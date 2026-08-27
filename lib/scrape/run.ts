@@ -85,17 +85,49 @@ async function ensureVenues(): Promise<Map<string, string>> {
   const map = new Map<string, string>();
 
   for (const seed of VENUE_SEEDS) {
-    const { data: existing } = await supabase
+    // Identity order: city+name → city+address → city+website+name.
+    // Never match on website_url alone (shared Form Factory / padel domains).
+    const { data: byName } = await supabase
       .from('venues')
       .select('id')
       .eq('city', seed.city)
       .ilike('name', seed.name)
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
+
+    const { data: byAddress } =
+      byName?.id || !seed.address || seed.address === seed.city
+        ? { data: null }
+        : await supabase
+            .from('venues')
+            .select('id')
+            .eq('city', seed.city)
+            .ilike('address', seed.address)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+    const { data: byWebsiteName } =
+      byName?.id || byAddress?.id
+        ? { data: null }
+        : await supabase
+            .from('venues')
+            .select('id')
+            .eq('city', seed.city)
+            .eq('website_url', seed.websiteUrl)
+            .ilike('name', seed.name)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+    const existing = byName ?? byAddress ?? byWebsiteName;
 
     if (existing?.id) {
       await supabase
         .from('venues')
         .update({
+          name: seed.name,
           website_url: seed.websiteUrl,
           latitude: seed.latitude,
           longitude: seed.longitude,
@@ -173,6 +205,93 @@ async function syncVenueBorough(
   if (!districtSlug) return;
   const supabase = createAdminClient();
   await supabase.from('venues').update({ district: districtSlug }).eq('id', venueId);
+}
+
+/**
+ * After a weekly studio calendar scrape, drop leftover slots for that week that
+ * are no longer on the site (wrong day / legacy ids / cancelled classes).
+ */
+async function pruneStaleScheduleClasses(
+  events: NormalizedScrapedEvent[],
+  opts: {
+    source: string;
+    sourceUrlIncludes: string;
+    idPrefix: string;
+    minFresh: number;
+  },
+): Promise<number> {
+  const fresh = events.filter(
+    (e) =>
+      e.source === opts.source &&
+      Boolean(e.sourceUrl?.includes(opts.sourceUrlIncludes)) &&
+      e.externalId.startsWith(`${opts.idPrefix}-class-`),
+  );
+  if (fresh.length < opts.minFresh) {
+    console.warn(
+      `[scrape.pruneSchedule] skip ${opts.source} — only ${fresh.length} ${opts.idPrefix}-class slots (need ≥${opts.minFresh})`,
+    );
+    return 0;
+  }
+
+  const times = fresh.map((e) => e.startsAt.getTime());
+  const minIso = new Date(Math.min(...times) - 12 * 3600_000).toISOString();
+  const maxIso = new Date(Math.max(...times) + 36 * 3600_000).toISOString();
+  const keep = new Set(fresh.map((e) => e.externalId));
+
+  const supabase = createAdminClient();
+  const { data: rows, error } = await supabase
+    .from('events')
+    .select('id, external_id')
+    .eq('source', opts.source)
+    .ilike('source_url', `%${opts.sourceUrlIncludes}%`)
+    .gte('starts_at', minIso)
+    .lte('starts_at', maxIso);
+
+  if (error || !rows?.length) return 0;
+
+  const staleIds = rows
+    .filter((row) => row.external_id && !keep.has(row.external_id))
+    .map((row) => row.id as string);
+
+  if (staleIds.length === 0) return 0;
+
+  const { error: delError } = await supabase.from('events').delete().in('id', staleIds);
+  if (delError) {
+    console.warn('[scrape.pruneSchedule]', opts.source, delError.message);
+    return 0;
+  }
+  return staleIds.length;
+}
+
+async function pruneStaleFitCampClasses(
+  events: NormalizedScrapedEvent[],
+): Promise<number> {
+  return pruneStaleScheduleClasses(events, {
+    source: 'form-factory',
+    sourceUrlIncludes: 'fitcamp.formfactory.sk/calendar',
+    idPrefix: 'ff',
+    minFresh: 40,
+  });
+}
+
+async function pruneStaleWeeklyAdapters(
+  events: NormalizedScrapedEvent[],
+): Promise<number> {
+  let total = 0;
+  total += await pruneStaleFitCampClasses(events);
+  total += await pruneStaleScheduleClasses(events, {
+    source: 'ofa-mma',
+    sourceUrlIncludes: 'ofa-gym.sk',
+    idPrefix: 'ofa',
+    minFresh: 8,
+  });
+  total += await pruneStaleScheduleClasses(events, {
+    source: 'prostor',
+    sourceUrlIncludes: 'crossfitproton.sk',
+    idPrefix: 'proton',
+    minFresh: 20,
+  });
+  return total;
 }
 
 async function coverForEvent(
@@ -543,6 +662,18 @@ async function persistAdapterResults(results: AdapterResult[]): Promise<ScrapeRu
   const tournamentStats = await upsertTournaments(tournamentItems, venueIds);
 
   try {
+    const pruned = await pruneStaleWeeklyAdapters(eventItems);
+    if (pruned > 0) {
+      console.log('[scrape] pruned stale weekly schedule classes', pruned);
+    }
+  } catch (err) {
+    console.warn(
+      '[scrape] weekly schedule prune failed:',
+      err instanceof Error ? err.message : err,
+    );
+  }
+
+  try {
     const dedupe = await cleanupDuplicateEventsByIdentity();
     if (dedupe.deleted > 0) {
       console.log('[scrape] removed duplicate events', dedupe);
@@ -618,6 +749,22 @@ export async function runAllScrapers(): Promise<ScrapeRunReport> {
     );
   }
   const results = await runScrapersSequentially();
+  return persistAdapterResults(results);
+}
+
+/** Node-only: run a subset of adapters then upsert (local rescrape / ops). */
+export async function runNamedScrapers(ids: ScrapeAdapterId[]): Promise<ScrapeRunReport> {
+  if (isEdgeScrapeRuntime()) {
+    throw new Error(
+      'runNamedScrapers is Node-only. Cloudflare Edge must call runScrapeAdapterShard().',
+    );
+  }
+  const results: AdapterResult[] = [];
+  for (const id of ids) {
+    const result = await executeNamedAdapter(id);
+    await recordAdapterResult(result);
+    results.push(result);
+  }
   return persistAdapterResults(results);
 }
 
