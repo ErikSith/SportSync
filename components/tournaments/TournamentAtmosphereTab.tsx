@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { MapPin } from 'lucide-react';
 import type { TournamentCardData } from '@/lib/data/tournaments';
 import { tournamentParticipationMode } from '@/lib/tournament-participation';
@@ -66,7 +65,7 @@ interface TournamentAtmosphereTabProps {
 
 export function TournamentAtmosphereTab({
   tournament,
-  index = 0,
+  index: _index = 0,
 }: TournamentAtmosphereTabProps) {
   const t = useT();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -92,10 +91,7 @@ export function TournamentAtmosphereTab({
 
   return (
     <>
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 420, damping: 30, delay: Math.min(index, 8) * 0.03 }}
+      <div
         className={`w-full ${TOURNAMENT_TAB_H}`}
         data-tournament-atmosphere-tab
       >
@@ -193,7 +189,7 @@ export function TournamentAtmosphereTab({
             </div>
           </div>
         </button>
-      </motion.div>
+      </div>
 
       <TournamentPreviewModal
         tournament={tournament}

@@ -313,3 +313,14 @@ body {
   color: #ffffff !important;
   background: rgba(255, 87, 34, 0.25);
 }
+
+/* Feed cards must stay visible when motion is reduced (Cursor browser, a11y). */
+@media (prefers-reduced-motion: reduce) {
+  [data-tournament-atmosphere-tab],
+  [data-event-atmosphere-tab],
+  [data-coming-up-tab],
+  [data-grouped-venue-schedule] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

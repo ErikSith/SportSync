@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { MapPin } from 'lucide-react';
 import type { EventCardData } from '@/lib/data/events';
 import { isFormFactoryListing } from '@/lib/media/listing-cover';
@@ -48,7 +47,7 @@ interface EventAtmosphereTabProps {
 
 export function EventAtmosphereTab({
   event,
-  index = 0,
+  index: _index = 0,
   layout = 'rail',
 }: EventAtmosphereTabProps) {
   const t = useT();
@@ -67,10 +66,7 @@ export function EventAtmosphereTab({
 
   return (
     <>
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 420, damping: 30, delay: Math.min(index, 8) * 0.03 }}
+      <div
         className={sizeClass}
         data-coming-up-tab
         data-event-atmosphere-tab
@@ -133,7 +129,7 @@ export function EventAtmosphereTab({
             </div>
           </div>
         </button>
-      </motion.div>
+      </div>
 
       <EventPreviewModal
         event={event}
