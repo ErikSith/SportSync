@@ -6,7 +6,7 @@ import { getPageViewer } from '@/lib/auth/viewer';
 import { getVenuesForHomeFilter } from '@/lib/data/homepage';
 import { getVenuesForArea } from '@/lib/data/area-feed';
 import { VenueCard } from '@/components/venues/VenueCard';
-import { VenueFilterChips } from '@/components/venues/VenueFilterChips';
+import { EventFiltersBar } from '@/components/events/EventFiltersBar';
 import { VenueDiscoveryMapClient } from '@/components/venues/VenueDiscoveryMapClient';
 import { LocationPrompt } from '@/components/home/LocationPrompt';
 import { PageTitleRow } from '@/components/shared/PageTitleRow';
@@ -101,7 +101,10 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
             <Suspense
               fallback={<div className="h-14 rounded-xl bg-surface-container-high animate-pulse" />}
             >
-              <VenueFilterChips
+              <EventFiltersBar
+                panels={['where', 'sport']}
+                showAudience={false}
+                showMode={false}
                 selectedSports={feedFilters.sports}
               />
             </Suspense>

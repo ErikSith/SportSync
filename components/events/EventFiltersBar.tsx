@@ -35,14 +35,20 @@ import {
   type EventDateRange,
 } from '@/lib/event-date-filter';
 
+type FilterPanelId = 'when' | 'where' | 'sport';
+
 interface EventFiltersBarProps {
-  mode: ParticipationMode;
-  typeFilter: EventType | 'ALL';
+  mode?: ParticipationMode;
+  typeFilter?: EventType | 'ALL';
   selectedSports?: string[];
   eventDayKeys?: string[];
+  /** Which filter tabs to show. Default: all three (events page). Venues: where + sport only. */
+  panels?: FilterPanelId[];
+  showAudience?: boolean;
+  showMode?: boolean;
 }
 
-type FilterPanel = 'when' | 'where' | 'sport' | null;
+type FilterPanel = FilterPanelId | null;
 
 const DATE_PRESETS: Array<{ key: Exclude<DatePreset, 'all' | 'custom'>; label: string }> = [
   { key: 'today', label: 'Dnes' },
@@ -70,10 +76,13 @@ function whereSummary(area: FeedAreaId): string {
 }
 
 export function EventFiltersBar({
-  mode,
-  typeFilter: _typeFilter,
+  mode = 'participate',
+  typeFilter: _typeFilter = 'ALL',
   selectedSports = [],
   eventDayKeys = [],
+  panels = ['when', 'where', 'sport'],
+  showAudience = true,
+  showMode = true,
 }: EventFiltersBarProps) {
   const t = useT();
   const router = useRouter();
@@ -244,7 +253,8 @@ export function EventFiltersBar({
     setCalendarOpen(false);
   };
 
-  const togglePanel = (panel: Exclude<FilterPanel, null>) => {
+  const togglePanel = (panel: FilterPanelId) => {
+    if (!panels.includes(panel)) return;
     setOpenPanel((current) => {
       const next = current === panel ? null : panel;
       if (next !== 'when') setCalendarOpen(false);
@@ -284,6 +294,17 @@ export function EventFiltersBar({
   const areaSummary = whereSummary(area);
   const areaActive = area !== 'bratislava';
 
+  const panelDefs: Array<{ id: FilterPanelId; label: string; filtered: boolean }> = [];
+  if (panels.includes('when')) {
+    panelDefs.push({ id: 'when', label: whenSummary, filtered: dateActive });
+  }
+  if (panels.includes('where')) {
+    panelDefs.push({ id: 'where', label: areaSummary, filtered: areaActive });
+  }
+  if (panels.includes('sport')) {
+    panelDefs.push({ id: 'sport', label: sportSummary, filtered: !allSportsActive });
+  }
+
   const chip =
     'inline-flex shrink-0 items-center rounded-xl border px-3 py-2 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 active:scale-[0.98] whitespace-nowrap';
   const chipIdle =
@@ -293,7 +314,7 @@ export function EventFiltersBar({
     'flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain hide-scrollbar touch-pan-x';
 
   const archTab = (opts: {
-    id: Exclude<FilterPanel, null>;
+    id: FilterPanelId;
     label: string;
     filtered: boolean;
   }) => {
@@ -326,34 +347,32 @@ export function EventFiltersBar({
     );
   };
 
+  const gridCols =
+    panelDefs.length === 2 ? 'grid-cols-2' : panelDefs.length === 1 ? 'grid-cols-1' : 'grid-cols-3';
+
   return (
     <div className="flex w-full min-w-0 flex-col gap-2.5" data-event-filters-bar="v9-where-tab">
-      {/* 3 summary tabs — when + where + sports */}
       <div
-        className="grid min-w-0 grid-cols-3 items-stretch gap-0 rounded-2xl border border-white/10 bg-transparent p-1 transition-colors duration-200"
+        className={`grid min-w-0 ${gridCols} items-stretch gap-0 rounded-2xl border border-white/10 bg-transparent p-1 transition-colors duration-200`}
         role="toolbar"
         aria-label="Filtre"
       >
-        {archTab({ id: 'when', label: whenSummary, filtered: dateActive })}
-        <div className="relative min-w-0">
-          <span
-            className="pointer-events-none absolute inset-y-1.5 left-0 w-px bg-white/10"
-            aria-hidden
-          />
-          {archTab({ id: 'where', label: areaSummary, filtered: areaActive })}
-        </div>
-        <div className="relative min-w-0">
-          <span
-            className="pointer-events-none absolute inset-y-1.5 left-0 w-px bg-white/10"
-            aria-hidden
-          />
-          {archTab({ id: 'sport', label: sportSummary, filtered: !allSportsActive })}
-        </div>
+        {panelDefs.map((panel, index) => (
+          <div key={panel.id} className="relative min-w-0">
+            {index > 0 ? (
+              <span
+                className="pointer-events-none absolute inset-y-1.5 left-0 w-px bg-white/10"
+                aria-hidden
+              />
+            ) : null}
+            {archTab(panel)}
+          </div>
+        ))}
       </div>
 
       {/* Rollup — list-item surface */}
       <AnimatePresence initial={false} mode="wait">
-        {openPanel ? (
+        {openPanel && panels.includes(openPanel) ? (
           <motion.div
             key={openPanel}
             id={`filter-panel-${openPanel}`}
@@ -611,11 +630,9 @@ export function EventFiltersBar({
         ) : null}
       </AnimatePresence>
 
-      {/*
-        Mobile: stack — audience scrolls horizontally, mode is a full-width 50/50 control.
-        md+: side-by-side without wrapping over each other.
-      */}
+      {showAudience || showMode ? (
       <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-2">
+        {showAudience ? (
         <div
           className={`grid min-w-0 w-full grid-cols-3 items-stretch gap-0 rounded-2xl border border-white/10 bg-transparent p-1 md:max-w-[min(100%,22rem)] md:flex-1 ${
             modePending ? 'opacity-70' : ''
@@ -650,7 +667,9 @@ export function EventFiltersBar({
             );
           })}
         </div>
+        ) : null}
 
+        {showMode ? (
         <div
           className={`grid w-full min-w-0 grid-cols-2 items-stretch gap-0.5 rounded-2xl border border-white/10 bg-transparent p-1 transition-colors duration-200 md:w-auto md:shrink-0 ${
             modePending ? 'opacity-70' : ''
@@ -688,7 +707,9 @@ export function EventFiltersBar({
             {t('common.watch')}
           </button>
         </div>
+        ) : null}
       </div>
+      ) : null}
     </div>
   );
 }
