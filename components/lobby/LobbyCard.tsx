@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { LobbyCardData } from '@/lib/data/lobbies';
+import { VerifiedAvatarBadge } from '@/components/profile/VerifiedBadge';
 import { formatLobbyLabel } from '@/lib/constants/lobbies';
 import { lobbyTierLabel } from '@/lib/utils/lobby';
 import { useT } from '@/components/i18n/LocaleProvider';
@@ -73,18 +74,22 @@ function AvatarStack({
       {lobby.participants.slice(0, 4).map((p) =>
         p.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={p.id}
-            className={`${dim} rounded-full border-2 border-zinc-950 object-cover`}
-            src={p.avatarUrl}
-            alt={p.name}
-          />
+          <div key={p.id} className="relative">
+            <img
+              className={`${dim} rounded-full border-2 border-zinc-950 object-cover`}
+              src={p.avatarUrl}
+              alt={p.name}
+            />
+            <VerifiedAvatarBadge verified={p.isVerified} />
+          </div>
         ) : (
-          <div
-            key={p.id}
-            className={`${dim} rounded-full border-2 border-zinc-950 bg-zinc-800 flex items-center justify-center font-label-caps text-on-surface`}
-          >
-            {p.name.slice(0, 2).toUpperCase()}
+          <div key={p.id} className="relative">
+            <div
+              className={`${dim} rounded-full border-2 border-zinc-950 bg-zinc-800 flex items-center justify-center font-label-caps text-on-surface`}
+            >
+              {p.name.slice(0, 2).toUpperCase()}
+            </div>
+            <VerifiedAvatarBadge verified={p.isVerified} />
           </div>
         ),
       )}

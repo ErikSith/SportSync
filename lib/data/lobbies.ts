@@ -9,6 +9,7 @@ export interface LobbyParticipantPreview {
   id: string;
   name: string;
   avatarUrl: string | null;
+  isVerified?: boolean;
 }
 
 export type LobbyTypeCode = 'NEED_PLAYER' | 'TEAM_CHALLENGE' | 'RECURRING';
@@ -60,6 +61,8 @@ interface ProfileSnippet {
   full_name: string | null;
   username: string;
   avatar_url: string | null;
+  is_email_verified?: boolean | null;
+  is_phone_verified?: boolean | null;
 }
 
 interface LobbyRow {
@@ -118,13 +121,17 @@ export { resolveTier as lobbyTierLabel };
 
 const LOBBY_CARD_SELECT = `
   *,
-  profiles!lobbies_host_id_fkey ( id, full_name, username, avatar_url ),
+  profiles!lobbies_host_id_fkey ( id, full_name, username, avatar_url, is_email_verified, is_phone_verified ),
   venues ( name, website_url ),
   lobby_participants (
     user_id,
-    profiles ( id, full_name, username, avatar_url )
+    profiles ( id, full_name, username, avatar_url, is_email_verified, is_phone_verified )
   )
 `;
+
+function profileIsVerified(profile: ProfileSnippet | null | undefined): boolean {
+  return Boolean(profile?.is_email_verified);
+}
 
 function mapLobbyRowToCard(
   lobby: LobbyRow,
@@ -166,6 +173,7 @@ function mapLobbyRowToCard(
         id: user?.id ?? p.user_id,
         name: user?.full_name ?? user?.username ?? 'Player',
         avatarUrl: user?.avatar_url ?? null,
+        isVerified: profileIsVerified(user ?? undefined),
       };
     }),
     isJoined: (lobby.lobby_participants ?? []).some((p) => p.user_id === profileId),
@@ -323,6 +331,7 @@ export interface LobbyRosterParticipant {
   karmaScore: number;
   joinedAt: Date;
   isHost: boolean;
+  isVerified: boolean;
 }
 
 export interface LobbyDetailData {
@@ -389,12 +398,12 @@ export async function getLobbyById(id: string, viewerProfileId: string): Promise
     .select(
       `
       *,
-      profiles!lobbies_host_id_fkey ( id, full_name, username, avatar_url, karma_score ),
+      profiles!lobbies_host_id_fkey ( id, full_name, username, avatar_url, karma_score, is_email_verified, is_phone_verified ),
       venues ( id, name, address, city, website_url ),
       lobby_participants (
         user_id,
         joined_at,
-        profiles ( id, full_name, username, avatar_url, karma_score )
+        profiles ( id, full_name, username, avatar_url, karma_score, is_email_verified, is_phone_verified )
       )
     `,
     )
@@ -421,6 +430,7 @@ export async function getLobbyById(id: string, viewerProfileId: string): Promise
         karmaScore: Number(user?.karma_score ?? 0),
         joinedAt: new Date(p.joined_at),
         isHost: p.user_id === lobby.host_id,
+        isVerified: profileIsVerified(user ?? undefined),
       };
     })
     .sort((a, b) => {

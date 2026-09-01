@@ -18,6 +18,10 @@ export interface Profile {
   longitude: number | null;
   karmaScore: number;
   seasonPts: number;
+  phoneNumber: string | null;
+  isPhoneVerified: boolean;
+  isEmailVerified: boolean;
+  is2faEnabled: boolean;
 }
 
 export interface ProfileHeroStats {

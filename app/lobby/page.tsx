@@ -66,6 +66,7 @@ function lobbyToMatchCard(lobby: LobbyCardData): MatchCardData {
       id: p.id,
       name: p.name,
       image: p.avatarUrl,
+      isVerified: p.isVerified,
     })),
     ctaLabel:
       type === LobbyType.TEAM_VS_TEAM

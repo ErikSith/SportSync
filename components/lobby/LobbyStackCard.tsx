@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { User } from 'lucide-react';
 import type { LobbyStackCardData, PlayerAvatar } from '@/types/lobby';
 import { statusBadgeLabel } from '@/lib/lobby-stack';
+import { VerifiedAvatarBadge } from '@/components/profile/VerifiedBadge';
 
 function Avatar({ player }: { player: PlayerAvatar }) {
   return (
@@ -19,6 +20,7 @@ function Avatar({ player }: { player: PlayerAvatar }) {
           {player.name.slice(0, 2).toUpperCase()}
         </span>
       )}
+      <VerifiedAvatarBadge verified={player.isVerified} />
     </div>
   );
 }

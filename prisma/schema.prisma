@@ -125,6 +125,11 @@ model Profile {
   /// Intelligent Mercenary Flow (VISION.md). Empty = not a mercenary.
   mercenarySports String[] @default([]) @map("mercenary_sports")
 
+  phoneNumber     String? @unique @map("phone_number")
+  isPhoneVerified Boolean @default(false) @map("is_phone_verified")
+  isEmailVerified Boolean @default(false) @map("is_email_verified")
+  is2faEnabled    Boolean @default(false) @map("is_2fa_enabled")
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 

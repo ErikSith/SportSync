@@ -48,6 +48,7 @@ export interface PlayerAvatar {
   name: string;
   level?: SkillLevel;
   role?: string;
+  isVerified?: boolean;
 }
 
 /** Stack / carousel card for the redesigned Lobby feed. */

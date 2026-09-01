@@ -4,6 +4,7 @@ import { Clock, MapPin, Plus, Users } from 'lucide-react';
 import type { MatchCardData, PlayerAvatar } from '@/types/lobby';
 import { LobbyType } from '@/types/lobby';
 import { skillLabel } from '@/components/lobby/lobby-ui';
+import { VerifiedAvatarBadge } from '@/components/profile/VerifiedBadge';
 import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 import { useT } from '@/components/i18n/LocaleProvider';
 import type { MessageKey } from '@/lib/i18n/messages';
@@ -42,6 +43,7 @@ function Avatar({ player }: { player: PlayerAvatar }) {
           {player.name.slice(0, 2).toUpperCase()}
         </span>
       )}
+      <VerifiedAvatarBadge verified={player.isVerified} />
     </div>
   );
 }

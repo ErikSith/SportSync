@@ -33,6 +33,10 @@ export function guestProfile(): Profile {
     longitude: city.longitude,
     karmaScore: 0,
     seasonPts: 0,
+    phoneNumber: null,
+    isPhoneVerified: false,
+    isEmailVerified: false,
+    is2faEnabled: false,
   };
 }
 

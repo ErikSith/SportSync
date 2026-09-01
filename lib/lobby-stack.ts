@@ -110,6 +110,7 @@ export function lobbyCardToStackCard(lobby: LobbyCardData): LobbyStackCardData {
       id: p.id,
       name: p.name,
       image: p.avatarUrl,
+      isVerified: p.isVerified,
     })),
     coverUrl: coverForSport(lobby.sport, lobby.coverUrl),
     has3dEffect: lobby.has3dEffect,

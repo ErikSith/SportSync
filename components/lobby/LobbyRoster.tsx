@@ -1,5 +1,6 @@
 import type { LobbyDetailData } from '@/lib/data/lobbies';
 import { lobbyTierLabel } from '@/lib/utils/lobby';
+import { VerifiedBadge } from '@/components/profile/VerifiedBadge';
 
 interface LobbyRosterProps {
   lobby: LobbyDetailData;
@@ -77,6 +78,13 @@ export function LobbyRoster({ lobby }: LobbyRosterProps) {
               <div>
                 <p className="font-body-md text-body-md text-on-surface font-semibold flex items-center gap-2">
                   {participant.name}
+                  {participant.isVerified ? (
+                    <VerifiedBadge
+                      isEmailVerified
+                      isPhoneVerified
+                      variant="icon"
+                    />
+                  ) : null}
                   {participant.isHost && (
                     <span className="px-2 py-0.5 bg-secondary/20 text-secondary rounded text-[10px] uppercase font-bold tracking-wider">
                       Host

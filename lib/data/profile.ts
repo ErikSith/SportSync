@@ -25,6 +25,10 @@ interface ProfileRow {
   longitude: number | null;
   karma_score: number | string | null;
   season_pts: number | null;
+  phone_number: string | null;
+  is_phone_verified: boolean | null;
+  is_email_verified: boolean | null;
+  is_2fa_enabled: boolean | null;
 }
 
 export function mapProfile(row: ProfileRow): Profile {
@@ -46,6 +50,10 @@ export function mapProfile(row: ProfileRow): Profile {
     longitude: row.longitude,
     karmaScore: Number(row.karma_score ?? 0),
     seasonPts: row.season_pts ?? 0,
+    phoneNumber: row.phone_number ?? null,
+    isPhoneVerified: row.is_phone_verified ?? false,
+    isEmailVerified: row.is_email_verified ?? false,
+    is2faEnabled: row.is_2fa_enabled ?? false,
   };
 }
 
@@ -58,17 +66,30 @@ export async function getProfileByAuthId(authId: string): Promise<Profile | null
   return mapProfile(data as ProfileRow);
 }
 
-/** Public profile lookup by username (authenticated users only via RLS). */
+const PUBLIC_PROFILE_COLUMNS =
+  'id, email, username, full_name, avatar_url, cover_url, bio, preferred_sports, sport_skills, mercenary_sports, role, city, latitude, longitude, karma_score, season_pts, is_email_verified, is_2fa_enabled';
+
+/** Returns true if another account already uses this phone number. */
+export async function isPhoneNumberInUse(phone: string, excludeAuthId?: string): Promise<boolean> {
+  const supabase = await createClient();
+  let query = supabase.from('profiles').select('id').eq('phone_number', phone).limit(1);
+  if (excludeAuthId) query = query.neq('id', excludeAuthId);
+  const { data, error } = await query;
+  if (error) return false;
+  return (data?.length ?? 0) > 0;
+}
+
+/** Public profile lookup by username — phone number is never exposed. */
 export async function getProfileByUsername(username: string): Promise<Profile | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('profiles')
-    .select('*')
+    .select(PUBLIC_PROFILE_COLUMNS)
     .eq('username', username)
     .maybeSingle();
 
   if (error || !data) return null;
-  return mapProfile(data as ProfileRow);
+  return mapProfile({ ...(data as ProfileRow), phone_number: null, is_phone_verified: false });
 }
 
 export interface ProfileUpdateInput {
@@ -78,6 +99,10 @@ export interface ProfileUpdateInput {
   preferredSports?: string[];
   sportSkills?: SportSkillsMap;
   mercenarySports?: string[];
+  phoneNumber?: string | null;
+  isPhoneVerified?: boolean;
+  isEmailVerified?: boolean;
+  is2faEnabled?: boolean;
 }
 
 export type ProfileUpdateResult =
@@ -120,6 +145,11 @@ export async function updateProfile(
     });
   }
 
+  if (input.phoneNumber !== undefined) update.phone_number = input.phoneNumber;
+  if (input.isPhoneVerified !== undefined) update.is_phone_verified = input.isPhoneVerified;
+  if (input.isEmailVerified !== undefined) update.is_email_verified = input.isEmailVerified;
+  if (input.is2faEnabled !== undefined) update.is_2fa_enabled = input.is2faEnabled;
+
   if (Object.keys(update).length === 0) {
     return { ok: true, profile: current };
   }
@@ -132,27 +162,65 @@ export async function updateProfile(
     .single();
 
   if (error || !data) {
-    // Unique username collision
-    if (error && /profiles_username|duplicate key|unique/i.test(error.message)) {
+    const dbMessage = formatDbError(error, 'Nepodarilo sa aktualizovať profil.');
+    // Unique username / phone collision
+    if (error && /profiles_username|duplicate key|unique/i.test(error.message ?? '')) {
+      if (/phone_number|profiles_phone/i.test(error.message ?? '')) {
+        return { ok: false, error: 'Toto telefónne číslo je už zaregistrované na inom účte.' };
+      }
       return { ok: false, error: 'This username is already taken' };
     }
     // Remote DB may lag Prisma — retry without optional columns that might be missing.
-    if (error && /schema cache|column .* does not exist/i.test(error.message)) {
-      const optionalKeys = ['sport_skills', 'preferred_sports', 'mercenary_sports', 'bio', 'cover_url'] as const;
+    if (error && /schema cache|column .* does not exist/i.test(error.message ?? '')) {
+      const optionalKeys = [
+        'sport_skills',
+        'preferred_sports',
+        'mercenary_sports',
+        'bio',
+        'cover_url',
+        'phone_number',
+        'is_phone_verified',
+        'is_email_verified',
+        'is_2fa_enabled',
+      ] as const;
       const rest = { ...update };
       for (const key of optionalKeys) {
         if (error.message.includes(key)) delete rest[key];
       }
-      if (Object.keys(rest).length === 0) return { ok: true, profile: current };
+      if (Object.keys(rest).length === 0) {
+        const missingPhone = 'phone_number' in update && !('phone_number' in rest);
+        if (missingPhone) {
+          return {
+            ok: false,
+            error:
+              'Stĺpec phone_number ešte nie je v databáze. Spusti migráciu prisma/migrations/20260901_profile_verification.',
+          };
+        }
+        return { ok: true, profile: current };
+      }
       const fallback = await supabase.from('profiles').update(rest).eq('id', authId).select('*').single();
       if (fallback.error || !fallback.data) {
-        return { ok: false, error: fallback.error?.message ?? 'Could not update profile' };
+        return { ok: false, error: formatDbError(fallback.error, 'Nepodarilo sa aktualizovať profil.') };
       }
       return { ok: true, profile: mapProfile(fallback.data as ProfileRow) };
     }
-    return { ok: false, error: error?.message ?? 'Could not update profile' };
+    return { ok: false, error: dbMessage };
   }
   return { ok: true, profile: mapProfile(data as ProfileRow) };
+}
+
+function formatDbError(
+  error: { message?: string; details?: string; hint?: string; code?: string } | null,
+  fallback: string,
+): string {
+  if (!error) return fallback;
+  const candidates = [error.message, error.details, error.hint, error.code];
+  for (const value of candidates) {
+    if (typeof value === 'string' && value.trim() && value.trim() !== '{}') {
+      return value.trim();
+    }
+  }
+  return fallback;
 }
 
 export async function updateProfileAvatarUrl(authId: string, avatarUrl: string): Promise<Profile | null> {
