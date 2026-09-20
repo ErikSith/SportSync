@@ -1,17 +1,27 @@
 import * as cheerio from 'cheerio';
 
 /** Polite SportSync bot identity — venues can block this UA if they wish. */
-export const SCRAPER_USER_AGENT =
-  'Mozilla/5.0 (compatible; SportSyncBot/1.0; +https://sportsync.app; event-aggregator)';
+export const SCRAPER_USER_AGENT = 'SportsyncBot/1.0 (+https://sportsync.sk)';
 
-/** Randomized gap between venue fetches (ms). Midnight cron: 3–5s, never burst. */
-export const HOST_DELAY_MS = { min: 3000, max: 5000 } as const;
+/** Fixed polite gap between URLs in the main runner (ms). */
+export const URL_PAUSE_MS = 3500;
+
+/** Randomized gap between requests to the same host (ms). Never burst. */
+export const HOST_DELAY_MS = { min: 2500, max: 3500 } as const;
 
 /** Hard cap on HTML bytes passed to Cheerio — prevents CPU blow-ups on huge pages. */
 export const MAX_HTML_BYTES = 500_000;
 
-/** Wall-clock limit for fetch + parse + extract of a single URL (cron safety). */
-export const URL_PROCESS_TIMEOUT_MS = 10_000;
+/** Wall-clock limit for fetch + parse + extract of a single URL.
+ * Cron/edge keeps this short; overnight CLI overrides via SCRAPER_URL_TIMEOUT_MS. */
+export const URL_PROCESS_TIMEOUT_MS = (() => {
+  const fromEnv = Number(process.env.SCRAPER_URL_TIMEOUT_MS);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  return 10_000;
+})();
+
+/** Overnight / local CLI: allow Gemini quota backoff + full extract. */
+export const CLI_URL_PROCESS_TIMEOUT_MS = 180_000;
 
 const FETCH_TIMEOUT_MS = 8_000;
 const MAX_RETRIES = 2;
@@ -245,4 +255,48 @@ export async function fetchCleanText(url: string): Promise<string> {
   }
   // Cap payload size for free Gemini tier / cost control
   return text.slice(0, 48_000);
+}
+
+/**
+ * Keywords that suggest the page may list sports events / schedules.
+ * Diacritics are folded at match time so "sutaz" still hits "súťaž".
+ */
+export const EVENT_SIGNAL_KEYWORDS = [
+  'turnaj',
+  'súťaž',
+  'event',
+  'akcia',
+  'zápas',
+  'liga',
+  'tréning',
+  'rozpis',
+  'harmonogram',
+  'registrácia',
+  'pohár',
+  'cup',
+  'deti',
+  'detsk',
+  'ženy',
+  'dievčat',
+  'ladies',
+  'juniors',
+] as const;
+
+function foldForKeywordMatch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase();
+}
+
+/**
+ * Smart pre-filter: true if cleaned page text contains at least one event-signal
+ * keyword. Pages without a hit should skip Gemini to save API tokens.
+ */
+export function pageHasEventSignal(cleanText: string): boolean {
+  if (!cleanText.trim()) return false;
+  const hay = foldForKeywordMatch(cleanText);
+  return EVENT_SIGNAL_KEYWORDS.some((kw) =>
+    hay.includes(foldForKeywordMatch(kw)),
+  );
 }

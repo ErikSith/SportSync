@@ -50,7 +50,7 @@ const KIDS_SOURCE =
  * and not teen/junior competition.
  */
 const EXPLICIT_KIDS =
-  /pre deti|pre dieta|pre deticky|pre najmensich|pre predskol|pre skolkar|detsk[eaoy]|deti od\s*\d|deti\s+\d+\s*[-–]\s*\d+|skola korcul|letna skola|kidstown|\bkids\b|zumba\s*kids?|kids?\s*(yoga|joga|zumba|fitness|camp|club|tenis|padel|plavanie|swim)|joga pre deti|fitness\s*&\s*fun|babatk|dojcat|baby\s*(swim|yoga|gym|club)|plavanie pre (deti|babatk|dojcat)|detske plavanie|rodic.{0,16}dieta|mama a dieta|otec a dieta|parent\s*(&|and)\s*child|mini[\s-]*(tenis|padel|futbal|hockey|hokej)|minitenis|u\s*-?\s*(6|7|8|9|10|11|12)\b|do\s*(6|7|8|9|10|11|12)\s*rokov|predskol|skolka|detsky tabor|detska atletika|detsky tenis|detske ihrisko|ihrisko pre deti|pre malych aj velkych|rodiny s detmi/;
+  /pre deti|pre dieta|pre deticky|pre najmensich|pre predskol|pre skolkar|detsk[eaoy]|deti od\s*\d|deti\s+\d+\s*[-–]\s*\d+|skola korcul|letna skola|kidstown|\bkids\b|zumba\s*kids?|kids?\s*(yoga|joga|zumba|fitness|camp|club|tenis|padel|plavanie|swim)|joga pre deti|fitness\s*&\s*fun|babatk|dojcat|baby\s*(swim|yoga|gym|club)|plavanie pre (deti|babatk|dojcat)|detske plavanie|rodic.{0,16}dieta|mama a dieta|otec a dieta|parent\s*(&|and)\s*child|mini[\s-]*(tenis|padel|futbal|hockey|hokej)|minitenis|\bu\s*-?\s*(6|7|8|9|10|11|12)\b|do\s*(6|7|8|9|10|11|12)\s*rokov|predskol|skolka|detsky tabor|detska atletika|detsky tenis|detske ihrisko|ihrisko pre deti|pre malych aj velkych|rodiny s detmi|boxeracik|vek:\s*deti/;
 
 export function detectExplicitKidsAudience(input: KidsAudienceInput): boolean {
   if (input.forKids) return true;
@@ -58,7 +58,8 @@ export function detectExplicitKidsAudience(input: KidsAudienceInput): boolean {
   if (!hay) return false;
   if (KIDS_SOURCE.test(hay)) return true;
   const title = fold(input.title ?? '');
-  if (/^deti\b/.test(title)) return true;
+  // "Deti a mládež…", "Gi Deti", "… pre deti"
+  if (/\bdeti\b/.test(title)) return true;
   return EXPLICIT_KIDS.test(hay);
 }
 

@@ -19,7 +19,7 @@
     "seed": "tsx prisma/seed.ts",
     "scrape": "tsx scripts/scrape-to-json.ts && tsx scripts/build-borough-ingest.ts && tsx scripts/build-jsonb-ingest.ts",
     "scrape:events": "tsx scripts/scrape-events.ts",
-    "scrape:gemini": "tsx scripts/scrape-gemini.ts",
+    "scrape:gemini": "tsx src/lib/scraper/runner.ts",
     "scrape:bratislava": "tsx scripts/scrape-bratislava.ts",
     "discover:venues": "tsx scripts/discover-venues-and-scrape.ts",
     "scrape:dedupe": "tsx scripts/cleanup-duplicate-events.ts",

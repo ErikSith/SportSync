@@ -1,8 +1,20 @@
 import { SCRAPE_TARGETS } from '@/lib/scrape/sources';
 import { SCRAPING_SOURCES } from '@/lib/scrape/scraping-sources';
 import { extractEventsFromText } from './extractor';
-import { fetchCleanText, sleep, HOST_DELAY_MS, withUrlProcessingTimeout } from './fetcher';
-import { upsertScrapedEvents, type UpsertScrapedOptions } from './db-service';
+import {
+  fetchCleanText,
+  pageHasEventSignal,
+  sleep,
+  URL_PAUSE_MS,
+  URL_PROCESS_TIMEOUT_MS,
+  CLI_URL_PROCESS_TIMEOUT_MS,
+  withUrlProcessingTimeout,
+} from './fetcher';
+import {
+  saveEventsForVenue,
+  upsertScrapedEvents,
+  type UpsertScrapedOptions,
+} from './db-service';
 import { purgePastListings } from './purge';
 import type {
   MidnightSyncReport,
@@ -33,6 +45,8 @@ export interface RunScraperOptions {
   dryRun?: boolean;
   /** Max URLs to process in one run (Vercel 300s / politeness guard). */
   limit?: number;
+  /** Per-URL wall-clock budget (ms). CLI overnight defaults to 180s. */
+  urlTimeoutMs?: number;
 }
 
 function parseBool(value: string | undefined, fallback: boolean): boolean {
@@ -47,13 +61,6 @@ function isHttpUrl(url: string): boolean {
   } catch {
     return false;
   }
-}
-
-function randomPauseMs(): number {
-  return (
-    HOST_DELAY_MS.min +
-    Math.floor(Math.random() * (HOST_DELAY_MS.max - HOST_DELAY_MS.min + 1))
-  );
 }
 
 function emptyUpsert(): ScraperUpsertStats {
@@ -78,32 +85,56 @@ function addStats(a: ScraperUpsertStats, b: ScraperUpsertStats): ScraperUpsertSt
   };
 }
 
+type VenueRow = {
+  id: string;
+  website_url: string | null;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+type ScrapePageRow = {
+  url: string;
+  kind: string;
+  venue_id: string | null;
+};
+
 /**
  * Load every venue with a valid websiteUrl, plus enabled VenueScrapePage URLs
- * for discovery (rozvrh / turnaje). Deduped, sequential-friendly.
+ * for discovery (rozvrh / turnaje). Uses Supabase service-role (same as upserts)
+ * so local Prisma DATABASE_URL auth issues do not block the runner.
  */
 export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
-  const { prisma } = await import('@/lib/prisma');
-  const venues = await prisma.venue.findMany({
-    where: { websiteUrl: { not: null } },
-    select: {
-      id: true,
-      websiteUrl: true,
-      latitude: true,
-      longitude: true,
-      scrapePages: {
-        where: { enabled: true },
-        select: { url: true, kind: true },
-      },
-    },
-  });
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const supabase = createAdminClient();
+
+  const { data: venueRows, error: venueError } = await supabase
+    .from('venues')
+    .select('id, website_url, latitude, longitude')
+    .not('website_url', 'is', null);
+
+  if (venueError) {
+    throw new Error(`Failed to load venues: ${venueError.message}`);
+  }
+
+  const venues = (venueRows ?? []) as VenueRow[];
+  const venueById = new Map(venues.map((v) => [v.id, v]));
+
+  const { data: pageRows, error: pageError } = await supabase
+    .from('venue_scrape_pages')
+    .select('url, kind, venue_id')
+    .eq('enabled', true);
+
+  if (pageError) {
+    console.warn('[scraper] venue_scrape_pages load failed:', pageError.message);
+  }
+  const scrapePages = (pageRows ?? []) as ScrapePageRow[];
 
   const seen = new Set<string>();
   const out: VenueScrapeTarget[] = [];
 
   const push = (
     url: string | null | undefined,
-    venue: (typeof venues)[number],
+    venue: VenueRow | undefined,
     forceGroupClass = false,
   ) => {
     const trimmed = url?.trim();
@@ -111,24 +142,26 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
     seen.add(trimmed);
     out.push({
       url: trimmed,
-      venueId: venue.id,
-      latitude: venue.latitude,
-      longitude: venue.longitude,
+      venueId: venue?.id,
+      latitude: venue?.latitude ?? null,
+      longitude: venue?.longitude ?? null,
       forceGroupClass,
     });
   };
 
   for (const venue of venues) {
-    push(venue.websiteUrl, venue);
-    for (const page of venue.scrapePages) {
-      const kind = page.kind.toLowerCase();
-      const forceGroupClass =
-        kind === 'schedule' ||
-        kind === 'rozvrh' ||
-        kind === 'classes' ||
-        (kind !== 'tournaments' && shouldForceGroupClassFromUrl(page.url));
-      push(page.url, venue, forceGroupClass);
-    }
+    push(venue.website_url, venue);
+  }
+
+  for (const page of scrapePages) {
+    const venue = page.venue_id ? venueById.get(page.venue_id) : undefined;
+    const kind = (page.kind ?? '').toLowerCase();
+    const forceGroupClass =
+      kind === 'schedule' ||
+      kind === 'rozvrh' ||
+      kind === 'classes' ||
+      (kind !== 'tournaments' && shouldForceGroupClassFromUrl(page.url));
+    push(page.url, venue, forceGroupClass);
   }
 
   return out;
@@ -175,8 +208,8 @@ async function resolveTargets(options: RunScraperOptions): Promise<VenueScrapeTa
 }
 
 /**
- * Walk venue websites: fetch clean text → Gemini 2.0 Flash extract → Prisma upsert.
- * Between URLs: randomized 3–5s pause. Failures on one URL do not abort the run.
+ * Walk venue websites: fetch clean text → Gemini Flash extract → DB upsert.
+ * Between URLs: fixed 3500 ms pause. Failures on one URL do not abort the run.
  */
 export async function runGeminiScraper(
   options: RunScraperOptions = {},
@@ -188,6 +221,7 @@ export async function runGeminiScraper(
     (process.env.SCRAPER_LIMIT
       ? Math.max(1, Number(process.env.SCRAPER_LIMIT) || 24)
       : undefined);
+  const urlTimeoutMs = options.urlTimeoutMs ?? URL_PROCESS_TIMEOUT_MS;
 
   let targets = await resolveTargets(options);
   if (limit != null) targets = targets.slice(0, limit);
@@ -197,7 +231,7 @@ export async function runGeminiScraper(
   let extracted = 0;
 
   console.log(
-    `[scraper] starting ${targets.length} URL(s)${dryRun ? ' (dry-run)' : ''}…`,
+    `[scraper] starting ${targets.length} URL(s)${dryRun ? ' (dry-run)' : ''}… (urlTimeout=${urlTimeoutMs}ms)`,
   );
 
   for (let i = 0; i < targets.length; i++) {
@@ -213,24 +247,42 @@ export async function runGeminiScraper(
 
     try {
       console.log(`[scraper] (${i + 1}/${targets.length}) fetch ${target.url}`);
-      await withUrlProcessingTimeout(target.url, async () => {
-        const text = await fetchCleanText(target.url);
-        const events = await extractEventsFromText(target.url, text);
-        result.events = events;
-        extracted += events.length;
-        console.log(`[scraper] ${target.url} → ${events.length} event(s)`);
+      await withUrlProcessingTimeout(
+        target.url,
+        async () => {
+          const text = await fetchCleanText(target.url);
+          if (!pageHasEventSignal(text)) {
+            result.skippedGemini = true;
+            console.log(
+              `[scraper] skip Gemini (no event keywords) ${target.url}`,
+            );
+            return;
+          }
+          const events = await extractEventsFromText(target.url, text);
+          result.events = events;
+          extracted += events.length;
+          const kids = events.filter((e) => e.isForKids).length;
+          const women = events.filter((e) => e.isForWomenOnly).length;
+          console.log(
+            `[scraper] ${target.url} → ${events.length} event(s)` +
+              (kids || women ? ` [kids=${kids} women=${women}]` : ''),
+          );
 
-        if (!dryRun && events.length > 0) {
-          const opts: UpsertScrapedOptions = {
-            venueId: target.venueId,
-            latitude: target.latitude,
-            longitude: target.longitude,
-            forceGroupClass: target.forceGroupClass,
-            scrapePageUrl: target.url,
-          };
-          upsert = addStats(upsert, await upsertScrapedEvents(events, opts));
-        }
-      });
+          if (!dryRun && events.length > 0) {
+            const opts: UpsertScrapedOptions = {
+              latitude: target.latitude,
+              longitude: target.longitude,
+              forceGroupClass: target.forceGroupClass,
+              scrapePageUrl: target.url,
+            };
+            const writeStats = target.venueId
+              ? await saveEventsForVenue(events, target.venueId, opts)
+              : await upsertScrapedEvents(events, opts);
+            upsert = addStats(upsert, writeStats);
+          }
+        },
+        urlTimeoutMs,
+      );
     } catch (err) {
       result.error = err instanceof Error ? err.message : String(err);
       console.warn(`[scraper] skip ${target.url}: ${result.error}`);
@@ -246,7 +298,7 @@ export async function runGeminiScraper(
     results.push(result);
 
     if (i < targets.length - 1) {
-      await sleep(randomPauseMs());
+      await sleep(URL_PAUSE_MS);
     }
   }
 

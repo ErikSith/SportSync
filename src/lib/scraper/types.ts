@@ -17,10 +17,34 @@ export const ScrapedEventSchema = z.object({
     .describe(
       'True ak ide o opakovanú skupinovú lekciu/tréning na tom istom športovisku v obvykle rovnakom čase',
     ),
+
+  // FILTRE PRE ŽENY A DETI
+  isForWomenOnly: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "True ak je akcia určená výhradne pre ženy/dievčatá (napr. 'Ženský turnaj', 'Joga pre ženy', 'Ladies Cup')",
+    ),
+  isForKids: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "True ak je akcia určená pre deti, mládež, rodiny s deťmi alebo juniorky/juniorov (napr. 'Detský tábor', 'Turnaj do 14 rokov', 'Baby joga')",
+    ),
+  ageCategory: z
+    .string()
+    .optional()
+    .nullable()
+    .describe(
+      "Vekové obmedzenie ak je explicitne uvedené (napr. 'U12', '6-10 rokov', 'Dospelí')",
+    ),
+
   startTime: z
     .string()
     .describe(
-      'Dátum a čas začiatku vo formáte ISO 8601 string (napr. 2026-08-15T09:00:00Z)',
+      'Dátum a čas začiatku vo formáte ISO 8601 string (napr. 2026-09-05T09:00:00Z)',
     ),
   endTime: z
     .string()
@@ -42,20 +66,6 @@ export const ScrapedEventSchema = z.object({
     .string()
     .url()
     .describe('Priama URL adresa zdroja/rezervačného systému'),
-  forKids: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe(
-      'True len ak je aktivita vyslovene pre deti (pre deti, detský, Kidstown, mini, U6–U12). Nie junior/ITF do 18.',
-    ),
-  forWomen: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe(
-      'True len ak je aktivita vyslovene pre ženy (pre ženy, ladies only, W4W, dámsky). Nie mix ženy+muži.',
-    ),
 });
 
 export type ScrapedEvent = z.infer<typeof ScrapedEventSchema>;
@@ -93,10 +103,26 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
             description:
               'True ak ide o opakovanú skupinovú lekciu/tréning na tom istom športovisku v obvykle rovnakom čase',
           },
+          isForWomenOnly: {
+            type: 'boolean',
+            description:
+              "True ak je akcia určená výhradne pre ženy/dievčatá (napr. 'Ženský turnaj', 'Joga pre ženy', 'Ladies Cup')",
+          },
+          isForKids: {
+            type: 'boolean',
+            description:
+              "True ak je akcia určená pre deti, mládež, rodiny s deťmi alebo juniorky/juniorov (napr. 'Detský tábor', 'Turnaj do 14 rokov', 'Baby joga')",
+          },
+          ageCategory: {
+            type: 'string',
+            nullable: true,
+            description:
+              "Vekové obmedzenie ak je explicitne uvedené (napr. 'U12', '6-10 rokov', 'Dospelí')",
+          },
           startTime: {
             type: 'string',
             description:
-              'Dátum a čas začiatku vo formáte ISO 8601 string (napr. 2026-08-15T09:00:00Z)',
+              'Dátum a čas začiatku vo formáte ISO 8601 string (napr. 2026-09-05T09:00:00Z)',
           },
           endTime: {
             type: 'string',
@@ -119,18 +145,7 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
           },
           originalUrl: {
             type: 'string',
-            description:
-              'Priama URL adresa zdroja/rezervačného systému',
-          },
-          forKids: {
-            type: 'boolean',
-            description:
-              'True len ak je aktivita vyslovene pre deti (pre deti, detský, Kidstown, mini, U6–U12). Nie junior/ITF do 18.',
-          },
-          forWomen: {
-            type: 'boolean',
-            description:
-              'True len ak je aktivita vyslovene pre ženy (pre ženy, ladies only, W4W, dámsky). Nie mix ženy+muži.',
+            description: 'Priama URL adresa zdroja/rezervačného systému',
           },
         },
         required: [
@@ -138,6 +153,8 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
           'sportType',
           'isTournament',
           'isGroupClass',
+          'isForWomenOnly',
+          'isForKids',
           'startTime',
           'locationName',
           'originalUrl',
@@ -163,6 +180,8 @@ export interface ScraperUrlResult {
   url: string;
   events: ScrapedEvent[];
   error?: string;
+  /** True when Gemini was skipped (keyword pre-filter). Not a hard failure. */
+  skippedGemini?: boolean;
 }
 
 export interface ScraperRunReport {

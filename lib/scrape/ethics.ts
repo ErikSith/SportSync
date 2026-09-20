@@ -6,10 +6,9 @@
  */
 export const SCRAPE_ETHICS = {
   /** Identify ourselves; venues can block this UA if they wish. */
-  userAgent:
-    'Mozilla/5.0 (compatible; SportSyncBot/1.0; +https://sportsync.app; event-aggregator)',
+  userAgent: 'SportsyncBot/1.0 (+https://sportsync.sk)',
   /** Min/max pause between requests to the same host (ms). */
-  hostDelayMs: { min: 2200, max: 3000 } as const,
+  hostDelayMs: { min: 2500, max: 3500 } as const,
   /** Never persist third-party img / og:image / logos. */
   allowThirdPartyMedia: false,
   /**

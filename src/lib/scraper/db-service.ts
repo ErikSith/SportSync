@@ -85,9 +85,15 @@ function withNotice(
   description: string | null | undefined,
   sourceUrl: string,
   asGroupClass: boolean,
+  ageCategory?: string | null,
 ): string {
   const classLead = asGroupClass ? 'Skupinové cvičenie na športovisku. ' : '';
-  const base = `${classLead}${(description ?? '').trim()}`.trim();
+  const age =
+    ageCategory?.trim() &&
+    !(description ?? '').toLowerCase().includes(ageCategory.trim().toLowerCase())
+      ? `Vek: ${ageCategory.trim()}. `
+      : '';
+  const base = `${classLead}${age}${(description ?? '').trim()}`.trim();
   const notice = `${AGGREGATOR_NOTICE} ${sourceUrl}`.trim();
   if (!base) return notice.slice(0, 600);
   if (base.includes('SportSync zobrazuje textový prehľad')) return base.slice(0, 600);
@@ -232,7 +238,12 @@ async function upsertEvent(
   const sport = detectEventSport(`${event.sportType} ${event.title}`);
   const sportType = resolveSportType(sport);
   const priceCents = parsePriceCents(event.priceText);
-  const description = withNotice(event.description, originalUrl, asGroupClass);
+  const description = withNotice(
+    event.description,
+    originalUrl,
+    asGroupClass,
+    event.ageCategory,
+  );
   const themeConfig = buildThemeConfig(sportType, null);
   const startsAtIso = startsAt.toISOString();
   const endAtIso =
@@ -263,8 +274,8 @@ async function upsertEvent(
     sourceUrl: originalUrl,
     venueName: sourceName,
     locationName: event.locationName,
-    forKids: event.forKids,
-    forWomen: event.forWomen,
+    forKids: event.isForKids,
+    forWomen: event.isForWomenOnly,
   });
 
   const shared = {
@@ -366,7 +377,12 @@ async function upsertTournament(
   );
   const sport = detectEventSport(`${event.sportType} ${event.title}`);
   const entryFee = parsePriceCents(event.priceText) / 100;
-  const description = withNotice(event.description, originalUrl, false);
+  const description = withNotice(
+    event.description,
+    originalUrl,
+    false,
+    event.ageCategory,
+  );
   const startsAtIso = startsAt.toISOString();
 
   const { data: byKey } = await supabase
@@ -392,8 +408,8 @@ async function upsertTournament(
     sourceUrl: originalUrl,
     venueName: sourceName,
     locationName: event.locationName,
-    forKids: event.forKids,
-    forWomen: event.forWomen,
+    forKids: event.isForKids,
+    forWomen: event.isForWomenOnly,
   });
 
   const shared = {
@@ -527,4 +543,19 @@ export async function upsertScrapedEvents(
   }
 
   return stats;
+}
+
+/**
+ * Bind scraped listings to a venue and upsert idempotently.
+ * Unique key: originalUrl + startTime (encoded as gemini-web externalId).
+ */
+export async function saveEventsForVenue(
+  events: ScrapedEvent[],
+  venueId: string,
+  opts: Omit<UpsertScrapedOptions, 'venueId'> = {},
+): Promise<ScraperUpsertStats> {
+  if (!venueId?.trim()) {
+    throw new Error('saveEventsForVenue requires a non-empty venueId');
+  }
+  return upsertScrapedEvents(events, { ...opts, venueId: venueId.trim() });
 }

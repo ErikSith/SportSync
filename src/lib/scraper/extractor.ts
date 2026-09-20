@@ -9,6 +9,7 @@ import {
   type ScrapedEvent,
 } from './types';
 import { isListingNoise } from '@/lib/feed/group-class';
+import { classifyListingAudience } from '@/lib/events/audience';
 
 /**
  * gemini-2.0-flash was shut down 2026-06-01. gemini-flash-latest currently
@@ -53,14 +54,17 @@ const RESPONSE_SCHEMA: ResponseSchema = {
           priceText: { type: SchemaType.STRING },
           description: { type: SchemaType.STRING },
           originalUrl: { type: SchemaType.STRING },
-          forKids: { type: SchemaType.BOOLEAN },
-          forWomen: { type: SchemaType.BOOLEAN },
+          isForWomenOnly: { type: SchemaType.BOOLEAN },
+          isForKids: { type: SchemaType.BOOLEAN },
+          ageCategory: { type: SchemaType.STRING },
         },
         required: [
           'title',
           'sportType',
           'isTournament',
           'isGroupClass',
+          'isForWomenOnly',
+          'isForKids',
           'startTime',
           'locationName',
           'originalUrl',
@@ -139,10 +143,14 @@ Pravidlá:
   (rezervácia, booking, prihláška, lístky), ak je na stránke uvedený. Inak použi: ${pageUrl}
 - Nikdy nevymýšľaj URL. originalUrl musí patriť organizátorovi / rezervačnému systému.
 - description max 2 krátke vety; priceText len ak je cena uvedená.
-- forKids = true LEN keď je aktivita VYSLOVENE pre deti: „pre deti“, detský/detská, Kidstown, detské plávanie, mini tenis, U6–U12, bábätká, rodič + dieťa.
-  NIE junior/mládež/ITF do 18 rokov. NIE bežný dospelácky tréning len preto, že deti môžu prísť.
-- forWomen = true LEN keď je aktivita VYSLOVENE pre ženy: „pre ženy“, ladies only, W4W, dámsky, ženský turnaj.
+- isForKids = true keď je aktivita pre deti, mládež, rodiny s deťmi alebo juniorov:
+  „pre deti“, detský/detská, Kidstown, detské plávanie, mini tenis, U6–U14, bábätká, rodič + dieťa,
+  juniori/juniorky, mládežnícky turnaj, rodinný deň s deťmi.
+  NIE bežný dospelácky tréning len preto, že deti môžu prísť.
+- isForWomenOnly = true LEN keď je aktivita VÝHRADNE pre ženy/dievčatá:
+  „pre ženy“, ladies only, W4W, dámsky, ženský turnaj, Ladies Cup.
   NIE mix „ženy a muži“, NIE open kategória kde hrajú obe pohlavia.
+- ageCategory: uveď len ak je vek explicitne na stránke (napr. „U12“, „6-10 rokov“, „Dospelí“); inak null.
 - isTournament = true LEN pre turnaje, do ktorých sa hráč prihlasuje (cup, open, championship, trophy, kvalifikácia).
   Tieto záznamy idú do tabuľky Tournament (nie Event).
 - Zápas v tvare „klub vs klub“ / „X proti Y“ (napr. FK Inter vs FC Petržalka) NIE JE turnaj s prihláškou:
@@ -333,16 +341,33 @@ export async function extractEventsFromText(
 
   const now = Date.now() - 60 * 60 * 1000;
   return validated.data.events
-    .map((e) => ({
-      ...e,
-      title: e.title.trim(),
-      sportType: e.sportType.trim(),
-      locationName: e.locationName.trim(),
-      originalUrl: absoluteHttpUrl(e.originalUrl, pageUrl),
-      description: e.description?.trim() || null,
-      priceText: e.priceText?.trim() || null,
-      endTime: e.endTime?.trim() || null,
-    }))
+    .map((e) => {
+      const base = {
+        ...e,
+        title: e.title.trim(),
+        sportType: e.sportType.trim(),
+        locationName: e.locationName.trim(),
+        originalUrl: absoluteHttpUrl(e.originalUrl, pageUrl),
+        description: e.description?.trim() || null,
+        priceText: e.priceText?.trim() || null,
+        endTime: e.endTime?.trim() || null,
+        ageCategory: e.ageCategory?.trim() || null,
+      };
+      // Gemini flag OR heuristic — never miss explicit kids/women for feed filters.
+      const audience = classifyListingAudience({
+        title: base.title,
+        description: base.description,
+        sourceUrl: base.originalUrl,
+        locationName: base.locationName,
+        forKids: base.isForKids,
+        forWomen: base.isForWomenOnly,
+      });
+      return {
+        ...base,
+        isForKids: audience.forKids,
+        isForWomenOnly: audience.forWomen,
+      };
+    })
     .filter((e) => {
       const t = Date.parse(e.startTime);
       if (!Number.isFinite(t) || t < now || e.title.length < 3) return false;
@@ -385,8 +410,18 @@ function coerceOriginalUrls(parsed: unknown, pageUrl: string): unknown {
           pageUrl,
         ),
         isGroupClass: row.isGroupClass === true || row.isGroupClass === 'true',
-        forKids: row.forKids === true || row.forKids === 'true',
-        forWomen: row.forWomen === true || row.forWomen === 'true',
+        isForKids:
+          row.isForKids === true ||
+          row.isForKids === 'true' ||
+          row.forKids === true ||
+          row.forKids === 'true',
+        isForWomenOnly:
+          row.isForWomenOnly === true ||
+          row.isForWomenOnly === 'true' ||
+          row.forWomen === true ||
+          row.forWomen === 'true',
+        ageCategory:
+          typeof row.ageCategory === 'string' ? row.ageCategory : null,
       };
     }),
   };
