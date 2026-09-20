@@ -13,6 +13,7 @@
     "build:api": "tsc -p tsconfig.server.json",
     "start:api": "node dist/server.js",
     "typecheck:api": "tsc -p tsconfig.server.json --noEmit",
+    "test:unit": "tsx --test lib/participation/fixture-match.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",

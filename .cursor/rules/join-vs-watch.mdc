@@ -9,14 +9,32 @@ alwaysApply: true
 
 **Sledovať / Watch** = hotový zápas alebo spektákel. Divák, vstupenky, tribúna. Žiadna prihláška do zostavy.
 
-## Zápas „niekto vs niekto“
+## Zápas „niekto vs niekto“ / „klub - klub“
 
-Názov ako `FK Inter Bratislava vs FC Petržalka` alebo `X proti Y` je **ligový/klubový zápas**, nie turnaj s otvorenou prihláškou.
+Názov ako `FK Inter Bratislava vs FC Petržalka`, `X proti Y`, alebo ligový zápis
+`FC Petržalka - MŠK Žilina B` / `FC ViOn … - FC Petržalka` je **ligový/klubový zápas**,
+nie turnaj s otvorenou prihláškou.
 
 - CTA: **Sledovať** (vstupenky / oficiálna stránka), nikdy **Pripojiť sa** / Join / Enter Cup / Registrovať sa ako hráč.
 - Tab: **Sledovať**, nie **Hrať**.
-- Helper: `titleLooksLikeHeadToHeadFixture` v `lib/participation/fixture-match.ts`.
+- Helper: `titleLooksLikeHeadToHeadFixture` + `listingParticipationMode` v `lib/participation/fixture-match.ts`.
+- Feed nesmie filtrovať len podľa stĺpca `participation_mode` v DB — title heuristic má prioritu (DB často ostane `participate`).
 - Logika turnajov: `tournamentParticipationMode` v `lib/tournament-participation.ts`.
+- Očakávania: `lib/participation/fixture-match.test.ts` (`npx tsx --test lib/participation/fixture-match.test.ts`).
+
+### Čo je Sledovať (príklady)
+
+- `FC Petržalka - OFK Dynamo Malženice`
+- `MFK Bytča - FC Petržalka`
+- `FK Inter Bratislava vs FC Petržalka`
+- Topliga / Niké zápasy, vstupenky, Davis Cup
+
+### Čo NIE JE fixture (ostáva Hrať)
+
+- `SIAM FIGHTERS - Zápasnícky tréning`
+- `Thajský box - Skupina B`
+- `I. liga v curlingu - náhradný herný víkend`
+- `LADIES THAIBOX - BASIC`
 
 ## Čo nie je watch-only
 

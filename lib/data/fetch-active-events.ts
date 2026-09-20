@@ -150,9 +150,7 @@ export async function fetchActiveEventsSafe(
       if (options.type && options.type !== 'ALL') {
         request = request.eq('type', options.type);
       }
-      if (options.participationMode && options.participationMode !== 'all') {
-        request = request.eq('participation_mode', options.participationMode);
-      }
+      // Mode applied after map — title heuristics override stale DB flags.
 
       return request;
     };
@@ -192,7 +190,11 @@ export async function fetchActiveEventsSafe(
       }
     }
 
-    return rows.map((row) => mapRow(row, lat, lng));
+    const mapped = rows.map((row) => mapRow(row, lat, lng));
+    if (!options.participationMode || options.participationMode === 'all') {
+      return mapped;
+    }
+    return mapped.filter((event) => event.participationMode === options.participationMode);
   } catch (error) {
     console.error('fetchActiveEventsSafe unexpected error:', error);
     return [];

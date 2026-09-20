@@ -220,9 +220,9 @@ function applyEventQueryFilters<T extends { eq: (column: string, value: string) 
   if (query.sport && query.sport !== 'ALL') {
     next = next.ilike('sport', query.sport);
   }
-  if (query.participationMode && query.participationMode !== 'all') {
-    next = next.eq('participation_mode', query.participationMode);
-  }
+  // Do not filter participation_mode in SQL — DB flags lag behind title
+  // heuristics (e.g. "FC Petržalka - ViOn" stored as participate). Mode is
+  // applied after map via listingParticipationMode / matchesParticipationModeFilter.
   return next;
 }
 
@@ -263,9 +263,20 @@ async function fetchOfficialEventsMissingCoords(
     return [];
   }
 
-  return ((data ?? []) as EventRow[])
-    .filter((event) => matchesEventSearch(event, query.search))
-    .map((event) => mapEventCard(event, 0));
+  return filterByParticipationMode(
+    ((data ?? []) as EventRow[])
+      .filter((event) => matchesEventSearch(event, query.search))
+      .map((event) => mapEventCard(event, 0)),
+    query.participationMode,
+  );
+}
+
+function filterByParticipationMode(
+  events: EventCardData[],
+  mode: ParticipationMode | 'all' | null | undefined,
+): EventCardData[] {
+  if (!mode || mode === 'all') return events;
+  return events.filter((event) => event.participationMode === mode);
 }
 
 function mergeEventCards(primary: EventCardData[], extra: EventCardData[]): EventCardData[] {
@@ -321,7 +332,10 @@ async function findWithinRadius(query: EventFeedQuery, radiusKm: number): Promis
     .sort((a, b) => a.distanceKm - b.distanceKm || a.event.starts_at.localeCompare(b.event.starts_at))
     .map(({ event, distanceKm: d }) => mapEventCard(event, d));
 
-  return mergeEventCards(geoHits, missingCoords);
+  return filterByParticipationMode(
+    mergeEventCards(geoHits, missingCoords),
+    query.participationMode,
+  );
 }
 
 /** Active open/live events across all cities — GPS-independent discovery fallback. */
@@ -386,9 +400,7 @@ export async function getCityEventsFeed(
   if (query.sport && query.sport !== 'ALL') {
     request = request.ilike('sport', query.sport);
   }
-  if (query.participationMode && query.participationMode !== 'all') {
-    request = request.eq('participation_mode', query.participationMode);
-  }
+  // participation_mode filtered after map — see filterByParticipationMode
 
   const [{ data, error }, missingCoords] = await Promise.all([
     request,
@@ -413,7 +425,10 @@ export async function getCityEventsFeed(
       return mapEventCard(event, d);
     });
 
-  const events = mergeEventCards(cityEvents, missingCoords);
+  const events = filterByParticipationMode(
+    mergeEventCards(cityEvents, missingCoords),
+    query.participationMode,
+  );
   if (events.length === 0) {
     return getAllActiveEventsFeed(query);
   }
@@ -458,9 +473,7 @@ export async function getEventsAtVenuesFeed(query: {
   if (query.sport && query.sport !== 'ALL') {
     request = request.ilike('sport', query.sport);
   }
-  if (query.participationMode && query.participationMode !== 'all') {
-    request = request.eq('participation_mode', query.participationMode);
-  }
+  // participation_mode filtered after map — see filterByParticipationMode
 
   const { data, error } = await request;
   if (error) {
@@ -470,13 +483,16 @@ export async function getEventsAtVenuesFeed(query: {
     return { events: [], radiusKm: 0, showExtended: false, message: error.message };
   }
 
-  const events = ((data ?? []) as EventRow[]).map((event) => {
-    const d =
-      event.latitude != null && event.longitude != null
-        ? distanceKm(lat, lng, event.latitude, event.longitude)
-        : 0;
-    return mapEventCard(event, d);
-  });
+  const events = filterByParticipationMode(
+    ((data ?? []) as EventRow[]).map((event) => {
+      const d =
+        event.latitude != null && event.longitude != null
+          ? distanceKm(lat, lng, event.latitude, event.longitude)
+          : 0;
+      return mapEventCard(event, d);
+    }),
+    query.participationMode,
+  );
 
   return { events, radiusKm: 0, showExtended: false };
 }
