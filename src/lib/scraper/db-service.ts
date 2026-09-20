@@ -51,9 +51,21 @@ export function canonicalizeSourceUrl(url: string): string {
   }
 }
 
+/** Fold title so parallel classes at the same time stay distinct (Ženy vs Deti o 17:00). */
+function titleKey(title: string | null | undefined): string {
+  return (title ?? '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
 /**
  * Stable external id within gemini-web for @@unique([source, externalId]).
- * Unique criterion: originalUrl + startTime (ISO).
+ * Unique criterion: originalUrl + startTime (ISO) + title
+ * (schedule pages often list multiple classes at the same clock time).
  */
 export function buildExternalId(
   event: ScrapedEvent,
@@ -63,7 +75,7 @@ export function buildExternalId(
   const startIso = Number.isNaN(startsAt.getTime())
     ? event.startTime
     : startsAt.toISOString();
-  const raw = `${canonicalizeSourceUrl(event.originalUrl)}|${startIso}`;
+  const raw = `${canonicalizeSourceUrl(event.originalUrl)}|${startIso}|${titleKey(event.title)}`;
   const hash = createHash('sha1').update(raw).digest('hex').slice(0, 40);
   const pageUrl = opts.scrapePageUrl ?? event.originalUrl;
   const fromSchedulePage =
@@ -188,10 +200,15 @@ type ExistingTournament = {
   for_women: boolean | null;
 };
 
-async function findEventByUrlAndStart(originalUrl: string, startsAt: Date) {
+async function findEventByUrlAndStart(
+  originalUrl: string,
+  startsAt: Date,
+  title: string,
+) {
   const supabase = createAdminClient();
   const from = new Date(startsAt.getTime() - 60_000).toISOString();
   const to = new Date(startsAt.getTime() + 60_000).toISOString();
+  const want = titleKey(title);
   const { data } = await supabase
     .from('events')
     .select(
@@ -200,14 +217,21 @@ async function findEventByUrlAndStart(originalUrl: string, startsAt: Date) {
     .eq('source_url', originalUrl)
     .gte('starts_at', from)
     .lte('starts_at', to)
-    .limit(1);
-  return ((data?.[0] as ExistingEvent | undefined) ?? null);
+    .limit(20);
+  const rows = (data ?? []) as ExistingEvent[];
+  if (!want) return rows[0] ?? null;
+  return rows.find((row) => titleKey(row.title) === want) ?? null;
 }
 
-async function findTournamentByUrlAndStart(originalUrl: string, startsAt: Date) {
+async function findTournamentByUrlAndStart(
+  originalUrl: string,
+  startsAt: Date,
+  title: string,
+) {
   const supabase = createAdminClient();
   const from = new Date(startsAt.getTime() - 60_000).toISOString();
   const to = new Date(startsAt.getTime() + 60_000).toISOString();
+  const want = titleKey(title);
   const { data } = await supabase
     .from('tournaments')
     .select(
@@ -216,8 +240,10 @@ async function findTournamentByUrlAndStart(originalUrl: string, startsAt: Date) 
     .eq('source_url', originalUrl)
     .gte('starts_at', from)
     .lte('starts_at', to)
-    .limit(1);
-  return ((data?.[0] as ExistingTournament | undefined) ?? null);
+    .limit(20);
+  const rows = (data ?? []) as ExistingTournament[];
+  if (!want) return rows[0] ?? null;
+  return rows.find((row) => titleKey(row.name) === want) ?? null;
 }
 
 async function upsertEvent(
@@ -260,7 +286,7 @@ async function upsertEvent(
 
   const existing =
     (byKey as ExistingEvent | null) ??
-    (await findEventByUrlAndStart(originalUrl, startsAt));
+    (await findEventByUrlAndStart(originalUrl, startsAt, event.title));
 
   const { venueId, named } = resolveWriteVenue(event, opts, existing?.venue_id ?? null);
   const latitude =
@@ -396,7 +422,7 @@ async function upsertTournament(
 
   const existing =
     (byKey as ExistingTournament | null) ??
-    (await findTournamentByUrlAndStart(originalUrl, startsAt));
+    (await findTournamentByUrlAndStart(originalUrl, startsAt, event.title));
 
   const { venueId, named } = resolveWriteVenue(event, opts, existing?.venue_id ?? null);
   const latitude = opts.latitude ?? named?.latitude ?? existing?.latitude ?? 48.1486;
@@ -481,7 +507,7 @@ async function upsertTournament(
 
 /**
  * Idempotent upsert via Supabase service-role REST (avoids Prisma DATABASE_URL / IPv6).
- * Unique criterion: originalUrl + startTime (encoded as gemini-web `externalId`).
+ * Unique criterion: originalUrl + startTime + title (encoded as gemini-web `externalId`).
  */
 export async function upsertScrapedEvents(
   events: ScrapedEvent[],
@@ -503,14 +529,20 @@ export async function upsertScrapedEvents(
       stats.skipped += 1;
       continue;
     }
-    const key = `${canonicalizeSourceUrl(event.originalUrl)}|${startsAt.toISOString()}`;
+    // Include title — same-slot parallel classes (ŽENY vs Deti) must not collapse.
+    const key = `${canonicalizeSourceUrl(event.originalUrl)}|${startsAt.toISOString()}|${titleKey(event.title)}`;
     const prev = seen.get(key);
     if (!prev) {
       seen.set(key, event);
       continue;
     }
-    if (!prev.priceText && event.priceText) seen.set(key, event);
-    else if (!prev.description && event.description) seen.set(key, event);
+    // Prefer the women/kids-tagged variant when titles collide after folding.
+    const prefer =
+      (!prev.isForWomenOnly && event.isForWomenOnly) ||
+      (!prev.isForKids && event.isForKids) ||
+      (!prev.priceText && event.priceText) ||
+      (!prev.description && event.description);
+    if (prefer) seen.set(key, event);
   }
 
   const uniqueEvents = [...seen.values()];
@@ -547,7 +579,7 @@ export async function upsertScrapedEvents(
 
 /**
  * Bind scraped listings to a venue and upsert idempotently.
- * Unique key: originalUrl + startTime (encoded as gemini-web externalId).
+ * Unique key: originalUrl + startTime + title (encoded as gemini-web externalId).
  */
 export async function saveEventsForVenue(
   events: ScrapedEvent[],
