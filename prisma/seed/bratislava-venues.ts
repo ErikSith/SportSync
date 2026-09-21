@@ -41,6 +41,7 @@ export async function seedBratislavaVenues(
       verified: venue.verified,
       amenities: venue.amenities,
       openingHours: venue.openingHours,
+      websiteUrl: venue.source.startsWith('http') ? venue.source : null,
     };
 
     if (existing) {

@@ -42,10 +42,44 @@ const FALLBACK_VENUES: HomeFilterVenue[] = [
   { id: 'fallback-aurial', name: 'Aurial Padel', city: 'Bratislava', sports: ['PADEL'] },
   { id: 'fallback-fitcamp', name: 'FitCamp', city: 'Bratislava', sports: [] },
   { id: 'fallback-tehelne', name: 'Tehelné pole', city: 'Bratislava', sports: ['FOOTBALL'] },
-  { id: 'fallback-ntc', name: 'NTC Bratislava', city: 'Bratislava', sports: [] },
+  {
+    id: 'fallback-ntc',
+    name: 'Národné tenisové centrum Bratislava',
+    city: 'Bratislava',
+    sports: ['TENNIS', 'SQUASH'],
+  },
 ];
 const SPOT_OPTIONS = [1, 2, 3, 4, 5] as const;
-const VENUE_SUGGESTION_LIMIT = 3;
+const VENUE_SUGGESTION_LIMIT = 5;
+const VENUE_PRESET_LIMIT = 5;
+
+/** Short search aliases → full venue name (lowercase). */
+const VENUE_SEARCH_ALIASES: Record<string, string[]> = {
+  'národné tenisové centrum bratislava': [
+    'ntc',
+    'ntc ba',
+    'ntc bratislava',
+    'národné tenisové',
+    'narodne tenisove',
+    'peugeot',
+    'peugeot aréna',
+    'peugeot arena',
+  ],
+  'aurial padel bratislava': ['aurial', 'aurial padel'],
+  'tehelné pole': ['tehelne', 'tehelné', 'slovan'],
+};
+
+function venueAliasScore(venueName: string, query: string): number {
+  const key = venueName.toLowerCase();
+  const aliases = VENUE_SEARCH_ALIASES[key];
+  if (!aliases) return 0;
+  for (const alias of aliases) {
+    if (alias === query) return 110;
+    if (alias.startsWith(query) || query.startsWith(alias)) return 90;
+    if (alias.includes(query)) return 70;
+  }
+  return 0;
+}
 
 function scoreVenueMatch(
   venue: HomeFilterVenue,
@@ -55,15 +89,15 @@ function scoreVenueMatch(
   const name = venue.name.toLowerCase();
   const city = venue.city.toLowerCase();
   const sports = venue.sports.map((s) => s.toUpperCase());
-  let score = 0;
+  let score = venueAliasScore(venue.name, query);
 
-  if (name === query) score = 120;
-  else if (name.startsWith(query)) score = 95;
-  else if (name.split(/[\s\-_/]+/).some((part) => part.startsWith(query))) score = 85;
-  else if (name.includes(query)) score = 65;
-  else if (city.startsWith(query)) score = 30;
-  else if (city.includes(query)) score = 15;
-  else return 0;
+  if (name === query) score = Math.max(score, 120);
+  else if (name.startsWith(query)) score = Math.max(score, 95);
+  else if (name.split(/[\s\-_/]+/).some((part) => part.startsWith(query))) score = Math.max(score, 85);
+  else if (name.includes(query)) score = Math.max(score, 65);
+  else if (city.startsWith(query)) score = Math.max(score, 30);
+  else if (city.includes(query)) score = Math.max(score, 15);
+  else if (score === 0) return 0;
 
   const sportApi = mapSportLabelToLobbySport(selectedSport);
   const sportKeys = sportApi
@@ -78,6 +112,31 @@ function scoreVenueMatch(
   }
 
   return score;
+}
+
+function venueMatchesSport(venue: HomeFilterVenue, selectedSport: string): boolean {
+  const sportApi = mapSportLabelToLobbySport(selectedSport);
+  if (!sportApi) return true;
+  const sportKeys = [sportApi, ...(EVENT_SPORT_KEYWORDS[sportApi] ?? [])].map((k) =>
+    k.toUpperCase(),
+  );
+  if (venue.sports.length === 0) return false;
+  return venue.sports.some((sport) =>
+    sportKeys.some((key) => sport.toUpperCase().includes(key)),
+  );
+}
+
+/** Flagship venues pinned at the top of sport presets. */
+function venuePresetPriority(venue: HomeFilterVenue, selectedSport: string): number {
+  const name = venue.name.toLowerCase();
+  const sportApi = mapSportLabelToLobbySport(selectedSport);
+  if (sportApi === 'TENNIS' || sportApi === 'SQUASH') {
+    if (name.includes('národné tenisové') || name.includes('ntc')) return 100;
+    if (name.includes('ašk inter') || name.includes('ask inter')) return 80;
+  }
+  if (sportApi === 'PADEL' && name.includes('aurial')) return 100;
+  if (sportApi === 'FOOTBALL' && name.includes('tehelné')) return 100;
+  return 0;
 }
 
 type DetailPhase = 'sport' | 'schedule' | 'venue' | 'players';
@@ -267,6 +326,20 @@ export function CreateLobbyModal({
       .slice(0, VENUE_SUGGESTION_LIMIT)
       .map((row) => row.venue);
   }, [catalogVenues, venueQueryLower, draft.sport]);
+
+  /** Sport-matched chips shown before the user starts typing (e.g. NTC for tennis). */
+  const presetVenues = useMemo(() => {
+    if (venueQueryLower.length >= 2 || !draft.sport) return [];
+
+    return catalogVenues
+      .filter((venue) => venueMatchesSport(venue, draft.sport))
+      .sort(
+        (a, b) =>
+          venuePresetPriority(b, draft.sport) - venuePresetPriority(a, draft.sport) ||
+          a.name.localeCompare(b.name),
+      )
+      .slice(0, VENUE_PRESET_LIMIT);
+  }, [catalogVenues, draft.sport, venueQueryLower]);
 
   const showSuggestions = venueQueryLower.length >= 2;
 
@@ -620,9 +693,37 @@ export function CreateLobbyModal({
                             >
                               Použiť „{venueQueryTrim}“
                             </button>
+                          ) : presetVenues.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="px-1 text-[11px] text-zinc-600">
+                                Odporúčané pre {draft.sport || 'vybraný šport'}
+                              </p>
+                              <div className="flex flex-col gap-1">
+                                {presetVenues.map((venue) => {
+                                  const inCatalog = isVenueUuid(venue.id);
+                                  return (
+                                    <button
+                                      key={venue.id}
+                                      type="button"
+                                      onClick={() => selectVenue(venue.name, venue.id)}
+                                      className="w-full rounded-lg px-3 py-2 text-left text-zinc-300 transition-colors hover:bg-white/[0.04] hover:text-white"
+                                    >
+                                      <span className="block truncate text-sm">{venue.name}</span>
+                                      {inCatalog ? (
+                                        <span className="mt-0.5 block truncate text-[10px] text-zinc-500">
+                                          {venue.websiteUrl
+                                            ? 'V databáze · oficiálny web športoviska'
+                                            : 'V databáze SportSync'}
+                                        </span>
+                                      ) : null}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           ) : (
                             <p className="px-1 text-[11px] text-zinc-600">
-                              Začni písať — ukážeme 3 najbližšie tipy.
+                              Začni písať — ukážeme tipy zo športovísk.
                             </p>
                           )}
                         </div>

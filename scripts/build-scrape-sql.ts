@@ -83,7 +83,7 @@ FROM (VALUES
   ('Form Factory Farského', 'Farského 14, Bratislava', 'Bratislava', ARRAY['FITNESS'], 48.1405, 17.1338, 'https://www.formfactory.sk/'),
   ('Form Factory OC Nivy', 'Mlynské nivy 16, Bratislava', 'Bratislava', ARRAY['FITNESS'], 48.1468, 17.1272, 'https://www.formfactory.sk/'),
   ('Form Factory BBC', 'Plynárenská 7/A, Bratislava', 'Bratislava', ARRAY['FITNESS'], 48.1422, 17.1285, 'https://www.formfactory.sk/'),
-  ('Národné tenisové centrum Bratislava', 'Trnavská cesta, Bratislava', 'Bratislava', ARRAY['TENNIS'], 48.1655, 17.1368, 'https://www.ntc.sk/'),
+  ('Národné tenisové centrum Bratislava', 'Príkopova 6, 831 03 Bratislava-Nové Mesto', 'Bratislava', ARRAY['TENNIS','SQUASH'], 48.16318, 17.13456, 'https://www.ntc.sk/'),
   ('Eurovea (Dunaj)', 'Pribinova, Bratislava', 'Bratislava', ARRAY['FITNESS'], 48.1405, 17.1225, 'https://www.citylife.sk/'),
   ('Grassalkovichova zahrada', 'Hodžovo námestie, Bratislava', 'Bratislava', ARRAY['FITNESS'], 48.1494, 17.1077, 'https://www.citylife.sk/')
 ) AS v(name, address, city, sports, lat, lng, website)

@@ -43,6 +43,7 @@ export type ScrapeAdapterId =
   | 'k2-lezenie'
   | 'block-dock'
   | 'nivy-zone'
+  | 'tenis-advantage'
   | 'venue-web';
 
 export interface NormalizedScrapedEvent {
@@ -78,6 +79,12 @@ export interface NormalizedScrapedEvent {
   forKids?: boolean;
   /** Women-only activity ("pre ženy", ladies only, W4W). */
   forWomen?: boolean;
+  /** False when source lists a date without HH:MM. */
+  timeKnown?: boolean;
+  /** Verbatim excerpt from source page (anti-hallucination). */
+  sourceExcerpt?: string | null;
+  /** Provenance JSON for UI "Dôkaz zo zdroja". */
+  sourceEvidence?: import('@/src/lib/scraper/source-evidence').SourceEvidence | null;
 }
 
 export interface AdapterResult {
@@ -270,11 +277,11 @@ export const VENUE_SEEDS: Array<{
   {
     key: 'ntc-bratislava',
     name: 'Národné tenisové centrum Bratislava',
-    address: 'Trnavská cesta, Bratislava',
+    address: 'Príkopova 6, 831 03 Bratislava-Nové Mesto',
     city: 'Bratislava',
-    sports: ['TENNIS'],
-    latitude: 48.1655,
-    longitude: 17.1368,
+    sports: ['TENNIS', 'SQUASH'],
+    latitude: 48.16318,
+    longitude: 17.13456,
     websiteUrl: 'https://www.ntc.sk/',
     district: 'nove-mesto',
   },
@@ -474,6 +481,17 @@ export const VENUE_SEEDS: Array<{
     longitude: 17.1077,
     websiteUrl: 'https://www.citylife.sk/',
     district: 'stare-mesto',
+  },
+  {
+    key: 'tenis-advantage',
+    name: 'Tenisová škola Advantage',
+    address: 'Botanická 35, Bratislava-Karlova Ves',
+    city: 'Bratislava',
+    sports: ['TENNIS'],
+    latitude: 48.1480407,
+    longitude: 17.0682452,
+    websiteUrl: 'https://www.tenisadvantage.sk/',
+    district: 'karlova-ves',
   },
 ];
 
