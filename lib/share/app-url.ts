@@ -11,5 +11,5 @@ export function resolveShareAppUrl(hostHeader?: string | null): string {
     }
   }
 
-  return 'https://sportsync-ct5.pages.dev';
+  return 'https://sport-sync-xi.vercel.app';
 }

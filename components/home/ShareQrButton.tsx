@@ -4,8 +4,8 @@ import { useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 
-const SHARE_URL = 'https://sportsync-ct5.pages.dev';
-const QR_IMAGE_SRC = '/share/sportsync-qr.png?v=3';
+const SHARE_URL = 'https://sport-sync-xi.vercel.app';
+const QR_IMAGE_SRC = '/share/sportsync-qr.png?v=4';
 
 export function ShareQrButton() {
   const [open, setOpen] = useState(false);

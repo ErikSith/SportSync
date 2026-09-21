@@ -18,7 +18,7 @@ const root = path.join(__dirname, '..');
 const target =
   process.argv[2]?.trim() ||
   process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-  'http://192.168.1.155:3000/beta';
+  'https://sport-sync-xi.vercel.app';
 
 const outDir = path.join(root, 'public', 'share');
 const outFile = path.join(outDir, 'sportsync-beta-qr.png');
