@@ -1,24 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/ai/plans/execute",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/ai/tournaments/agent",
-      "schedule": "0 */4 * * *"
-    },
-    {
       "path": "/api/cron/midnight-sync",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/scrape-events",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/purge-lobbies",
-      "schedule": "*/15 * * * *"
     }
   ]
 }

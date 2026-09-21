@@ -1,44 +1,45 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { isAuthorizedCron } from '@/lib/cron/authorize';
 import { cleanupExpiredEvents } from '@/lib/retention/events';
 import { cleanupExpiredLobbies } from '@/lib/retention/lobbies';
+import { runMidnightBatchedScrapers } from '@/lib/scrape/run';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-/** DB cleanup only — no HTML scrape (that lives in /api/cron/scrape-events shards). */
-export const maxDuration = 30;
+/** Vercel Hobby maximum — cleanup + budgeted scrape must finish inside this window. */
+export const maxDuration = 300;
 
 /**
- * Midnight Worker: cheap SQL retention.
+ * Midnight Worker (Vercel Cron `0 0 * * *`):
+ * 1) Purge expired scraped listings / lobbies
+ * 2) Batched venue scrape under a wall-clock budget (no daytime load)
  *
- * Scraping used to run here via runAllScrapers() and burned Cloudflare CPU
- * (Cheerio over every Bratislava adapter in one isolate). Do not put it back.
+ * Auth: Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`.
+ * Optional: `?from=<adapterIndex>` to resume a partial fleet pass.
  */
 export async function POST(request: Request) {
-  const cronOk = isAuthorizedCron(request);
-
-  if (!cronOk) {
-    const supabase = await createClient();
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 401 });
-    }
+  const authHeader = request.headers.get('authorization');
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const url = new URL(request.url);
+  const fromParam = url.searchParams.get('from');
+  const fromParsed = fromParam != null && fromParam !== '' ? Number(fromParam) : NaN;
+  const startIndex = Number.isFinite(fromParsed) ? fromParsed : undefined;
+
   try {
+    // 1) Cleanup first — only scraped/aggregated rows past retention (never user events).
     const purge = await cleanupExpiredEvents();
     const lobbyPurge = await cleanupExpiredLobbies();
+
+    // 2) Polite batched scrape (sequential adapters + delays, hard time budget).
+    const scrape = await runMidnightBatchedScrapers({ startIndex });
 
     return NextResponse.json({
       ok: true,
       purge,
       lobbyPurge,
-      scrape: {
-        skipped: true,
-        reason: 'edge-cpu-budget',
-        hint: 'HTML scrape is /api/cron/scrape-events (1 adapter / 30 min slot)',
-      },
+      scrape,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Midnight sync failed';

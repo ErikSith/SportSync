@@ -768,6 +768,111 @@ export async function runNamedScrapers(ids: ScrapeAdapterId[]): Promise<ScrapeRu
   return persistAdapterResults(results);
 }
 
+/** Adapters per polite “batch” pause on the midnight Hobby cron. */
+const MIDNIGHT_ADAPTER_BATCH = 3;
+const MIDNIGHT_BETWEEN_ADAPTER_MS = { min: 1_500, max: 3_500 } as const;
+/**
+ * Wall-clock scrape budget under Vercel Hobby `maxDuration` 300s —
+ * leaves headroom for SQL cleanup + JSON response.
+ */
+export const MIDNIGHT_SCRAPE_BUDGET_MS = 260_000;
+
+function randomDelayMs(min: number, max: number): number {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+export interface MidnightBatchScrapeReport extends ScrapeRunReport {
+  adaptersRun: ScrapeAdapterId[];
+  startIndex: number;
+  /** Next adapter index when the budget stopped the pass early; otherwise null. */
+  nextIndex: number | null;
+  stoppedEarly: boolean;
+  elapsedMs: number;
+}
+
+/** Day-rotated start so each midnight prefers a different window of the fleet. */
+export function midnightScrapeStartIndex(now = Date.now()): number {
+  const n = SCRAPE_ADAPTER_IDS.length;
+  if (n === 0) return 0;
+  const day = Math.floor(now / 86_400_000);
+  return (day * MIDNIGHT_ADAPTER_BATCH) % n;
+}
+
+/**
+ * Node-only midnight scrape: sequential adapters with polite delays, hard wall-clock budget.
+ * One failure never aborts the fleet (`executeNamedAdapter` already isolates errors).
+ */
+export async function runMidnightBatchedScrapers(options?: {
+  budgetMs?: number;
+  batchSize?: number;
+  startIndex?: number;
+}): Promise<MidnightBatchScrapeReport> {
+  if (isEdgeScrapeRuntime()) {
+    throw new Error(
+      'runMidnightBatchedScrapers is Node-only. Use /api/cron/midnight-sync on nodejs runtime.',
+    );
+  }
+
+  const budgetMs = options?.budgetMs ?? MIDNIGHT_SCRAPE_BUDGET_MS;
+  const batchSize = options?.batchSize ?? MIDNIGHT_ADAPTER_BATCH;
+  const startIndex = options?.startIndex ?? midnightScrapeStartIndex();
+  const started = Date.now();
+  const deadline = started + budgetMs;
+  const n = SCRAPE_ADAPTER_IDS.length;
+  const results: AdapterResult[] = [];
+  const adaptersRun: ScrapeAdapterId[] = [];
+  let cursor = n === 0 ? 0 : ((startIndex % n) + n) % n;
+  let stoppedEarly = false;
+
+  for (let i = 0; i < n; i++) {
+    if (Date.now() >= deadline) {
+      stoppedEarly = true;
+      break;
+    }
+
+    const id = SCRAPE_ADAPTER_IDS[cursor]!;
+    const result = await executeNamedAdapter(id);
+    await recordAdapterResult(result);
+    results.push(result);
+    adaptersRun.push(id);
+    cursor = (cursor + 1) % n;
+
+    const moreLeft = i < n - 1;
+    if (!moreLeft || Date.now() >= deadline) {
+      if (moreLeft) stoppedEarly = true;
+      break;
+    }
+
+    const endOfBatch = adaptersRun.length % batchSize === 0;
+    const gap = endOfBatch
+      ? randomDelayMs(
+          MIDNIGHT_BETWEEN_ADAPTER_MS.min + 1_000,
+          MIDNIGHT_BETWEEN_ADAPTER_MS.max + 1_500,
+        )
+      : randomDelayMs(MIDNIGHT_BETWEEN_ADAPTER_MS.min, MIDNIGHT_BETWEEN_ADAPTER_MS.max);
+
+    if (deadline - Date.now() <= gap) {
+      stoppedEarly = true;
+      break;
+    }
+    await sleep(gap);
+  }
+
+  const persisted =
+    results.length > 0
+      ? await persistAdapterResults(results)
+      : { created: 0, updated: 0, skipped: 0, unchanged: 0, adapters: [] };
+
+  return {
+    ...persisted,
+    adaptersRun,
+    startIndex,
+    nextIndex: stoppedEarly ? cursor : null,
+    stoppedEarly,
+    elapsedMs: Date.now() - started,
+  };
+}
+
 export interface ScrapeShardReport extends ScrapeRunReport {
   adapter: ScrapeAdapterId;
   slot: number;
