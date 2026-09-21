@@ -20,6 +20,7 @@ import { listingParticipationMode } from '@/lib/participation/fixture-match';
 import { FEED_ACTIVE_GRACE_HOURS, activeFeedSinceIso } from '@/lib/retention/feed-window';
 import { lobbyActiveSinceIso } from '@/lib/retention/lobbies';
 import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
+import { foldDiacritics } from '@/lib/text/fold-diacritics';
 
 export { getProfileByAuthId, type Profile } from '@/lib/data/profile';
 import type { Profile } from '@/lib/data/profile';
@@ -131,6 +132,7 @@ interface EventRow {
   status: string;
   city: string;
   starts_at: string;
+  start_time?: string | null;
   price: number | string;
   price_cents: number | null;
   currency: string | null;
@@ -151,6 +153,8 @@ interface EventRow {
   is_aggregated?: boolean | null;
   for_kids?: boolean | null;
   for_women?: boolean | null;
+  source_excerpt?: string | null;
+  source_evidence?: import('@/lib/data/events').SourceEvidencePayload | null;
   venues?: { name: string } | { name: string }[] | null;
 }
 
@@ -210,6 +214,7 @@ function toEventCard(event: EventRow, distKm: number): EventCardData {
     type: normalizeEventType(event.type),
     city: event.city,
     startsAt: parseDbInstant(event.starts_at),
+    timeKnown: event.start_time != null && event.start_time !== '',
     price: Number(event.price),
     priceCents: event.price_cents ?? Math.round(Number(event.price) * 100),
     currency: event.currency ?? 'EUR',
@@ -230,7 +235,12 @@ function toEventCard(event: EventRow, distKm: number): EventCardData {
     venueId: event.venue_id,
     venueName: resolveVenueName(event.venues),
     themeConfig: (event.theme_config as Record<string, unknown>) ?? {},
-    participationMode: listingParticipationMode(event.title, event.participation_mode),
+    participationMode: listingParticipationMode(event.title, event.participation_mode, {
+      description: event.description,
+      sourceUrl: event.source_url,
+      ticketUrl: event.ticket_url,
+      source: event.source,
+    }),
     ticketUrl: event.ticket_url ?? null,
     sourceUrl: event.source_url ?? null,
     sourceName: event.source_name ?? null,
@@ -239,6 +249,11 @@ function toEventCard(event: EventRow, distKm: number): EventCardData {
     isAggregated: Boolean(event.is_aggregated),
     forKids: Boolean(event.for_kids),
     forWomen: Boolean(event.for_women),
+    sourceExcerpt: event.source_excerpt?.trim() || null,
+    sourceEvidence:
+      event.source_evidence && typeof event.source_evidence === 'object'
+        ? (event.source_evidence as import('@/lib/data/events').SourceEvidencePayload)
+        : null,
   };
 }
 
@@ -332,14 +347,15 @@ export async function getVenuesForHomeFilter(city: string, take = 80): Promise<H
 }
 
 /** Full venue list for lobby create autocomplete (city first, then all venues). */
-export async function getVenuesForLobbyPicker(city: string, take = 250): Promise<HomeFilterVenue[]> {
+export async function getVenuesForLobbyPicker(city: string, take = 400): Promise<HomeFilterVenue[]> {
   const supabase = await createClient();
-  const select = 'id, name, city, sports, website_url';
+  const select = 'id, name, city, sports, website_url, verified';
 
   const cityRes = await supabase
     .from('venues')
     .select(select)
     .ilike('city', `%${city}%`)
+    .order('verified', { ascending: false })
     .order('name', { ascending: true })
     .limit(take);
 
@@ -353,6 +369,7 @@ export async function getVenuesForLobbyPicker(city: string, take = 250): Promise
     const allRes = await supabase
       .from('venues')
       .select(select)
+      .order('verified', { ascending: false })
       .order('name', { ascending: true })
       .limit(take);
     if (allRes.error) {
@@ -362,17 +379,24 @@ export async function getVenuesForLobbyPicker(city: string, take = 250): Promise
     rows = allRes.data ?? [];
   }
 
-  return rows.map((venue) =>
-    mapHomeFilterVenue(
-      venue as {
-        id: string;
-        name: string;
-        city: string;
-        sports: string[] | null;
-        website_url?: string | null;
-      },
-    ),
-  );
+  // Collapse duplicate names (Places scrapes often create many copies of Aurial/Gopass).
+  const seen = new Set<string>();
+  const deduped: HomeFilterVenue[] = [];
+  for (const venue of rows as Array<{
+    id: string;
+    name: string;
+    city: string;
+    sports: string[] | null;
+    website_url?: string | null;
+    verified?: boolean | null;
+  }>) {
+    const key = foldDiacritics(venue.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(mapHomeFilterVenue(venue));
+  }
+
+  return deduped;
 }
 
 /** Favorite venues from play history + explicit picks in the feed filter. */

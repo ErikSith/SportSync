@@ -35,11 +35,12 @@ import {
   LOBBY_SPORTS,
   sportDisplayLabel,
 } from '@/lib/constants/sports';
+import { foldDiacritics } from '@/lib/text/fold-diacritics';
 
 const SPORTS = LOBBY_SPORTS.map((sport) => sportDisplayLabel(sport));
 const FALLBACK_VENUES: HomeFilterVenue[] = [
   { id: 'fallback-park-21', name: 'Park 21', city: 'Bratislava', sports: [] },
-  { id: 'fallback-aurial', name: 'Aurial Padel', city: 'Bratislava', sports: ['PADEL'] },
+  { id: 'fallback-aurial', name: 'Aurial Padel Bratislava', city: 'Bratislava', sports: ['PADEL'] },
   { id: 'fallback-fitcamp', name: 'FitCamp', city: 'Bratislava', sports: [] },
   { id: 'fallback-tehelne', name: 'Tehelné pole', city: 'Bratislava', sports: ['FOOTBALL'] },
   {
@@ -50,35 +51,46 @@ const FALLBACK_VENUES: HomeFilterVenue[] = [
   },
 ];
 const SPOT_OPTIONS = [1, 2, 3, 4, 5] as const;
-const VENUE_SUGGESTION_LIMIT = 5;
-const VENUE_PRESET_LIMIT = 5;
+const VENUE_SUGGESTION_LIMIT = 8;
+const VENUE_PRESET_LIMIT = 8;
 
-/** Short search aliases → full venue name (lowercase). */
+/** Short search aliases → folded venue name. */
 const VENUE_SEARCH_ALIASES: Record<string, string[]> = {
-  'národné tenisové centrum bratislava': [
+  [foldDiacritics('Národné tenisové centrum Bratislava')]: [
     'ntc',
     'ntc ba',
     'ntc bratislava',
-    'národné tenisové',
     'narodne tenisove',
+    'narodne tenisove centrum',
     'peugeot',
-    'peugeot aréna',
     'peugeot arena',
   ],
-  'aurial padel bratislava': ['aurial', 'aurial padel'],
-  'tehelné pole': ['tehelne', 'tehelné', 'slovan'],
+  [foldDiacritics('Aurial Padel Bratislava')]: ['aurial', 'aurial padel'],
+  [foldDiacritics('Tehelné pole')]: ['tehelne', 'tehelne pole', 'slovan'],
 };
 
-function venueAliasScore(venueName: string, query: string): number {
-  const key = venueName.toLowerCase();
+function venueAliasScore(venueName: string, queryFolded: string): number {
+  const key = foldDiacritics(venueName);
   const aliases = VENUE_SEARCH_ALIASES[key];
   if (!aliases) return 0;
   for (const alias of aliases) {
-    if (alias === query) return 110;
-    if (alias.startsWith(query) || query.startsWith(alias)) return 90;
-    if (alias.includes(query)) return 70;
+    const a = foldDiacritics(alias);
+    if (a === queryFolded) return 110;
+    if (a.startsWith(queryFolded) || queryFolded.startsWith(a)) return 90;
+    if (a.includes(queryFolded) || queryFolded.includes(a)) return 70;
   }
   return 0;
+}
+
+/** All query tokens (≥2 chars) appear in the folded haystack (prefix OK on last token). */
+function foldedTokensMatch(hayFolded: string, queryFolded: string): boolean {
+  const tokens = queryFolded.split(/\s+/).filter((t) => t.length >= 2);
+  if (tokens.length === 0) return false;
+  return tokens.every((token) => {
+    if (hayFolded.includes(token)) return true;
+    // "centr" → "centrum"
+    return hayFolded.split(/[\s\-_/]+/).some((part) => part.startsWith(token));
+  });
 }
 
 function scoreVenueMatch(
@@ -86,17 +98,20 @@ function scoreVenueMatch(
   query: string,
   selectedSport: string,
 ): number {
-  const name = venue.name.toLowerCase();
-  const city = venue.city.toLowerCase();
+  const queryFolded = foldDiacritics(query);
+  const nameFolded = foldDiacritics(venue.name);
+  const cityFolded = foldDiacritics(venue.city);
   const sports = venue.sports.map((s) => s.toUpperCase());
-  let score = venueAliasScore(venue.name, query);
+  let score = venueAliasScore(venue.name, queryFolded);
 
-  if (name === query) score = Math.max(score, 120);
-  else if (name.startsWith(query)) score = Math.max(score, 95);
-  else if (name.split(/[\s\-_/]+/).some((part) => part.startsWith(query))) score = Math.max(score, 85);
-  else if (name.includes(query)) score = Math.max(score, 65);
-  else if (city.startsWith(query)) score = Math.max(score, 30);
-  else if (city.includes(query)) score = Math.max(score, 15);
+  if (nameFolded === queryFolded) score = Math.max(score, 120);
+  else if (nameFolded.startsWith(queryFolded)) score = Math.max(score, 95);
+  else if (nameFolded.split(/[\s\-_/]+/).some((part) => part.startsWith(queryFolded))) {
+    score = Math.max(score, 85);
+  } else if (nameFolded.includes(queryFolded)) score = Math.max(score, 65);
+  else if (foldedTokensMatch(nameFolded, queryFolded)) score = Math.max(score, 80);
+  else if (cityFolded.startsWith(queryFolded)) score = Math.max(score, 30);
+  else if (cityFolded.includes(queryFolded)) score = Math.max(score, 15);
   else if (score === 0) return 0;
 
   const sportApi = mapSportLabelToLobbySport(selectedSport);
@@ -107,7 +122,7 @@ function scoreVenueMatch(
     const sportHit = sports.some((sport) =>
       sportKeys.some((key) => sport.includes(key.toUpperCase())),
     );
-    const nameHit = sportKeys.some((key) => name.includes(key.toLowerCase()));
+    const nameHit = sportKeys.some((key) => nameFolded.includes(foldDiacritics(key)));
     if (sportHit || nameHit) score += 25;
   }
 
@@ -128,14 +143,14 @@ function venueMatchesSport(venue: HomeFilterVenue, selectedSport: string): boole
 
 /** Flagship venues pinned at the top of sport presets. */
 function venuePresetPriority(venue: HomeFilterVenue, selectedSport: string): number {
-  const name = venue.name.toLowerCase();
+  const name = foldDiacritics(venue.name);
   const sportApi = mapSportLabelToLobbySport(selectedSport);
   if (sportApi === 'TENNIS' || sportApi === 'SQUASH') {
-    if (name.includes('národné tenisové') || name.includes('ntc')) return 100;
-    if (name.includes('ašk inter') || name.includes('ask inter')) return 80;
+    if (name.includes('narodne tenisove') || name.includes('ntc')) return 100;
+    if (name.includes('ask inter')) return 80;
   }
   if (sportApi === 'PADEL' && name.includes('aurial')) return 100;
-  if (sportApi === 'FOOTBALL' && name.includes('tehelné')) return 100;
+  if (sportApi === 'FOOTBALL' && name.includes('tehelne')) return 100;
   return 0;
 }
 
@@ -723,7 +738,7 @@ export function CreateLobbyModal({
                             </div>
                           ) : (
                             <p className="px-1 text-[11px] text-zinc-600">
-                              Začni písať — ukážeme tipy zo športovísk.
+                              Začni písať (aj bez diakritiky) — ukážeme tipy zo športovísk.
                             </p>
                           )}
                         </div>
