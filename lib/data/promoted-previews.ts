@@ -59,6 +59,8 @@ export function getPromotedBannerPreviews(): PromotedBannerItem[] {
     type: 'official',
     city: 'Bratislava',
     startsAt: fitnessStarts,
+    endsAt: null,
+    timeKnown: true,
     price: 0,
     priceCents: 0,
     currency: 'EUR',
@@ -82,6 +84,8 @@ export function getPromotedBannerPreviews(): PromotedBannerItem[] {
     isAggregated: false,
     forKids: false,
     forWomen: false,
+    sourceExcerpt: null,
+    sourceEvidence: null,
   };
 
   return [

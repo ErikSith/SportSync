@@ -14,6 +14,14 @@ function formatEventDate(date: Date): string {
     .toUpperCase();
 }
 
+function formatEventDateRange(startsAt: Date, endsAt: Date | null | undefined): string {
+  const start = formatEventDate(startsAt);
+  if (!endsAt) return start;
+  const end = formatEventDate(endsAt);
+  if (start === end) return start;
+  return `${start} – ${end}`;
+}
+
 function formatEventTime(date: Date): string {
   return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
@@ -111,7 +119,8 @@ export function EventCard({ event }: { event: EventCardData }) {
           <div className="flex items-center gap-1 font-label-caps text-label-caps text-[10px] text-on-surface-variant">
             <span className="material-symbols-outlined text-[12px]">calendar_today</span>
             <span>
-              {formatEventDate(event.startsAt)} · {formatEventTime(event.startsAt)}
+              {formatEventDateRange(event.startsAt, event.endsAt)}
+              {event.timeKnown !== false ? ` · ${formatEventTime(event.startsAt)}` : ''}
             </span>
           </div>
 

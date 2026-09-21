@@ -20,6 +20,14 @@ function formatEventDate(date: Date): string {
     .toUpperCase();
 }
 
+function formatEventDateRange(startsAt: Date, endsAt: Date | null | undefined): string {
+  const start = formatEventDate(startsAt);
+  if (!endsAt) return start;
+  const end = formatEventDate(endsAt);
+  if (start === end) return start;
+  return `${start} – ${end}`;
+}
+
 function formatEventTime(date: Date): string {
   return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
@@ -147,10 +155,12 @@ export function EventCarouselCard({
                 calendar_today
               </span>
               <span className="font-label-caps text-[10px] uppercase tracking-wide text-on-surface">
-                {isLive ? t('events.startedAt', { time: formatEventTime(event.startsAt) }) : formatEventDate(event.startsAt)}
+                {isLive
+                  ? t('events.startedAt', { time: formatEventTime(event.startsAt) })
+                  : formatEventDateRange(event.startsAt, event.endsAt)}
               </span>
             </span>
-            {!isLive && (
+            {!isLive && event.timeKnown !== false && (
               <span className="inline-flex items-center gap-1.5">
                 <span
                   className={`material-symbols-outlined text-[15px] ${

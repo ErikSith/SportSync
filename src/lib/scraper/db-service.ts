@@ -9,6 +9,7 @@ import {
   type ScraperUpsertStats,
 } from './types';
 import { toAppDateKey } from '@/lib/datetime/bratislava';
+import { dateOnlySortInstant } from './date-only-time';
 import {
   looksLikeGroupClassListing,
   normalizeLessonTitle,
@@ -23,7 +24,7 @@ import {
   type ResolvedListingVenue,
   type VenueUrlIndex,
 } from './resolve-venue';
-import { titleLooksLikeHeadToHeadFixture } from '@/lib/participation/fixture-match';
+import { resolveParticipationMode } from '@/lib/participation/fixture-match';
 
 const AGGREGATOR_NOTICE =
   'SportSync zobrazuje textový prehľad. Registrácia a lístky sú vždy u organizátora.';
@@ -72,10 +73,12 @@ export function buildExternalId(
   opts: { forceGroupClass?: boolean; scrapePageUrl?: string } = {},
 ): string {
   const startsAt = new Date(event.startTime);
-  const startIso = Number.isNaN(startsAt.getTime())
+  const startKey = Number.isNaN(startsAt.getTime())
     ? event.startTime
-    : startsAt.toISOString();
-  const raw = `${canonicalizeSourceUrl(event.originalUrl)}|${startIso}|${titleKey(event.title)}`;
+    : event.timeKnown === false
+      ? toAppDateKey(startsAt)
+      : startsAt.toISOString();
+  const raw = `${canonicalizeSourceUrl(event.originalUrl)}|${startKey}|${titleKey(event.title)}`;
   const hash = createHash('sha1').update(raw).digest('hex').slice(0, 40);
   const pageUrl = opts.scrapePageUrl ?? event.originalUrl;
   const fromSchedulePage =
@@ -250,15 +253,19 @@ async function upsertEvent(
   event: ScrapedEvent,
   opts: UpsertScrapedOptions = {},
 ): Promise<'created' | 'updated' | 'unchanged' | 'skipped'> {
-  const startsAt = new Date(event.startTime);
+  const timeKnown = event.timeKnown !== false;
+  let startsAt = new Date(event.startTime);
   if (Number.isNaN(startsAt.getTime())) return 'skipped';
+  if (!timeKnown) {
+    startsAt = dateOnlySortInstant(event.startTime);
+    if (Number.isNaN(startsAt.getTime())) return 'skipped';
+  }
 
   const supabase = createAdminClient();
   const originalUrl = canonicalizeSourceUrl(event.originalUrl);
-  const endTime = event.endTime ? new Date(event.endTime) : null;
   const asGroupClass = isGroupClassWrite(event, opts);
   const externalId = buildExternalId(
-    { ...event, originalUrl },
+    { ...event, originalUrl, timeKnown, startTime: startsAt.toISOString() },
     { ...opts, forceGroupClass: asGroupClass || opts.forceGroupClass },
   );
   const sport = detectEventSport(`${event.sportType} ${event.title}`);
@@ -272,8 +279,22 @@ async function upsertEvent(
   );
   const themeConfig = buildThemeConfig(sportType, null);
   const startsAtIso = startsAt.toISOString();
-  const endAtIso =
-    endTime && !Number.isNaN(endTime.getTime()) ? endTime.toISOString() : null;
+  // Persist end for timed windows and date-only multi-day festivals (5.–9. nov).
+  let endAtIso: string | null = null;
+  if (event.endTime) {
+    if (timeKnown) {
+      const endTime = new Date(event.endTime);
+      if (!Number.isNaN(endTime.getTime())) endAtIso = endTime.toISOString();
+    } else {
+      const endNoon = dateOnlySortInstant(event.endTime);
+      if (
+        !Number.isNaN(endNoon.getTime()) &&
+        toAppDateKey(endNoon) > toAppDateKey(startsAt)
+      ) {
+        endAtIso = endNoon.toISOString();
+      }
+    }
+  }
 
   const { data: byKey } = await supabase
     .from('events')
@@ -316,7 +337,8 @@ async function upsertEvent(
     currency: 'EUR',
     price: priceCents / 100,
     event_date: startsAtIso,
-    start_time: startsAtIso,
+    // null = date known, clock unknown — UI must not show a fake HH:MM
+    start_time: timeKnown ? startsAtIso : null,
     end_time: endAtIso,
     starts_at: startsAtIso,
     theme_config: themeConfig,
@@ -327,15 +349,21 @@ async function upsertEvent(
     ticket_url: originalUrl,
     scraped_at: new Date().toISOString(),
     is_aggregated: true,
-    participation_mode: titleLooksLikeHeadToHeadFixture(event.title)
-      ? 'spectator'
-      : 'participate',
+    participation_mode: resolveParticipationMode({
+      title: event.title,
+      description: event.description,
+      sourceUrl: originalUrl,
+      ticketUrl: originalUrl,
+      source: GEMINI_SCRAPER_SOURCE,
+    }),
     ai_enriched: false,
     venue_id: venueId,
     latitude,
     longitude,
     for_kids: forKids,
     for_women: forWomen,
+    source_excerpt: event.sourceExcerpt?.slice(0, 500) ?? null,
+    source_evidence: event.sourceEvidence ?? null,
   };
 
   if (existing) {
@@ -350,12 +378,19 @@ async function upsertEvent(
       Boolean(existing.for_women) === forWomen;
 
     if (unchanged) {
+      // Always refresh provenance + clock-known flag even when identity is unchanged
       await supabase
         .from('events')
         .update({
           scraped_at: new Date().toISOString(),
           external_id: externalId,
           source: GEMINI_SCRAPER_SOURCE,
+          source_excerpt: shared.source_excerpt,
+          source_evidence: shared.source_evidence,
+          start_time: shared.start_time,
+          end_time: shared.end_time,
+          starts_at: shared.starts_at,
+          event_date: shared.event_date,
         })
         .eq('id', existing.id);
       return 'unchanged';

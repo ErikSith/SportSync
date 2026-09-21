@@ -27,6 +27,31 @@ export {
 } from './fetcher';
 
 export { extractEventsFromText } from './extractor';
+export { groundScrapedEventDates } from './ground-dates';
+export {
+  applyMultiDayDateRanges,
+  parseMultiDayRangesFromText,
+} from './multi-day-range';
+export { applyDateOnlyTimeUnknown, dateOnlySortInstant } from './date-only-time';
+export {
+  splitAnnouncementCalendar,
+  looksLikeAnnouncementCalendar,
+  activityToIsoStart,
+  activityToIsoEnd,
+} from './announcement-calendar';
+export type { AnnouncementActivity } from './announcement-calendar';
+export {
+  buildSourceEvidence,
+  applySourceEvidence,
+  sourceUrlWithTextFragment,
+  buildTextFragment,
+} from './source-evidence';
+export type {
+  SourceEvidence,
+  SourceEvidenceFields,
+  EvidenceFieldStatus,
+  ScrapedEventWithEvidence,
+} from './source-evidence';
 export {
   upsertScrapedEvents,
   saveEventsForVenue,

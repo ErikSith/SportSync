@@ -303,6 +303,10 @@ model Event {
   sourceName         String?   @map("source_name")
   ticketUrl          String?   @map("ticket_url")
   scrapedAt          DateTime? @map("scraped_at") @db.Timestamp(6)
+  /// Verbatim excerpt from source page text (anti-hallucination proof).
+  sourceExcerpt      String?   @map("source_excerpt")
+  /// Provenance JSON: fields found/missing, textFragment, sourceUrl, scrapedAt.
+  sourceEvidence     Json?     @map("source_evidence")
   /// True when scraped/aggregated — app is redirector only (no in-app registration).
   isAggregated       Boolean   @default(false) @map("is_aggregated")
   /// spectator = watch only; participate = join/book/register

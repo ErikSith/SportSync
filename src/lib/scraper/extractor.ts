@@ -10,6 +10,15 @@ import {
 } from './types';
 import { isListingNoise } from '@/lib/feed/group-class';
 import { classifyListingAudience } from '@/lib/events/audience';
+import {
+  activityToIsoEnd,
+  activityToIsoStart,
+  looksLikeAnnouncementCalendar,
+  splitAnnouncementCalendar,
+  type AnnouncementActivity,
+} from './announcement-calendar';
+import { groundScrapedEventDates } from './ground-dates';
+import { applySourceEvidence } from './source-evidence';
 
 /**
  * gemini-2.0-flash was shut down 2026-06-01. gemini-flash-latest currently
@@ -49,6 +58,7 @@ const RESPONSE_SCHEMA: ResponseSchema = {
           isTournament: { type: SchemaType.BOOLEAN },
           isGroupClass: { type: SchemaType.BOOLEAN },
           startTime: { type: SchemaType.STRING },
+          timeKnown: { type: SchemaType.BOOLEAN },
           endTime: { type: SchemaType.STRING },
           locationName: { type: SchemaType.STRING },
           priceText: { type: SchemaType.STRING },
@@ -66,6 +76,7 @@ const RESPONSE_SCHEMA: ResponseSchema = {
           'isForWomenOnly',
           'isForKids',
           'startTime',
+          'timeKnown',
           'locationName',
           'originalUrl',
         ],
@@ -117,8 +128,9 @@ AKTUÁLNY DNEŠNÝ DÁTUM JE: ${todayFormatted}.
 PRAVIDLÁ PRE EXTRAKCIU:
 1. Ak stránka uvádza relatívne dátumy ('Dnes', 'Zajtra', 'Tento piatok'), dopočítaj presný kalendárny dátum podľa dnešného dátumu (${todayFormatted}).
 2. Čas začiatku (startTime) extrahuj LEN vtedy, ak jednoznačne patrí k danej udalosti/turnaju. Nezmiešaj ho s otváracími hodinami recepcie ani pätky!
-3. Ak na stránke nie je explicitne uvedený čas alebo dátum konania, akciu NEEXTRAHUJ (preskoč ju).
-4. Miesto konania (locationName) musí byť presný názov športoviska alebo adresa uvedená priamo pri danej akcii.
+   Ak je uvedený LEN dátum bez HH:MM (napr. „26.9. Rozlúčka so sezónou“), nastav timeKnown = false a startTime na 12:00 toho dňa (len kotva na zoradenie). NIKDY nevymýšľaj 09:00/10:00/14:00.
+3. Ak na stránke nie je explicitne uvedený dátum konania, akciu NEEXTRAHUJ (preskoč ju).
+4. timeKnown = true LEN pri explicitnom HH:MM pri aktivite. timeKnown = false pri samotnom dátume.
 
 Pravidlá:
 - Ignoruj marketing, navigáciu, cookies, footer, opakujúce sa menu.
@@ -137,12 +149,22 @@ Pravidlá:
 - Unikátny EVENT/turnaj = jednorazové podujatie s vlastným názvom (cup, open, marathon, workshop, zápas).
 - Bežný názov lekcie (Pilates, HIIT, Box, Yoga, Kickbox, footwork, nábor, akademia…) = skupinová lekcia, nie unikátny event.
 - Ak sú uvedené konkrétne dátumy (deň.mesiac.rok / ISO), použi ich.
+- Viacdňové festivaly/turnaje (napr. „5 novembra – 9 novembra“, „24.–25. 10.“, „5-9“):
+  startTime = prvý deň, endTime = posledný deň. Jeden záznam na celé obdobie (nie karty po dňoch).
+  Ak nie je HH:MM, timeKnown = false a oba časy na 12:00 toho dňa.
 - startTime (a endTime) musia byť ISO 8601 s offsetom Bratislavy (+02:00 alebo +01:00).
 - locationName ber len z hlavného obsahu (adresa / názov športoviska pri udalosti), nie z menu ani footera.
 - originalUrl MUSÍ byť platná absolútna http(s) URL: použi priamy rezervačný/registračný odkaz
   (rezervácia, booking, prihláška, lístky), ak je na stránke uvedený. Inak použi: ${pageUrl}
 - Nikdy nevymýšľaj URL. originalUrl musí patriť organizátorovi / rezervačnému systému.
-- description max 2 krátke vety; priceText len ak je cena uvedená.
+- description: 1–3 krátke vety s dôležitými faktami pre hráča (kategória, formát štvorhra/dvojhra, časové okno, prihláška). priceText len ak je cena uvedená.
+- OZNÁMENIA / KALENDÁRE DÁTUMOV (vysoká recall — žiadny turnaj nesmie uniknúť):
+  • Ak text obsahuje riadky typu „26.9. … turnaj … 9:30–12:30 a … turnaj … 13:00–18:00“,
+    vytvor SAMOSTATNÝ záznam pre KAŽDÚ aktivitu s vlastným časom (ženy ≠ mužská štvorhra).
+  • Názov vezmi z aktivity („Tenisový turnaj žien“), nie len zo série („Tenisová jeseň“).
+  • Sériový nadpis môže byť v description; nikdy nezlučuj viac turnajov do jedného eventu.
+  • Operačné veci bez hry (brigáda, stavanie haly, prázdniny, začiatok sezóny) NEEXTRAHUJ.
+  • Kartu/teaser len s dátumom publikácie bez času turnaja NEEXTRAHUJ — choď podľa tela oznámenia.
 - isForKids = true keď je aktivita pre deti, mládež, rodiny s deťmi alebo juniorov:
   „pre deti“, detský/detská, Kidstown, detské plávanie, mini tenis, U6–U14, bábätká, rodič + dieťa,
   juniori/juniorky, mládežnícky turnaj, rodinný deň s deťmi.
@@ -306,14 +328,185 @@ async function generateWithFallback(
     : new Error(`All Gemini models failed: ${String(lastError)}`);
 }
 
+function guessLocationName(cleanText: string, pageUrl: string): string {
+  const fromText =
+    cleanText.match(/Tenisov[aá]\s+[šs]kola\s+Advantage/i)?.[0] ||
+    cleanText.match(/Advantage\s+Tenis\s+School/i)?.[0] ||
+    cleanText.match(/Botanick[aá]\s+\d+/i)?.[0];
+  if (fromText) return fromText.replace(/\s+/g, ' ').trim();
+  try {
+    return new URL(pageUrl).hostname.replace(/^www\./, '');
+  } catch {
+    return 'Bratislava';
+  }
+}
+
+function bratislavaOffsetFor(isoLocalDate: string): string {
+  // Rough DST: last Sunday Mar → last Sunday Oct ≈ CEST (+02).
+  const m = isoLocalDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '+02:00';
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 3 || month > 10) return '+01:00';
+  if (month > 3 && month < 10) return '+02:00';
+  if (month === 3) return day >= 25 ? '+02:00' : '+01:00';
+  return day >= 25 ? '+01:00' : '+02:00';
+}
+
+function activityToScrapedEvent(
+  activity: AnnouncementActivity,
+  pageUrl: string,
+  locationName: string,
+): ScrapedEvent {
+  const dateKey = `${activity.year}-${String(activity.month).padStart(2, '0')}-${String(activity.day).padStart(2, '0')}`;
+  const offset = bratislavaOffsetFor(dateKey);
+  const audience = classifyListingAudience({
+    title: activity.title,
+    description: activity.description,
+    sourceUrl: pageUrl,
+    locationName,
+    forKids: activity.isForKids,
+    forWomen: activity.isForWomenOnly,
+  });
+  return {
+    title: activity.title,
+    sportType: activity.sportType,
+    isTournament: activity.isTournament,
+    isGroupClass: false,
+    isForWomenOnly: audience.forWomen,
+    isForKids: audience.forKids,
+    ageCategory: null,
+    startTime: activityToIsoStart(activity, offset),
+    timeKnown: true,
+    endTime: activityToIsoEnd(activity, offset),
+    locationName,
+    priceText: null,
+    description: activity.description,
+    originalUrl: pageUrl,
+  };
+}
+
+function eventKey(e: Pick<ScrapedEvent, 'title' | 'startTime'>): string {
+  const t = Date.parse(e.startTime);
+  const hour = Number.isFinite(t) ? new Date(t).toISOString().slice(0, 13) : e.startTime;
+  return `${hour}|${e.title.trim().toLowerCase()}`;
+}
+
+/**
+ * High-recall merge: deterministic calendar activities first (date/time/sport),
+ * then Gemini rows that do not collide — so nothing playable is dropped.
+ */
+function mergeCalendarAndGemini(
+  calendar: ScrapedEvent[],
+  gemini: ScrapedEvent[],
+): ScrapedEvent[] {
+  if (calendar.length === 0) return gemini;
+  if (gemini.length === 0) return calendar;
+
+  const seen = new Set(calendar.map(eventKey));
+  const merged = [...calendar];
+  for (const g of gemini) {
+    const key = eventKey(g);
+    if (seen.has(key)) continue;
+    // Drop vague series teasers when calendar already split the same page.
+    const title = g.title.trim().toLowerCase();
+    const isSeriesTeaser =
+      /jese[nň]|sezóna|sezona|prázdnin|aktualit/i.test(title) &&
+      !/turnaj|cup|open|štvorhr|dvojhr/i.test(title);
+    if (isSeriesTeaser) continue;
+    seen.add(key);
+    merged.push(g);
+  }
+  return merged;
+}
+
+function normalizeExtractedEvents(
+  events: ScrapedEvent[],
+  pageUrl: string,
+  cleanText?: string,
+  options?: { skipEvidence?: boolean },
+): ScrapedEvent[] {
+  const now = Date.now() - 60 * 60 * 1000;
+  const withAudience = events
+    .map((e) => {
+      const base = {
+        ...e,
+        title: e.title.trim(),
+        sportType: e.sportType.trim(),
+        locationName: e.locationName.trim(),
+        originalUrl: absoluteHttpUrl(e.originalUrl, pageUrl),
+        description: e.description?.trim() || null,
+        priceText: e.priceText?.trim() || null,
+        endTime: e.endTime?.trim() || null,
+        ageCategory: e.ageCategory?.trim() || null,
+        timeKnown: e.timeKnown !== false,
+      };
+      const audience = classifyListingAudience({
+        title: base.title,
+        description: base.description,
+        sourceUrl: base.originalUrl,
+        locationName: base.locationName,
+        forKids: base.isForKids,
+        forWomen: base.isForWomenOnly,
+      });
+      return {
+        ...base,
+        isForKids: audience.forKids,
+        isForWomenOnly: audience.forWomen,
+      };
+    })
+    .filter((e) => {
+      const t = Date.parse(e.startTime);
+      if (!Number.isFinite(t) || t < now || e.title.length < 3) return false;
+      return !isListingNoise({
+        title: e.title,
+        description: e.description,
+        sourceUrl: e.originalUrl,
+        ticketUrl: pageUrl,
+      });
+    });
+
+  const grounded = groundScrapedEventDates(cleanText ?? '', withAudience);
+  if (options?.skipEvidence) return grounded;
+  return applySourceEvidence(cleanText ?? '', grounded, pageUrl);
+}
+
 /**
  * Extract structured sports events from clean page text via Gemini Flash
  * (JSON schema responseMode) and validate with Zod.
+ * Deterministic announcement-calendar split runs first for high recall.
+ * When `listingHtml` is provided, follow matching detail URLs and ground
+ * source evidence on the detail page text.
  */
 export async function extractEventsFromText(
   pageUrl: string,
   cleanText: string,
+  options?: { listingHtml?: string; maxDetails?: number },
 ): Promise<ScrapedEvent[]> {
+  const locationName = guessLocationName(cleanText, pageUrl);
+  const calendarEvents = splitAnnouncementCalendar(cleanText).map((a) =>
+    activityToScrapedEvent(a, pageUrl, locationName),
+  );
+
+  const skipEvidence = Boolean(options?.listingHtml);
+
+  // Prefer calendar-only when the page is clearly a dated announcement list
+  // with playable slots — avoids Gemini collapsing „ženy + muži“ into one card.
+  if (looksLikeAnnouncementCalendar(cleanText) && calendarEvents.length > 0) {
+    const normalized = normalizeExtractedEvents(calendarEvents, pageUrl, cleanText, {
+      skipEvidence,
+    });
+    if (!options?.listingHtml) return normalized;
+    const { enrichScrapedEventsWithDetails } = await import('@/lib/scrape/detail-enrich');
+    return enrichScrapedEventsWithDetails(
+      normalized,
+      pageUrl,
+      cleanText,
+      options.listingHtml,
+      options.maxDetails,
+    );
+  }
+
   const genAI = new GoogleGenerativeAI(getApiKey());
   const { raw } = await generateWithFallback(
     genAI,
@@ -339,45 +532,29 @@ export async function extractEventsFromText(
     );
   }
 
-  const now = Date.now() - 60 * 60 * 1000;
-  return validated.data.events
-    .map((e) => {
-      const base = {
-        ...e,
-        title: e.title.trim(),
-        sportType: e.sportType.trim(),
-        locationName: e.locationName.trim(),
-        originalUrl: absoluteHttpUrl(e.originalUrl, pageUrl),
-        description: e.description?.trim() || null,
-        priceText: e.priceText?.trim() || null,
-        endTime: e.endTime?.trim() || null,
-        ageCategory: e.ageCategory?.trim() || null,
-      };
-      // Gemini flag OR heuristic — never miss explicit kids/women for feed filters.
-      const audience = classifyListingAudience({
-        title: base.title,
-        description: base.description,
-        sourceUrl: base.originalUrl,
-        locationName: base.locationName,
-        forKids: base.isForKids,
-        forWomen: base.isForWomenOnly,
-      });
-      return {
-        ...base,
-        isForKids: audience.forKids,
-        isForWomenOnly: audience.forWomen,
-      };
-    })
-    .filter((e) => {
-      const t = Date.parse(e.startTime);
-      if (!Number.isFinite(t) || t < now || e.title.length < 3) return false;
-      return !isListingNoise({
-        title: e.title,
-        description: e.description,
-        sourceUrl: e.originalUrl,
-        ticketUrl: pageUrl,
-      });
-    });
+  const geminiEvents = normalizeExtractedEvents(
+    validated.data.events,
+    pageUrl,
+    cleanText,
+    { skipEvidence },
+  );
+  const calendarNormalized = normalizeExtractedEvents(
+    calendarEvents,
+    pageUrl,
+    cleanText,
+    { skipEvidence },
+  );
+  const merged = mergeCalendarAndGemini(calendarNormalized, geminiEvents);
+  if (!options?.listingHtml) return merged;
+
+  const { enrichScrapedEventsWithDetails } = await import('@/lib/scrape/detail-enrich');
+  return enrichScrapedEventsWithDetails(
+    merged,
+    pageUrl,
+    cleanText,
+    options.listingHtml,
+    options.maxDetails,
+  );
 }
 
 function absoluteHttpUrl(value: string | null | undefined, fallback: string): string {
@@ -410,6 +587,11 @@ function coerceOriginalUrls(parsed: unknown, pageUrl: string): unknown {
           pageUrl,
         ),
         isGroupClass: row.isGroupClass === true || row.isGroupClass === 'true',
+        timeKnown:
+          row.timeKnown !== false &&
+          row.timeKnown !== 'false' &&
+          row.time_known !== false &&
+          row.time_known !== 'false',
         isForKids:
           row.isForKids === true ||
           row.isForKids === 'true' ||

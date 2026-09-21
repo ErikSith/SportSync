@@ -1,7 +1,13 @@
 import type { EventCardData, ParticipationMode } from '@/lib/data/events';
 import type { TournamentCardData } from '@/lib/data/tournaments';
 import { titleIsOutsideBratislava } from '@/lib/cities';
-import { titleLooksLikeHeadToHeadFixture } from '@/lib/participation/fixture-match';
+import {
+  resolveParticipationMode,
+  titleLooksLikeHeadToHeadFixture,
+} from '@/lib/participation/fixture-match';
+import { ALWAYS_SPECTATOR_SOURCES } from '@/lib/participation/watch-signals';
+
+export { ALWAYS_SPECTATOR_SOURCES as SPECTATOR_SOURCES };
 
 type TournamentParticipationFields = {
   name: string;
@@ -12,32 +18,6 @@ type TournamentParticipationFields = {
   source?: string | null;
 };
 
-/** Pro clubs / arenas whose listings are tickets, not player entry. */
-const SPECTATOR_SOURCES = new Set([
-  'sk-slovan',
-  'hc-slovan',
-  'gopass-arena',
-  'subdeck',
-]);
-
-/** Real ticketing checkout — not a venue registration form stored in ticket_url. */
-const TICKET_CHECKOUT =
-  /ticketportal|goout\.net|predpredaj\.zoznam|\/listky\/|vstupenk|dc-vstupenk/i;
-
-const WATCH_ONLY_COPY =
-  /vstupenk|predpredaj|div[aá]ci|div[aá]k|\bspectator\b|\bsledova[tť]\b|\bwatch\s+from\b/i;
-
-const PLAYER_ENTRY_COPY =
-  /prihl[aá][sš]|registr|uz[aá]vierka|štartovn[eé]|startovne|entry\s*fee|\/tournament\/|\/registracie\/|\/turnaj/i;
-
-function haystack(t: TournamentParticipationFields): string {
-  return `${t.name} ${t.description ?? ''} ${t.sourceUrl ?? ''} ${t.ticketUrl ?? ''}`.toLowerCase();
-}
-
-function urlsOf(t: TournamentParticipationFields): string {
-  return `${t.sourceUrl ?? ''} ${t.ticketUrl ?? ''}`.toLowerCase();
-}
-
 /**
  * Hrať = cups you can enter as a player (open registration, amateur brackets).
  * Sledovať = watch-only: tickets, stands, pro spectacles.
@@ -46,18 +26,13 @@ function urlsOf(t: TournamentParticipationFields): string {
  * spectator signal by itself.
  */
 export function tournamentParticipationMode(t: TournamentParticipationFields): ParticipationMode {
-  if (titleLooksLikeHeadToHeadFixture(t.name)) return 'spectator';
-
-  if (t.source && SPECTATOR_SOURCES.has(t.source)) return 'spectator';
-
-  const urls = urlsOf(t);
-  if (TICKET_CHECKOUT.test(urls)) return 'spectator';
-
-  const hay = haystack(t);
-  const canEnter = PLAYER_ENTRY_COPY.test(hay) || PLAYER_ENTRY_COPY.test(urls);
-  if (WATCH_ONLY_COPY.test(hay) && !canEnter) return 'spectator';
-
-  return 'participate';
+  return resolveParticipationMode({
+    title: t.name,
+    description: t.description,
+    sourceUrl: t.sourceUrl,
+    ticketUrl: t.ticketUrl,
+    source: t.source,
+  });
 }
 
 export function applyTournamentParticipationFilter<T extends TournamentParticipationFields>(
@@ -91,7 +66,7 @@ export function spectatorEventToTournamentCard(event: EventCardData): Tournament
     maxParticipants: event.maxParticipants ?? event.capacity ?? 0,
     coverUrl: event.coverUrl,
     startsAt: event.startsAt,
-    endsAt: null,
+    endsAt: event.endsAt,
     registrationDeadline: null,
     venueId: event.venueId,
     venueName: event.venueName,

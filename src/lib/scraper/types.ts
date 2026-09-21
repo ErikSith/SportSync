@@ -44,13 +44,22 @@ export const ScrapedEventSchema = z.object({
   startTime: z
     .string()
     .describe(
-      'Dátum a čas začiatku vo formáte ISO 8601 string (napr. 2026-09-05T09:00:00Z)',
+      'Dátum a čas začiatku vo formáte ISO 8601 string (napr. 2026-09-05T09:00:00+02:00). Ak čas nie je na stránke, použi poludnie 12:00 a timeKnown=false.',
+    ),
+  timeKnown: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      'True LEN ak je HH:MM explicitne pri udalosti. False ak je len dátum (napr. „26.9. Rozlúčka so sezónou“) — nikdy nevymýšľaj 10:00/14:00.',
     ),
   endTime: z
     .string()
     .optional()
     .nullable()
-    .describe('Dátum a čas konca ak je uvedený'),
+    .describe(
+      'Dátum a čas konca ak je uvedený. Pri viacdňovom festivale/turnaji (5.–9. novembra) nastav posledný deň.',
+    ),
   locationName: z.string().describe('Názov športoviska alebo adresa'),
   priceText: z
     .string()
@@ -68,7 +77,11 @@ export const ScrapedEventSchema = z.object({
     .describe('Priama URL adresa zdroja/rezervačného systému'),
 });
 
-export type ScrapedEvent = z.infer<typeof ScrapedEventSchema>;
+export type ScrapedEvent = z.infer<typeof ScrapedEventSchema> & {
+  /** Attached post-extract — not part of Gemini schema. */
+  sourceExcerpt?: string | null;
+  sourceEvidence?: import('./source-evidence').SourceEvidence | null;
+};
 
 export const ScrapedEventListSchema = z.object({
   events: z.array(ScrapedEventSchema),
@@ -122,12 +135,18 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
           startTime: {
             type: 'string',
             description:
-              'Dátum a čas začiatku vo formáte ISO 8601 string (napr. 2026-09-05T09:00:00Z)',
+              'ISO 8601 začiatok. Ak chýba HH:MM, použi 12:00 a timeKnown=false.',
+          },
+          timeKnown: {
+            type: 'boolean',
+            description:
+              'True len pri explicitnom HH:MM. False pri samotnom dátume — nevymýšľaj čas.',
           },
           endTime: {
             type: 'string',
             nullable: true,
-            description: 'Dátum a čas konca ak je uvedený',
+            description:
+              'Koniec ak je uvedený. Pri viacdňovom rozsahu (5.–9. novembra) posledný deň.',
           },
           locationName: {
             type: 'string',
@@ -156,6 +175,7 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
           'isForWomenOnly',
           'isForKids',
           'startTime',
+          'timeKnown',
           'locationName',
           'originalUrl',
         ],

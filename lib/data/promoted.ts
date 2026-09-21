@@ -92,6 +92,8 @@ export async function getActivePromotedBanners(
         type: row.type === 'community' ? 'community' : 'official',
         city,
         startsAt,
+        endsAt: row.end_time ? parseDbInstant(String(row.end_time)) : null,
+        timeKnown: row.start_time != null && String(row.start_time) !== '',
         price,
         priceCents,
         currency: String(row.currency ?? 'EUR'),
@@ -112,7 +114,16 @@ export async function getActivePromotedBanners(
         latitude: (row.latitude as number | null) ?? null,
         longitude: (row.longitude as number | null) ?? null,
         themeConfig: (row.theme_config as Record<string, unknown> | null) ?? {},
-        participationMode: listingParticipationMode(String(row.title), row.participation_mode as string | null),
+        participationMode: listingParticipationMode(
+          String(row.title),
+          row.participation_mode as string | null,
+          {
+            description: (row.description as string | null) ?? null,
+            sourceUrl: (row.source_url as string | null) ?? null,
+            ticketUrl: (row.ticket_url as string | null) ?? null,
+            source: (row.source as string | null) ?? null,
+          },
+        ),
         ticketUrl: (row.ticket_url as string | null) ?? null,
         sourceUrl: (row.source_url as string | null) ?? null,
         sourceName: (row.source_name as string | null) ?? null,
@@ -121,6 +132,11 @@ export async function getActivePromotedBanners(
         isAggregated: Boolean(row.is_aggregated),
         forKids: Boolean(row.for_kids),
         forWomen: Boolean(row.for_women),
+        sourceExcerpt: (row.source_excerpt as string | null)?.trim() || null,
+        sourceEvidence:
+          row.source_evidence && typeof row.source_evidence === 'object'
+            ? (row.source_evidence as import('@/lib/data/events').SourceEvidencePayload)
+            : null,
         isDiscovery: false,
       };
 

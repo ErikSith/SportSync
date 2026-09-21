@@ -5,6 +5,7 @@ import { activeFeedSince, feedStartsAtFloor } from '@/lib/retention/feed-window'
 import { parseDbInstant, alignStartsAtWithCopyTime } from '@/lib/datetime/bratislava';
 import { sanitizeListingCoverUrl, sanitizeListingPhotos } from '@/lib/media/listing-cover';
 import { listingParticipationMode } from '@/lib/participation/fixture-match';
+import { titleIsOutsideBratislava } from '@/lib/cities';
 
 export { EVENT_SPORTS, type EventSport } from '@/lib/constants/sports';
 
@@ -21,6 +22,13 @@ export interface EventCardData {
   type: EventType;
   city: string;
   startsAt: Date;
+  /** Last day/time when source listed a multi-day range (festival 5.–9.). */
+  endsAt: Date | null;
+  /**
+   * False when the source only had a calendar date (no HH:MM).
+   * Feed must not show a precise clock time.
+   */
+  timeKnown: boolean;
   price: number;
   priceCents: number;
   currency: string;
@@ -47,9 +55,26 @@ export interface EventCardData {
   forKids: boolean;
   /** Women-only activity (pre ženy / ladies only). */
   forWomen: boolean;
+  /** Verbatim excerpt from source page (aggregated listings). */
+  sourceExcerpt: string | null;
+  /** Provenance: which fields were found on the source page. */
+  sourceEvidence: SourceEvidencePayload | null;
   /** Present when Mixed Feed Engine injected this card outside sport/venue prefs. */
   isDiscovery?: boolean;
   discoveryReason?: EventDiscoveryReason;
+}
+
+/** Mirrors scraper SourceEvidence JSON stored on events.source_evidence. */
+export interface SourceEvidencePayload {
+  sourceUrl?: string;
+  excerpt?: string;
+  fields?: {
+    title?: 'found' | 'missing';
+    date?: 'found' | 'missing';
+    time?: 'found' | 'missing';
+  };
+  textFragment?: string;
+  scrapedAt?: string;
 }
 
 export const ALL_EVENTS_FALLBACK_MESSAGE = 'Showing all available events';
@@ -87,6 +112,8 @@ interface EventRow {
   type: string;
   city: string;
   starts_at: string;
+  start_time?: string | null;
+  end_time?: string | null;
   price: number | string;
   price_cents: number | null;
   currency: string | null;
@@ -108,6 +135,8 @@ interface EventRow {
   is_aggregated?: boolean | null;
   for_kids?: boolean | null;
   for_women?: boolean | null;
+  source_excerpt?: string | null;
+  source_evidence?: SourceEvidencePayload | null;
   venues?: { name: string } | { name: string }[] | null;
 }
 
@@ -147,10 +176,18 @@ function dateWindowBounds(window: EventFeedQuery['dateWindow']): { from: Date; t
 }
 
 function mapEventCard(event: EventRow, d: number): EventCardData {
-  const startsAt = alignStartsAtWithCopyTime(
-    parseDbInstant(event.starts_at),
-    event.description,
-  );
+  const evidence =
+    event.source_evidence && typeof event.source_evidence === 'object'
+      ? (event.source_evidence as SourceEvidencePayload)
+      : null;
+  const timeKnown =
+    event.start_time != null &&
+    event.start_time !== '' &&
+    evidence?.fields?.time !== 'missing';
+  const rawStarts = parseDbInstant(event.starts_at);
+  const startsAt = timeKnown
+    ? alignStartsAtWithCopyTime(rawStarts, event.description)
+    : rawStarts;
   return {
     id: event.id,
     title: event.title,
@@ -160,6 +197,8 @@ function mapEventCard(event: EventRow, d: number): EventCardData {
     type: normalizeEventType(event.type),
     city: event.city,
     startsAt,
+    endsAt: event.end_time ? parseDbInstant(event.end_time) : null,
+    timeKnown,
     price: Number(event.price),
     priceCents: event.price_cents ?? Math.round(Number(event.price) * 100),
     currency: event.currency ?? 'EUR',
@@ -180,7 +219,12 @@ function mapEventCard(event: EventRow, d: number): EventCardData {
     venueId: event.venue_id,
     venueName: resolveVenueName(event.venues),
     themeConfig: (event.theme_config as Record<string, unknown>) ?? {},
-    participationMode: listingParticipationMode(event.title, event.participation_mode),
+    participationMode: listingParticipationMode(event.title, event.participation_mode, {
+      description: event.description,
+      sourceUrl: event.source_url,
+      ticketUrl: event.ticket_url,
+      source: event.source,
+    }),
     ticketUrl: event.ticket_url ?? null,
     sourceUrl: event.source_url ?? null,
     sourceName: event.source_name ?? null,
@@ -189,6 +233,8 @@ function mapEventCard(event: EventRow, d: number): EventCardData {
     isAggregated: Boolean(event.is_aggregated),
     forKids: Boolean(event.for_kids),
     forWomen: Boolean(event.for_women),
+    sourceExcerpt: event.source_excerpt?.trim() || null,
+    sourceEvidence: evidence,
   };
 }
 
@@ -263,11 +309,13 @@ async function fetchOfficialEventsMissingCoords(
     return [];
   }
 
-  return filterByParticipationMode(
-    ((data ?? []) as EventRow[])
-      .filter((event) => matchesEventSearch(event, query.search))
-      .map((event) => mapEventCard(event, 0)),
-    query.participationMode,
+  return filterBratislavaFeedScope(
+    filterByParticipationMode(
+      ((data ?? []) as EventRow[])
+        .filter((event) => matchesEventSearch(event, query.search))
+        .map((event) => mapEventCard(event, 0)),
+      query.participationMode,
+    ),
   );
 }
 
@@ -277,6 +325,11 @@ function filterByParticipationMode(
 ): EventCardData[] {
   if (!mode || mode === 'all') return events;
   return events.filter((event) => event.participationMode === mode);
+}
+
+/** Drop listings whose title is clearly another Slovak city (DB city often stays Bratislava). */
+function filterBratislavaFeedScope(events: EventCardData[]): EventCardData[] {
+  return events.filter((event) => !titleIsOutsideBratislava(event.title));
 }
 
 function mergeEventCards(primary: EventCardData[], extra: EventCardData[]): EventCardData[] {
@@ -332,9 +385,11 @@ async function findWithinRadius(query: EventFeedQuery, radiusKm: number): Promis
     .sort((a, b) => a.distanceKm - b.distanceKm || a.event.starts_at.localeCompare(b.event.starts_at))
     .map(({ event, distanceKm: d }) => mapEventCard(event, d));
 
-  return filterByParticipationMode(
-    mergeEventCards(geoHits, missingCoords),
-    query.participationMode,
+  return filterBratislavaFeedScope(
+    filterByParticipationMode(
+      mergeEventCards(geoHits, missingCoords),
+      query.participationMode,
+    ),
   );
 }
 
@@ -425,9 +480,11 @@ export async function getCityEventsFeed(
       return mapEventCard(event, d);
     });
 
-  const events = filterByParticipationMode(
-    mergeEventCards(cityEvents, missingCoords),
-    query.participationMode,
+  const events = filterBratislavaFeedScope(
+    filterByParticipationMode(
+      mergeEventCards(cityEvents, missingCoords),
+      query.participationMode,
+    ),
   );
   if (events.length === 0) {
     return getAllActiveEventsFeed(query);
@@ -483,15 +540,17 @@ export async function getEventsAtVenuesFeed(query: {
     return { events: [], radiusKm: 0, showExtended: false, message: error.message };
   }
 
-  const events = filterByParticipationMode(
-    ((data ?? []) as EventRow[]).map((event) => {
-      const d =
-        event.latitude != null && event.longitude != null
-          ? distanceKm(lat, lng, event.latitude, event.longitude)
-          : 0;
-      return mapEventCard(event, d);
-    }),
-    query.participationMode,
+  const events = filterBratislavaFeedScope(
+    filterByParticipationMode(
+      ((data ?? []) as EventRow[]).map((event) => {
+        const d =
+          event.latitude != null && event.longitude != null
+            ? distanceKm(lat, lng, event.latitude, event.longitude)
+            : 0;
+        return mapEventCard(event, d);
+      }),
+      query.participationMode,
+    ),
   );
 
   return { events, radiusKm: 0, showExtended: false };
@@ -711,7 +770,12 @@ function mapEventDetail(data: unknown): EventDetailData {
     sponsors,
     themeConfig: (row.theme_config as Record<string, unknown>) ?? {},
     sponsorsJson: (row.sponsors_json as SponsorExtracted[]) ?? [],
-    participationMode: listingParticipationMode(row.title, row.participation_mode),
+    participationMode: listingParticipationMode(row.title, row.participation_mode, {
+      description: (row.description as string | null) ?? null,
+      sourceUrl: row.source_url,
+      ticketUrl: row.ticket_url,
+      source: row.source,
+    }),
     ticketUrl: row.ticket_url ?? null,
     sourceUrl: row.source_url ?? null,
     sourceName: row.source_name ?? null,

@@ -61,6 +61,7 @@ export async function GET(request: Request) {
     events: feed.events.map((event) => ({
       ...event,
       startsAt: event.startsAt.toISOString(),
+      endsAt: event.endsAt?.toISOString() ?? null,
     })),
     radius_km: feed.radiusKm,
     show_extended: feed.showExtended,

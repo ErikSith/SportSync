@@ -133,6 +133,7 @@ interface EventRow {
   city: string;
   starts_at: string;
   start_time?: string | null;
+  end_time?: string | null;
   price: number | string;
   price_cents: number | null;
   currency: string | null;
@@ -214,6 +215,7 @@ function toEventCard(event: EventRow, distKm: number): EventCardData {
     type: normalizeEventType(event.type),
     city: event.city,
     startsAt: parseDbInstant(event.starts_at),
+    endsAt: event.end_time ? parseDbInstant(event.end_time) : null,
     timeKnown: event.start_time != null && event.start_time !== '',
     price: Number(event.price),
     priceCents: event.price_cents ?? Math.round(Number(event.price) * 100),

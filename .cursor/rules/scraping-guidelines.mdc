@@ -30,3 +30,12 @@ Apply whenever generating, editing, or refactoring web scraping code (adapters, 
 - Separate **fetch** (HTML/API), **parse** (extract fields), and **storage** (DB upsert).
 - Prefer modern stacks already in use (`fetch`/`httpx`-style clients, parsers, typed validation).
 - Defensive try/catch; fail one source without killing the whole cron run.
+
+## Multi-day festivals / date ranges
+
+- Source copy like `5 novembra - 9 novembra`, `5.–9.`, or `24.–25. 10.` is **one event** with
+  `startTime` = first day and `endTime` = last day — never store only the first day.
+- Gemini extract must set both; **`groundScrapedEventDates`** (date-only + `multi-day-range`)
+  re-reads page text and fills missing `endTime` before upsert. Do not bypass this step.
+- Date-only rows (`timeKnown=false`) still persist `end_time` when the end calendar day is later.
+- UI shows the range (`5.–9.` / full `formatAppDateRange`); do not invent a fake HH:MM for the span.

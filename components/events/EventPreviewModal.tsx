@@ -15,27 +15,24 @@ import { ListingCover } from '@/components/shared/ListingCover';
 import { EventExternalCta } from '@/components/events/EventExternalCta';
 import { EventAggregatedDisclaimer } from '@/components/events/EventAggregatedDisclaimer';
 import { ReportEventDataButton } from '@/components/events/ReportEventDataButton';
-import { alignStartsAtWithCopyTime, formatAppDate, formatAppTime } from '@/lib/datetime/bratislava';
+import {
+  alignStartsAtWithCopyTime,
+  formatAppDateRange,
+  formatAppTime,
+} from '@/lib/datetime/bratislava';
+import { sourceUrlWithTextFragment } from '@/src/lib/scraper/source-evidence';
 import { useT } from '@/components/i18n/LocaleProvider';
 import type { EventType } from '@/lib/constants/events';
-
-function formatWhen(date: Date): string {
-  return formatAppDate(date, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
-}
 
 function formatTime(date: Date): string {
   return formatAppTime(date);
 }
 
 function eventInstant(event: EventCardData): Date {
-  return alignStartsAtWithCopyTime(
-    event.startsAt instanceof Date ? event.startsAt : new Date(event.startsAt),
-    event.description,
-  );
+  const starts =
+    event.startsAt instanceof Date ? event.startsAt : new Date(event.startsAt);
+  if (event.timeKnown === false) return starts;
+  return alignStartsAtWithCopyTime(starts, event.description);
 }
 
 function priceLabel(event: EventCardData, freeText: string): string {
@@ -80,6 +77,16 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
   const isSpectator = event.participationMode === 'spectator';
   const isAggregated = event.isAggregated;
   const externalUrl = event.sourceUrl ?? event.ticketUrl;
+  const evidence = event.sourceEvidence;
+  const verifyUrl =
+    externalUrl && evidence?.textFragment
+      ? sourceUrlWithTextFragment(externalUrl, evidence.textFragment)
+      : externalUrl;
+  const timeUnverified =
+    event.timeKnown === false || evidence?.fields?.time === 'missing';
+  const dateUnverified = evidence?.fields?.date === 'missing';
+  const excerpt =
+    event.sourceExcerpt?.trim() || evidence?.excerpt?.trim() || null;
   const resolvedSourceName = sourceDisplayName(event.source, event.sourceName);
   const canRegister =
     !isAggregated && (event.status === 'open' || event.status === 'live');
@@ -209,12 +216,16 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
               <div className="space-y-2 rounded-xl border border-primary-container/20 bg-[#141210]/65 p-3">
                 <p className="flex items-center gap-2 font-body-md text-sm text-on-surface">
                   <Calendar className="h-4 w-4 shrink-0 text-primary-container" strokeWidth={2.25} />
-                  <span className="truncate">{formatWhen(eventInstant(event))}</span>
+                  <span className="truncate">
+                    {formatAppDateRange(eventInstant(event), event.endsAt)}
+                  </span>
                 </p>
-                <p className="flex items-center gap-2 font-body-md text-sm text-on-surface">
-                  <Clock className="h-4 w-4 shrink-0 text-primary-container" strokeWidth={2.25} />
-                  {t('events.startsAtLabel', { time: formatTime(eventInstant(event)) })}
-                </p>
+                {event.timeKnown !== false ? (
+                  <p className="flex items-center gap-2 font-body-md text-sm text-on-surface">
+                    <Clock className="h-4 w-4 shrink-0 text-primary-container" strokeWidth={2.25} />
+                    {t('events.startsAtLabel', { time: formatTime(eventInstant(event)) })}
+                  </p>
+                ) : null}
                 <p className="flex items-center gap-2 font-body-md text-sm text-on-surface">
                   <MapPin className="h-4 w-4 shrink-0 text-primary-container" strokeWidth={2.25} />
                   <span className="truncate">{venue}</span>
@@ -269,16 +280,54 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
                 <EventAggregatedDisclaimer sourceName={resolvedSourceName} compact />
               ) : null}
 
+              {isAggregated && (excerpt || verifyUrl) ? (
+                <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-label-caps text-[10px] uppercase tracking-[0.14em] text-on-surface-variant">
+                      Dôkaz zo zdroja
+                    </p>
+                    {timeUnverified ? (
+                      <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 font-label-caps text-[9px] uppercase tracking-[0.12em] text-amber-200/90">
+                        Čas neoverený
+                      </span>
+                    ) : null}
+                    {dateUnverified ? (
+                      <span className="rounded-md bg-error/15 px-1.5 py-0.5 font-label-caps text-[9px] uppercase tracking-[0.12em] text-error">
+                        Dátum neoverený
+                      </span>
+                    ) : null}
+                  </div>
+                  {excerpt ? (
+                    <blockquote className="line-clamp-3 border-l-2 border-primary-container/40 pl-2.5 font-body-md text-[12px] leading-relaxed text-on-surface-variant">
+                      {excerpt}
+                    </blockquote>
+                  ) : null}
+                  {verifyUrl ? (
+                    <a
+                      href={verifyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 font-label-caps text-[10px] uppercase tracking-[0.14em] text-primary-container transition-colors hover:text-primary"
+                    >
+                      <span className="material-symbols-outlined text-[14px]" aria-hidden>
+                        open_in_new
+                      </span>
+                      Overiť na zdroji
+                    </a>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="flex items-center justify-end gap-2">
                 <ReportEventDataButton eventId={event.id} eventTitle={event.title} />
               </div>
             </div>
 
             <div className="shrink-0 border-t border-primary-container/20 bg-[#100e0b] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
-              {isAggregated && externalUrl ? (
+              {isAggregated && verifyUrl ? (
                 <EventExternalCta
                   eventId={event.id}
-                  sourceUrl={externalUrl}
+                  sourceUrl={verifyUrl}
                   sourceName={resolvedSourceName}
                   variant="compact"
                   label={t('events.registerOfficial')}

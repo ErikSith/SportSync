@@ -148,6 +148,46 @@ export function formatAppDayLabel(date: Date, locale = 'sk-SK'): string {
 }
 
 /**
+ * Compact multi-day label for date-only festivals (e.g. "5.–9." / "5. 11. – 9. 12.").
+ * Falls back to formatAppDayLabel when there is no later end day.
+ */
+export function formatAppDayRangeLabel(
+  startsAt: Date,
+  endsAt: Date | null | undefined,
+  locale = 'sk-SK',
+): string {
+  if (!endsAt || Number.isNaN(endsAt.getTime())) return formatAppDayLabel(startsAt, locale);
+  const startKey = toAppDateKey(startsAt);
+  const endKey = toAppDateKey(endsAt);
+  if (endKey <= startKey) return formatAppDayLabel(startsAt, locale);
+
+  const startParts = readZonedParts(startsAt);
+  const endParts = readZonedParts(endsAt);
+  if (startParts.year === endParts.year && startParts.month === endParts.month) {
+    return `${startParts.day}.–${endParts.day}.`;
+  }
+  const start = formatAppDate(startsAt, { day: 'numeric', month: 'numeric' }, locale);
+  const end = formatAppDate(endsAt, { day: 'numeric', month: 'numeric' }, locale);
+  return `${start} – ${end}`;
+}
+
+/** Full calendar range for preview modals (štvrtok 5. novembra – 9. novembra). */
+export function formatAppDateRange(
+  startsAt: Date,
+  endsAt: Date | null | undefined,
+  locale = 'sk-SK',
+): string {
+  const start = formatAppDate(
+    startsAt,
+    { weekday: 'long', day: 'numeric', month: 'long' },
+    locale,
+  );
+  if (!endsAt || Number.isNaN(endsAt.getTime())) return start;
+  if (toAppDateKey(startsAt) === toAppDateKey(endsAt)) return start;
+  return `${start} – ${formatAppDate(endsAt, { day: 'numeric', month: 'long' }, locale)}`;
+}
+
+/**
  * Parse a DB timestamp into an Instant.
  * Scrapers write `Date.toISOString()` (UTC). Historically `events.starts_at` was
  * `timestamp without time zone`, so PostgREST returned naive `2026-08-19T05:30:00`

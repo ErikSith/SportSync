@@ -7,7 +7,7 @@ import { eventMatchesKids, eventMatchesWomen } from '@/lib/event-audience-filter
 import { sportIcon } from '@/lib/utils/sport-icons';
 import {
   alignStartsAtWithCopyTime,
-  formatAppDayLabel,
+  formatAppDayRangeLabel,
   formatAppTime,
 } from '@/lib/datetime/bratislava';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
@@ -49,9 +49,12 @@ interface EventListItemProps {
 
 export function EventListItem({ event }: EventListItemProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
-  const startsAt = alignStartsAtWithCopyTime(asDate(event.startsAt), event.description);
-  const day = formatAppDayLabel(startsAt);
-  const time = formatStartTime(startsAt);
+  const timeKnown = event.timeKnown !== false;
+  const startsAt = timeKnown
+    ? alignStartsAtWithCopyTime(asDate(event.startsAt), event.description)
+    : asDate(event.startsAt);
+  const day = formatAppDayRangeLabel(startsAt, event.endsAt);
+  const time = timeKnown ? formatStartTime(startsAt) : null;
   const place = locationLabel(event);
   const price = priceLabel(event);
   const icon = sportIcon(event.sport, event.title);
@@ -62,19 +65,30 @@ export function EventListItem({ event }: EventListItemProps) {
         type="button"
         onClick={() => setPreviewOpen(true)}
         className="group flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-transparent px-3 py-3 text-left transition-colors duration-200 hover:border-white/18 hover:bg-white/[0.03] active:bg-white/[0.05] sm:gap-3.5 sm:px-3.5"
-        aria-label={`${day} ${time} — ${event.title}`}
+        aria-label={time ? `${day} ${time} — ${event.title}` : `${day} — ${event.title}`}
         data-event-list-item
       >
         <span className="flex w-[3.5rem] shrink-0 flex-col items-start gap-0.5 sm:w-14">
-          <span className="font-label-caps text-[9px] uppercase tracking-[0.12em] text-on-surface-variant">
-            {day}
-          </span>
-          <time
-            dateTime={startsAt.toISOString()}
-            className="font-headline-md text-xl font-bold tabular-nums tracking-tight text-white leading-none"
-          >
-            {time}
-          </time>
+          {time ? (
+            <>
+              <span className="font-label-caps text-[9px] uppercase tracking-[0.12em] text-on-surface-variant">
+                {day}
+              </span>
+              <time
+                dateTime={startsAt.toISOString()}
+                className="font-headline-md text-xl font-bold tabular-nums tracking-tight text-white leading-none"
+              >
+                {time}
+              </time>
+            </>
+          ) : (
+            <time
+              dateTime={startsAt.toISOString().slice(0, 10)}
+              className="font-headline-md text-xl font-bold tracking-tight text-white leading-none"
+            >
+              {day}
+            </time>
+          )}
         </span>
 
         <span

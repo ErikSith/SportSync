@@ -11,6 +11,7 @@ import { EventPreviewModal } from '@/components/events/EventPreviewModal';
 import {
   alignStartsAtWithCopyTime,
   formatAppDayLabel,
+  formatAppDayRangeLabel,
   formatAppTime,
 } from '@/lib/datetime/bratislava';
 import { useT } from '@/components/i18n/LocaleProvider';
@@ -57,7 +58,10 @@ export function EventAtmosphereTab({
     : resolveSportAtmosphereCover(event.sport, event.coverUrl);
   const free = isFreeEvent(event);
   const venue = event.venueName ?? event.city;
-  const startsAt = alignStartsAtWithCopyTime(asDate(event.startsAt), event.description);
+  const timeKnown = event.timeKnown !== false;
+  const startsAt = timeKnown
+    ? alignStartsAtWithCopyTime(asDate(event.startsAt), event.description)
+    : asDate(event.startsAt);
   const sizeClass =
     layout === 'fill'
       ? `w-full ${EVENT_TAB_H}`
@@ -81,10 +85,12 @@ export function EventAtmosphereTab({
 
           <div className="relative z-10 grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] gap-1.5">
             <div className="flex h-4 items-center gap-1.5 overflow-hidden">
-              <span className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] leading-none text-primary drop-shadow-[0_1px_4px_rgba(0,0,0,0.65)]">
-                {formatAppDayLabel(startsAt)}
-              </span>
-              <span className="shrink-0 text-white/35 leading-none">·</span>
+              {timeKnown ? (
+                <span className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] leading-none text-primary drop-shadow-[0_1px_4px_rgba(0,0,0,0.65)]">
+                  {formatAppDayLabel(startsAt)}
+                </span>
+              ) : null}
+              {timeKnown ? <span className="shrink-0 text-white/35 leading-none">·</span> : null}
               <SportLabel
                 sport={event.sport}
                 title={event.title}
@@ -103,10 +109,14 @@ export function EventAtmosphereTab({
             </div>
 
             <time
-              dateTime={startsAt.toISOString()}
+              dateTime={
+                timeKnown ? startsAt.toISOString() : startsAt.toISOString().slice(0, 10)
+              }
               className="flex h-7 sm:h-8 items-center overflow-hidden font-headline-md text-[22px] sm:text-[26px] leading-none tracking-[-0.03em] text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]"
             >
-              {formatStartTime(startsAt)}
+              {timeKnown
+                ? formatStartTime(startsAt)
+                : formatAppDayRangeLabel(startsAt, event.endsAt)}
             </time>
 
             <h3 className="min-h-0 overflow-hidden font-headline-md text-[12px] font-semibold leading-[1.25] text-white/95 drop-shadow-[0_1px_6px_rgba(0,0,0,0.65)] transition-colors group-hover:text-primary [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">

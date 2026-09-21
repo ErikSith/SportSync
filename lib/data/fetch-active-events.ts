@@ -17,6 +17,7 @@ import {
 import type { EventType } from '@/lib/constants/events';
 import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
 import { listingParticipationMode } from '@/lib/participation/fixture-match';
+import { titleIsOutsideBratislava } from '@/lib/cities';
 
 interface RawEventRow {
   id: string;
@@ -27,6 +28,8 @@ interface RawEventRow {
   type: string;
   city: string;
   starts_at: string;
+  start_time?: string | null;
+  end_time?: string | null;
   price: number | string;
   price_cents: number | null;
   currency: string | null;
@@ -48,6 +51,8 @@ interface RawEventRow {
   is_aggregated?: boolean | null;
   for_kids?: boolean | null;
   for_women?: boolean | null;
+  source_excerpt?: string | null;
+  source_evidence?: import('@/lib/data/events').SourceEvidencePayload | null;
   venues?: { name: string } | { name: string }[] | null;
 }
 
@@ -71,6 +76,8 @@ function mapRow(event: RawEventRow, lat: number, lng: number): EventCardData {
     type: event.type === 'community' ? 'community' : 'official',
     city: event.city,
     startsAt: parseDbInstant(event.starts_at),
+    endsAt: event.end_time ? parseDbInstant(event.end_time) : null,
+    timeKnown: event.start_time != null && event.start_time !== '',
     price: Number(event.price),
     priceCents: event.price_cents ?? Math.round(Number(event.price) * 100),
     currency: event.currency ?? 'EUR',
@@ -91,7 +98,12 @@ function mapRow(event: RawEventRow, lat: number, lng: number): EventCardData {
     venueId: event.venue_id,
     venueName: venueName(event.venues),
     themeConfig: event.theme_config ?? {},
-    participationMode: listingParticipationMode(event.title, event.participation_mode),
+    participationMode: listingParticipationMode(event.title, event.participation_mode, {
+      description: event.description,
+      sourceUrl: event.source_url,
+      ticketUrl: event.ticket_url,
+      source: event.source,
+    }),
     ticketUrl: event.ticket_url ?? null,
     sourceUrl: event.source_url ?? null,
     sourceName: event.source_name ?? null,
@@ -100,6 +112,11 @@ function mapRow(event: RawEventRow, lat: number, lng: number): EventCardData {
     isAggregated: Boolean(event.is_aggregated),
     forKids: Boolean(event.for_kids),
     forWomen: Boolean(event.for_women),
+    sourceExcerpt: event.source_excerpt?.trim() || null,
+    sourceEvidence:
+      event.source_evidence && typeof event.source_evidence === 'object'
+        ? event.source_evidence
+        : null,
   };
 }
 
@@ -190,7 +207,9 @@ export async function fetchActiveEventsSafe(
       }
     }
 
-    const mapped = rows.map((row) => mapRow(row, lat, lng));
+    const mapped = rows
+      .map((row) => mapRow(row, lat, lng))
+      .filter((event) => !titleIsOutsideBratislava(event.title));
     if (!options.participationMode || options.participationMode === 'all') {
       return mapped;
     }
