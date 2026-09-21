@@ -25,16 +25,32 @@ export async function GET() {
     return NextResponse.json({ accessToken: null, refreshToken: null } satisfies SessionPayload);
   }
 
+  const pendingCookies: { name: string; value: string; options: CookieOptions }[] = [];
+
   const supabase = createServerClient(url, anonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll() {
-        // Read-only — refresh happens in middleware.
+      setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+        cookiesToSet.forEach((entry) => {
+          pendingCookies.push(entry);
+          try {
+            cookieStore.set(entry.name, entry.value, entry.options);
+          } catch {
+            // Route may be read-only for cookieStore in some runtimes.
+          }
+        });
       },
     },
   });
+
+  // getUser validates/refreshes; getSession alone can return an expired JWT
+  // that mobile clients then send as Bearer → 401 on every write.
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) {
+    return NextResponse.json({ accessToken: null, refreshToken: null } satisfies SessionPayload);
+  }
 
   const { data } = await supabase.auth.getSession();
   const session = data.session;
@@ -42,10 +58,16 @@ export async function GET() {
     return NextResponse.json({ accessToken: null, refreshToken: null } satisfies SessionPayload);
   }
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     accessToken: session.access_token,
     refreshToken: session.refresh_token,
   } satisfies SessionPayload);
+
+  for (const entry of pendingCookies) {
+    response.cookies.set(entry.name, entry.value, entry.options);
+  }
+
+  return response;
 }
 
 /**

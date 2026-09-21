@@ -65,7 +65,9 @@ async function applySessionTokens(
 async function tokenFromBrowserSession(): Promise<string | undefined> {
   const supabase = createClient();
 
-  // Prefer getUser — refreshes from cookies / storage when possible.
+  // Prefer getUser — validates + refreshes. Never return a raw getSession()
+  // access_token alone: mobile Safari often keeps an expired JWT in storage,
+  // which then 401s every write and blocks guest-mint retry (same token).
   const userResult = await supabase.auth.getUser();
   if (userResult.data.user) {
     const session = await supabase.auth.getSession();
@@ -75,7 +77,14 @@ async function tokenFromBrowserSession(): Promise<string | undefined> {
   }
 
   const existing = await supabase.auth.getSession();
-  return existing.data.session?.access_token;
+  if (existing.data.session?.refresh_token) {
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.data.session?.access_token) {
+      return refreshed.data.session.access_token;
+    }
+  }
+
+  return undefined;
 }
 
 /**
@@ -208,10 +217,27 @@ export async function authedFetch(input: RequestInfo | URL, init: RequestInit = 
     return res;
   }
 
-  const refreshed =
-    (await tokenFromServerCookies()) ||
-    (isAuthBypassEnabled() ? await tokenFromServerGuestMint() : undefined) ||
-    (await ensureAccessToken());
+  // Prefer a *new* session. Cookie GET can echo the same expired JWT that
+  // just failed — skip it when unchanged and force refresh / guest mint.
+  let refreshed: string | undefined;
+  const fromCookies = await tokenFromServerCookies();
+  if (fromCookies && fromCookies !== token) {
+    refreshed = fromCookies;
+  }
+
+  if (!refreshed) {
+    const supabase = createClient();
+    const rotated = await supabase.auth.refreshSession();
+    refreshed = rotated.data.session?.access_token;
+  }
+
+  if (!refreshed && isAuthBypassEnabled()) {
+    refreshed = await tokenFromServerGuestMint();
+  }
+
+  if (!refreshed) {
+    refreshed = await ensureAccessToken();
+  }
 
   if (!refreshed || refreshed === token) {
     return res;
