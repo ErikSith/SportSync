@@ -1,7 +1,24 @@
-/** True when Supabase service role key is configured (no pg import). */
+/**
+ * Resolve the privileged Supabase key.
+ * Prefer classic service-role JWT; fall back to dashboard "secret" key
+ * (`SUPABASE_SECRET_KEY`) used by newer Supabase projects.
+ */
+export function getServiceRoleKey(): string | undefined {
+  const candidates = [
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_SECRET_KEY,
+  ];
+  for (const raw of candidates) {
+    const key = raw?.trim();
+    if (!key) continue;
+    if (/fill-in|placeholder|your[_-]?service/i.test(key)) continue;
+    if (key.length <= 40) continue;
+    return key;
+  }
+  return undefined;
+}
+
+/** True when a usable service/secret key is configured (no pg import). */
 export function hasValidServiceRoleKey(): boolean {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) return false;
-  if (/fill-in|placeholder|your[_-]?service/i.test(key)) return false;
-  return key.length > 40;
+  return Boolean(getServiceRoleKey());
 }

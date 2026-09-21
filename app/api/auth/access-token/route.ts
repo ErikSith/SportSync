@@ -6,12 +6,23 @@ import { getSupabaseAnonEnv } from '@/lib/supabase/env';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { hasValidServiceRoleKey } from '@/lib/db/service-role';
 
-export const runtime = 'edge';
+// Node runtime: Edge often cannot read non-NEXT_PUBLIC secrets reliably,
+// which broke guest mint on phones (503 Guest auth unavailable → lobby 401).
+export const runtime = 'nodejs';
 
 type SessionPayload = {
   accessToken: string | null;
   refreshToken: string | null;
 };
+
+type CookieEntry = { name: string; value: string; options: CookieOptions };
+
+function attachCookies(response: NextResponse, pending: CookieEntry[]) {
+  for (const entry of pending) {
+    response.cookies.set(entry.name, entry.value, entry.options);
+  }
+  return response;
+}
 
 /**
  * Returns the caller's access/refresh tokens from HTTP cookies.
@@ -25,14 +36,14 @@ export async function GET() {
     return NextResponse.json({ accessToken: null, refreshToken: null } satisfies SessionPayload);
   }
 
-  const pendingCookies: { name: string; value: string; options: CookieOptions }[] = [];
+  const pendingCookies: CookieEntry[] = [];
 
   const supabase = createServerClient(url, anonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+      setAll(cookiesToSet: CookieEntry[]) {
         cookiesToSet.forEach((entry) => {
           pendingCookies.push(entry);
           try {
@@ -58,28 +69,23 @@ export async function GET() {
     return NextResponse.json({ accessToken: null, refreshToken: null } satisfies SessionPayload);
   }
 
-  const response = NextResponse.json({
-    accessToken: session.access_token,
-    refreshToken: session.refresh_token,
-  } satisfies SessionPayload);
-
-  for (const entry of pendingCookies) {
-    response.cookies.set(entry.name, entry.value, entry.options);
-  }
-
-  return response;
+  return attachCookies(
+    NextResponse.json({
+      accessToken: session.access_token,
+      refreshToken: session.refresh_token,
+    } satisfies SessionPayload),
+    pendingCookies,
+  );
 }
 
 /**
- * Early-access: mint a confirmed guest user + session cookies when the
- * device has no auth (anonymous disabled / email confirm blocks client signup).
+ * Early-access: mint a session for phones with no login.
+ * 1) Anonymous auth (anon key only)
+ * 2) Admin-created confirmed guest + password (service/secret key)
  */
 export async function POST() {
   if (!isAuthBypassEnabled()) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
-  if (!hasValidServiceRoleKey()) {
-    return NextResponse.json({ error: 'Guest auth unavailable' }, { status: 503 });
   }
 
   const { url, anonKey, isConfigured } = getSupabaseAnonEnv();
@@ -87,10 +93,60 @@ export async function POST() {
     return NextResponse.json({ error: 'Auth not configured' }, { status: 503 });
   }
 
+  const cookieStore = await cookies();
+  const pendingCookies: CookieEntry[] = [];
+
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet: CookieEntry[]) {
+        cookiesToSet.forEach((entry) => {
+          pendingCookies.push(entry);
+          try {
+            cookieStore.set(entry.name, entry.value, entry.options);
+          } catch {
+            // Route may be read-only for cookieStore in some runtimes.
+          }
+        });
+      },
+    },
+  });
+
   const id = crypto.randomUUID().replace(/-/g, '');
+  const username = `guest_${id.slice(0, 12)}`;
+
+  // Prefer anonymous — works without service role when enabled in Supabase Auth.
+  const anon = await supabase.auth.signInAnonymously({
+    options: {
+      data: { username, role: 'player', full_name: 'Guest' },
+    },
+  });
+  if (anon.data.session?.access_token) {
+    return attachCookies(
+      NextResponse.json({
+        ok: true,
+        accessToken: anon.data.session.access_token,
+        refreshToken: anon.data.session.refresh_token,
+        username,
+      }),
+      pendingCookies,
+    );
+  }
+
+  if (!hasValidServiceRoleKey()) {
+    return NextResponse.json(
+      {
+        error: 'Guest auth unavailable',
+        detail: anon.error?.message ?? 'Anonymous auth disabled and no service role key',
+      },
+      { status: 503 },
+    );
+  }
+
   const email = `guest.${id}@sportsync.demo`;
   const password = `${crypto.randomUUID()}Aa1!`;
-  const username = `guest_${id.slice(0, 12)}`;
 
   try {
     const admin = createAdminClient();
@@ -113,27 +169,6 @@ export async function POST() {
     );
   }
 
-  const cookieStore = await cookies();
-  const pendingCookies: { name: string; value: string; options: CookieOptions }[] = [];
-
-  const supabase = createServerClient(url, anonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-        cookiesToSet.forEach((entry) => {
-          pendingCookies.push(entry);
-          try {
-            cookieStore.set(entry.name, entry.value, entry.options);
-          } catch {
-            // Route may be read-only for cookieStore in some runtimes.
-          }
-        });
-      },
-    },
-  });
-
   const signedIn = await supabase.auth.signInWithPassword({ email, password });
   if (!signedIn.data.session?.access_token) {
     return NextResponse.json(
@@ -142,18 +177,15 @@ export async function POST() {
     );
   }
 
-  const response = NextResponse.json({
-    ok: true,
-    accessToken: signedIn.data.session.access_token,
-    refreshToken: signedIn.data.session.refresh_token,
-    email,
-    password,
-    username,
-  });
-
-  for (const entry of pendingCookies) {
-    response.cookies.set(entry.name, entry.value, entry.options);
-  }
-
-  return response;
+  return attachCookies(
+    NextResponse.json({
+      ok: true,
+      accessToken: signedIn.data.session.access_token,
+      refreshToken: signedIn.data.session.refresh_token,
+      email,
+      password,
+      username,
+    }),
+    pendingCookies,
+  );
 }
