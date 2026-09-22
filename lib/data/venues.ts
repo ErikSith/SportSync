@@ -240,7 +240,7 @@ export function parseAmenities(raw: unknown): AmenityItem[] {
   if (typeof raw === 'object') {
     return Object.entries(raw as Record<string, unknown>)
       .filter(([key, value]) => {
-        if (key === 'groupClassSchedule') return false;
+        if (key === 'groupClassSchedule' || key === 'scrapeReviewDone') return false;
         return value === true || (typeof value === 'string' && value.length > 0);
       })
       .map(([key, value]) => {

@@ -53,7 +53,10 @@ export function sportIconName(sport: string): string {
   if (s === 'GOLF') return 'sports_golf';
   if (s === 'SWIMMING') return 'pool';
   if (s === 'HOCKEY') return 'sports_hockey';
+  if (s === 'FLOORBALL') return 'sports_hockey';
   if (s === 'DARTS') return 'target';
   if (s === 'BOWLING') return 'sports';
+  if (s === 'SKATING') return 'ice_skating';
+  if (s === 'BILLIARDS') return 'sports';
   return 'sports';
 }

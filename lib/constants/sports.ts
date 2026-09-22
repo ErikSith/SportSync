@@ -12,6 +12,7 @@ export const EVENT_SPORTS = [
   'BASKETBALL',
   'HOCKEY',
   'HANDBALL',
+  'FLOORBALL',
   'RUNNING',
   'CYCLING',
   'GOLF',
@@ -27,6 +28,8 @@ export const EVENT_SPORTS = [
   'CLIMBING',
   'BOWLING',
   'DARTS',
+  'SKATING',
+  'BILLIARDS',
   'OTHER',
 ] as const;
 
@@ -38,6 +41,7 @@ export const LOBBY_SPORTS = [
   'BASKETBALL',
   'HOCKEY',
   'HANDBALL',
+  'FLOORBALL',
   'RUNNING',
   'CYCLING',
   'GOLF',
@@ -53,6 +57,8 @@ export const LOBBY_SPORTS = [
   'CLIMBING',
   'BOWLING',
   'DARTS',
+  'SKATING',
+  'BILLIARDS',
   'OTHER',
 ] as const;
 
@@ -68,6 +74,7 @@ export const EVENT_SPORT_LABELS: Record<EventSport, string> = {
   BASKETBALL: 'Basketbal',
   HOCKEY: 'Hokej',
   HANDBALL: 'Hádzaná',
+  FLOORBALL: 'Florbal',
   RUNNING: 'Beh',
   CYCLING: 'Cyklistika',
   GOLF: 'Golf',
@@ -83,6 +90,8 @@ export const EVENT_SPORT_LABELS: Record<EventSport, string> = {
   CLIMBING: 'Lezenie',
   BOWLING: 'Bowling',
   DARTS: 'Šipky',
+  SKATING: 'Korčuľovanie',
+  BILLIARDS: 'Biliard',
   OTHER: 'Iné',
 };
 
@@ -99,6 +108,14 @@ export const EVENT_SPORT_KEYWORDS: Record<EventSport, string[]> = {
   BASKETBALL: ['basketball', 'basket', 'košík', 'kosik', '3x3', '3 x 3'],
   HOCKEY: ['hockey', 'hokej'],
   HANDBALL: ['handball', 'hádzan', 'hadzan'],
+  FLOORBALL: [
+    'floorball',
+    'florbal',
+    'florbale',
+    'unihockey',
+    'uni-hockey',
+    'innebandy',
+  ],
   RUNNING: ['running', 'behanie', 'beh', 'marathon', '5k', '10k', 'atlet'],
   CYCLING: ['cycling', 'bike', 'bicykel', 'cykl'],
   GOLF: ['golf'],
@@ -196,7 +213,29 @@ export const EVENT_SPORT_KEYWORDS: Record<EventSport, string[]> = {
     'darts',
     'dart',
   ],
-  OTHER: ['korčuľ', 'korcul', 'skating', 'decathlon', 'inline'],
+  SKATING: [
+    'korčuľ',
+    'korcul',
+    'korčul',
+    'korculovanie',
+    'korčuľovanie',
+    'skating',
+    'ice skate',
+    'iceskate',
+    'inline',
+    'in-line',
+    'brusl',
+  ],
+  BILLIARDS: [
+    'billiard',
+    'billiards',
+    'biliard',
+    'biliárd',
+    'pool billiard',
+    'snooker',
+    'karambol',
+  ],
+  OTHER: ['decathlon'],
 };
 
 export function isEventSport(value: string): value is EventSport {
@@ -211,6 +250,17 @@ export function sportDisplayLabel(sport: string): string {
   const key = sport.toUpperCase();
   if (isEventSport(key)) return EVENT_SPORT_LABELS[key];
   return key.charAt(0) + key.slice(1).toLowerCase();
+}
+
+/** Picker order: Slovak A–Z by label, `OTHER` / Iné always last. */
+export function eventSportsSortedByLabel(): EventSport[] {
+  return [...EVENT_SPORTS].sort((a, b) => {
+    if (a === 'OTHER') return 1;
+    if (b === 'OTHER') return -1;
+    return EVENT_SPORT_LABELS[a].localeCompare(EVENT_SPORT_LABELS[b], 'sk', {
+      sensitivity: 'base',
+    });
+  });
 }
 
 /** How you play — drill-down groups kept for non-filter callers. */
@@ -247,7 +297,7 @@ export const SPORT_PLAY_GROUPS: readonly SportPlayGroup[] = [
     id: 'sticks',
     label: 'Hokejkami',
     hint: 'Hokej, golf…',
-    sports: ['HOCKEY', 'GOLF'],
+    sports: ['HOCKEY', 'FLOORBALL', 'GOLF'],
   },
   {
     id: 'body',
@@ -263,6 +313,8 @@ export const SPORT_PLAY_GROUPS: readonly SportPlayGroup[] = [
       'CLIMBING',
       'BOWLING',
       'DARTS',
+      'SKATING',
+      'BILLIARDS',
       'OTHER',
     ],
   },
@@ -290,9 +342,12 @@ export function detectEventSport(
     'CLIMBING',
     'BOWLING',
     'DARTS',
+    'SKATING',
+    'BILLIARDS',
     'COMBAT',
     'TENNIS',
     'HANDBALL',
+    'FLOORBALL',
     'BASKETBALL',
     'FOOTBALL',
     'HOCKEY',

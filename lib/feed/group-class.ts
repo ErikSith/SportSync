@@ -3,6 +3,11 @@
  * Used by the Events feed split, Gemini upsert, and reclassify scripts.
  */
 
+import {
+  isMixedScrapePageKind,
+  scrapePageHasKind,
+} from '@/lib/scrape/scrape-page-kind';
+
 const SPECIAL_EVENT_TITLE =
   /\b(piatkovica|open\s*air|hyrox|workshop|masterclass|marathon|turnaj|tournament|cup|championship|liga|match|zápas|exhibition|exhib[íi]cia|koncert|festival)\b/i;
 
@@ -71,9 +76,15 @@ export function shouldForceGroupClassFromScrapePage(
   kind: string | null | undefined,
   url: string | null | undefined,
 ): boolean {
-  const k = (kind ?? '').toLowerCase();
-  if (k === 'kids_camps' || k === 'tournaments') return false;
-  if (k === 'schedule' || k === 'rozvrh' || k === 'classes') return true;
+  // Mixed schedule+events(+tournaments): let Gemini flags decide per item.
+  if (isMixedScrapePageKind(kind)) return false;
+  if (scrapePageHasKind(kind, 'kids_camps') || scrapePageHasKind(kind, 'tournaments')) {
+    return false;
+  }
+  // Weekly kids clubs/krúžky are repeating lessons (unlike multi-day kids_camps).
+  if (scrapePageHasKind(kind, 'schedule') || scrapePageHasKind(kind, 'kids_clubs')) {
+    return true;
+  }
   return shouldForceGroupClassFromUrl(url);
 }
 

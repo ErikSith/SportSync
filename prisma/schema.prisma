@@ -209,8 +209,10 @@ model VenueScrapePage {
   venue         Venue?    @relation(fields: [venueId], references: [id], onDelete: SetNull)
   /// Absolute URL to fetch (homepage, /turnaje, /rozvrh, …).
   url           String
-  /// 'website' | 'tournaments' | 'schedule' | 'events' | 'availability' | 'kids_camps' | 'other'
+  /// 'website' | 'tournaments' | 'schedule' | 'events' | 'availability' | 'kids_clubs' | 'kids_camps' | 'other'
+  /// or comma-combined roles on one URL, e.g. 'schedule,events,tournaments' (AI splits per item).
   /// availability = court/slot booking calendar (free vs occupied by hour) for Lobby later.
+  /// kids_clubs = weekly children's sports clubs / krúžky (group lessons + for_kids).
   /// kids_camps = multi-day children's camps / summer camps listing pages.
   kind          String    @default("website")
   /// Bratislava borough slug (e.g. ruzinov) when known.

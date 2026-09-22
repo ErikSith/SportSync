@@ -26,10 +26,13 @@ export const SPORT_EMOJIS: Record<string, string> = {
   PILATES: '🧘',
   HOCKEY: '🏒',
   HANDBALL: '🤾',
+  FLOORBALL: '🏑',
   COMBAT: '🥊',
   VOLLEYBALL: '🏐',
   SWIMMING: '🏊',
   SURFING: '🏄',
+  SKATING: '⛸️',
+  BILLIARDS: '🎱',
   OTHER: '🏅',
 };
 

@@ -18,12 +18,15 @@ export const SPORT_ICONS: Record<string, string> = {
   PILATES: 'self_improvement',
   HOCKEY: 'sports_hockey',
   HANDBALL: 'sports_handball',
+  FLOORBALL: 'sports_hockey',
   COMBAT: 'sports_mma',
   MMA: 'sports_mma',
   TABLE_TENNIS: 'sports_tennis',
   CLIMBING: 'hiking',
   BOWLING: 'sports',
   DARTS: 'target',
+  SKATING: 'ice_skating',
+  BILLIARDS: 'sports',
   OTHER: 'sports',
 };
 
@@ -46,11 +49,14 @@ export const SPORT_COLORS: Record<string, string> = {
   PILATES: '#f9a8d4',
   HOCKEY: '#7dd3fc',
   HANDBALL: '#fdba74',
+  FLOORBALL: '#4ade80',
   COMBAT: '#f87171',
   TABLE_TENNIS: '#facc15',
   CLIMBING: '#fdba74',
   BOWLING: '#fde68a',
   DARTS: '#fca5a5',
+  SKATING: '#7dd3fc',
+  BILLIARDS: '#86efac',
   OTHER: '#e9c349',
 };
 

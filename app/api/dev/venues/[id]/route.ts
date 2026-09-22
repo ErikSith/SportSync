@@ -3,7 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { requireDevAdmin } from '@/lib/auth/dev-admin';
 import {
   mergeAmenitiesWithSchedule,
+  mergeScrapeReviewDone,
   parseGroupClassSchedule,
+  readScrapeReviewDone,
 } from '@/lib/dev/group-class-schedule';
 import { resolveVenueDistrictSlug } from '@/lib/scrape/bratislava-location';
 
@@ -14,7 +16,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 /**
  * PATCH /api/dev/venues/[id]
- * Body: { name?, address?, websiteUrl?, district?, sports?, description?, groupClassSchedule? }
+ * Body: { name?, address?, websiteUrl?, district?, sports?, description?, groupClassSchedule?, scrapeReviewDone? }
  */
 export async function PATCH(request: Request, context: RouteContext) {
   const auth = await requireDevAdmin();
@@ -33,6 +35,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     sports?: unknown;
     description?: unknown;
     groupClassSchedule?: unknown;
+    scrapeReviewDone?: unknown;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -145,6 +148,31 @@ export async function PATCH(request: Request, context: RouteContext) {
     update.amenities = mergeAmenitiesWithSchedule(existing.amenities, schedule);
   }
 
+  if ('scrapeReviewDone' in body) {
+    if (typeof body.scrapeReviewDone !== 'boolean') {
+      return NextResponse.json(
+        { error: 'scrapeReviewDone must be boolean' },
+        { status: 400 },
+      );
+    }
+    const { data: existing, error: readErr } = await supabase
+      .from('venues')
+      .select('amenities')
+      .eq('id', id)
+      .maybeSingle();
+    if (readErr) {
+      return NextResponse.json({ error: readErr.message }, { status: 500 });
+    }
+    if (!existing) {
+      return NextResponse.json({ error: 'Venue not found' }, { status: 404 });
+    }
+    const base =
+      'amenities' in update
+        ? (update.amenities as Record<string, unknown>)
+        : existing.amenities;
+    update.amenities = mergeScrapeReviewDone(base, body.scrapeReviewDone);
+  }
+
   if (Object.keys(update).length <= 1) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
@@ -177,6 +205,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       websiteUrl: data.website_url ?? null,
       description: data.description ?? null,
       verified: Boolean(data.verified),
+      scrapeReviewDone: readScrapeReviewDone(data.amenities),
     },
     groupClassSchedule: parseGroupClassSchedule(
       (data.amenities as Record<string, unknown> | null)?.groupClassSchedule,

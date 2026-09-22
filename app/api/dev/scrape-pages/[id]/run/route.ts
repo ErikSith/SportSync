@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { requireDevAdmin } from '@/lib/auth/dev-admin';
 import { saveEventsForVenue } from '@/src/lib/scraper/db-service';
 import { shouldForceGroupClassFromScrapePage } from '@/lib/feed/group-class';
+import { shouldForceForKidsFromScrapePage } from '@/lib/scrape/scrape-page-kind';
 import { scrapeVenuePage } from '@/src/lib/scraper/scrape-venue-page';
 
 export const runtime = 'nodejs';
@@ -133,7 +134,7 @@ export async function POST(request: Request, context: RouteContext) {
             longitude: (venue?.longitude as number | null) ?? null,
             scrapePageUrl: url,
             forceGroupClass: shouldForceGroupClassFromScrapePage(pageKind, url),
-            forceForKids: pageKind === 'kids_camps',
+            forceForKids: shouldForceForKidsFromScrapePage(pageKind),
           })
         : {
             created: 0,

@@ -9,6 +9,7 @@ import {
   EVENT_SPORTS,
   EVENT_SPORT_LABELS,
   detectEventSport,
+  eventSportsSortedByLabel,
   isEventSport,
   sportDisplayLabel,
   type EventSport,
@@ -349,7 +350,8 @@ export function VenueAdminDossier({
   };
 
   const scrapesByKind = scrapes.reduce<Record<string, ScrapeRow[]>>((acc, s) => {
-    (acc[s.kind] ??= []).push(s);
+    const key = s.kind.includes(',') ? `mixed: ${s.kind}` : s.kind;
+    (acc[key] ??= []).push(s);
     return acc;
   }, {});
 
@@ -552,7 +554,7 @@ export function VenueAdminDossier({
                   aria-multiselectable
                 >
                   <div className="flex flex-wrap gap-1.5">
-                    {EVENT_SPORTS.map((sport) => {
+                    {eventSportsSortedByLabel().map((sport) => {
                       const active = sports.includes(sport);
                       return (
                         <button

@@ -13,6 +13,7 @@ export const GROUP_SPORT_ICONS: Record<string, string> = {
   CLIMBING: 'hiking',
   BOWLING: 'sports',
   DARTS: 'target',
+  SKATING: 'ice_skating',
 };
 
 export type SessionRsvpStatus = 'pending' | 'going' | 'maybe' | 'declined';

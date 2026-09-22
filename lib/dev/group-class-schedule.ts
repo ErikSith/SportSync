@@ -215,6 +215,27 @@ export function extractScheduleFromAmenities(amenities: unknown): GroupClassSche
   );
 }
 
+/** Admin Reviewer: venue scrape curation finished (not public `verified`). */
+export function readScrapeReviewDone(amenities: unknown): boolean {
+  if (!amenities || typeof amenities !== 'object' || Array.isArray(amenities)) {
+    return false;
+  }
+  return (amenities as Record<string, unknown>).scrapeReviewDone === true;
+}
+
+export function mergeScrapeReviewDone(
+  amenities: unknown,
+  done: boolean,
+): Record<string, unknown> {
+  const base =
+    amenities && typeof amenities === 'object' && !Array.isArray(amenities)
+      ? { ...(amenities as Record<string, unknown>) }
+      : {};
+  if (done) base.scrapeReviewDone = true;
+  else delete base.scrapeReviewDone;
+  return base;
+}
+
 /** JS Date.getDay(): Sun=0 … Sat=6 → ISO Mon=1 … Sun=7 */
 export function jsDayToIsoWeekday(jsDay: number): Weekday {
   return (jsDay === 0 ? 7 : jsDay) as Weekday;

@@ -7,6 +7,13 @@ import {
   BRATISLAVA_BOROUGHS,
   type BratislavaDistrict,
 } from '@/lib/scrape/bratislava-location';
+import {
+  parseScrapePageKinds,
+  scrapePageHasKind,
+  scrapePageKindLabel,
+  serializeScrapePageKinds,
+  type ScrapePageKind,
+} from '@/lib/scrape/scrape-page-kind';
 
 type ReviewerTab = 'scrape' | 'review';
 
@@ -29,6 +36,7 @@ type VenueGroup = {
   borough: string | null;
   websiteUrl: string | null;
   googlePlaceId?: string | null;
+  scrapeReviewDone?: boolean;
   pages: VenuePage[];
 };
 
@@ -103,18 +111,19 @@ const PAGE_KINDS = [
   'availability',
   'events',
   'tournaments',
+  'kids_clubs',
   'kids_camps',
   'other',
-] as const;
-const ADD_KINDS = [
-  'availability',
+] as const satisfies readonly ScrapePageKind[];
+
+/** Roles you typically combine on one mixed content page. */
+const MIXABLE_KINDS = [
   'schedule',
   'events',
   'tournaments',
+  'kids_clubs',
   'kids_camps',
-  'website',
-  'other',
-] as const;
+] as const satisfies readonly ScrapePageKind[];
 
 const KIND_LABELS: Record<string, string> = {
   website: 'website — homepage',
@@ -122,9 +131,96 @@ const KIND_LABELS: Record<string, string> = {
   availability: 'availability — kalendár kurtov (voľný / obsadený)',
   events: 'events — akcie',
   tournaments: 'tournaments — turnaje',
+  kids_clubs: 'kids_clubs — detské krúžky',
   kids_camps: 'kids_camps — detské tábory (viacdňové)',
   other: 'other',
 };
+
+function toggleKindInDraft(draft: string, kind: string, on: boolean): string {
+  const set = new Set(parseScrapePageKinds(draft));
+  if (on) set.add(kind as ScrapePageKind);
+  else set.delete(kind as ScrapePageKind);
+  return serializeScrapePageKinds([...set]);
+}
+
+function KindMultiSelect({
+  value,
+  onChange,
+  options = MIXABLE_KINDS,
+  alsoSolo = true,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  options?: readonly ScrapePageKind[];
+  /** Offer website / availability / other as single-purpose extras. */
+  alsoSolo?: boolean;
+}) {
+  const selected = new Set(parseScrapePageKinds(value));
+  const soloExtras = alsoSolo
+    ? (['availability', 'website', 'other'] as const)
+    : [];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        {options.map((k) => {
+          const checked = selected.has(k);
+          return (
+            <label
+              key={k}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs ${
+                checked
+                  ? 'border-primary/50 bg-primary/15 text-primary'
+                  : 'border-white/15 text-on-surface-variant'
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="accent-primary"
+                checked={checked}
+                onChange={(e) => onChange(toggleKindInDraft(value, k, e.target.checked))}
+              />
+              {KIND_LABELS[k] ?? k}
+            </label>
+          );
+        })}
+      </div>
+      {soloExtras.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {soloExtras.map((k) => {
+            const checked = selected.has(k);
+            return (
+              <label
+                key={k}
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs ${
+                  checked
+                    ? 'border-white/30 bg-white/5 text-on-surface'
+                    : 'border-white/10 text-on-surface-variant'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="accent-primary"
+                  checked={checked}
+                  onChange={(e) =>
+                    onChange(toggleKindInDraft(value, k, e.target.checked))
+                  }
+                />
+                {KIND_LABELS[k] ?? k}
+              </label>
+            );
+          })}
+        </div>
+      )}
+      {selected.size > 1 && (
+        <p className="text-xs text-on-surface-variant">
+          Viac kindov = jedna URL, AI pri scrape rozdelí položky do rozvrhu / events /
+          turnajov.
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function AdminReviewer({
   initialBorough = 'bratislava',
@@ -165,12 +261,13 @@ export function AdminReviewer({
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   const [addUrlsDraft, setAddUrlsDraft] = useState('');
-  const [addKind, setAddKind] = useState<string>('availability');
+  const [addKind, setAddKind] = useState<string>('schedule,events');
   const [addingUrls, setAddingUrls] = useState(false);
   const [addMsg, setAddMsg] = useState<string | null>(null);
 
   const [removingVenue, setRemovingVenue] = useState(false);
   const [areaOpen, setAreaOpen] = useState(false);
+  const [togglingDone, setTogglingDone] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -221,11 +318,43 @@ export function AdminReviewer({
   }, [load]);
 
   const currentVenue = venues[venueIndex] ?? null;
+  const doneCount = venues.filter((v) => v.scrapeReviewDone).length;
   const scrapePagesForVenue = (currentVenue?.pages ?? []).filter((p) => p.enabled);
   const selectedPage =
     scrapePagesForVenue.find((p) => p.id === selectedPageId) ??
     scrapePagesForVenue[0] ??
     null;
+
+  const toggleScrapeReviewDone = async () => {
+    if (!currentVenue) return;
+    const next = !currentVenue.scrapeReviewDone;
+    setTogglingDone(true);
+    setSaveMsg(null);
+    try {
+      const res = await authedFetch(`/api/dev/venues/${currentVenue.venueId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scrapeReviewDone: next }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        venue?: { scrapeReviewDone?: boolean };
+        error?: string;
+      };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setVenues((prev) =>
+        prev.map((v) =>
+          v.venueId === currentVenue.venueId
+            ? { ...v, scrapeReviewDone: data.venue?.scrapeReviewDone ?? next }
+            : v,
+        ),
+      );
+    } catch (err) {
+      setSaveMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTogglingDone(false);
+    }
+  };
 
   useEffect(() => {
     if (!currentVenue) return;
@@ -332,6 +461,10 @@ export function AdminReviewer({
 
   const saveSelected = async () => {
     if (!selectedPage || !currentVenue) return;
+    if (!parseScrapePageKinds(kindDraft).length) {
+      setSaveMsg('Vyber aspoň jeden kind (schedule / events / tournaments…).');
+      return;
+    }
     if (/^https?:\/\//i.test(selectorDraft.trim())) {
       setSaveMsg(
         'contentSelector je CSS (napr. .events-list), nie URL. Ďalšie linky pridaj nižšie.',
@@ -617,14 +750,35 @@ export function AdminReviewer({
   };
 
   const scrapePages = (currentVenue?.pages ?? []).filter((p) => p.enabled);
+  const mixedPages = scrapePages.filter(
+    (p) => parseScrapePageKinds(p.kind).filter((k) =>
+      (MIXABLE_KINDS as readonly string[]).includes(k),
+    ).length > 1,
+  );
+  const mixedIds = new Set(mixedPages.map((p) => p.id));
   const pagesByKind = PAGE_KINDS.map((kind) => ({
     kind,
-    pages: scrapePages.filter((p) => p.kind === kind),
+    pages: scrapePages.filter(
+      (p) => !mixedIds.has(p.id) && scrapePageHasKind(p.kind, kind),
+    ),
   })).filter((g) => g.pages.length > 0);
 
-  const otherPages = scrapePages.filter(
-    (p) => !(PAGE_KINDS as readonly string[]).includes(p.kind),
-  );
+  const otherPages = scrapePages.filter((p) => {
+    if (mixedIds.has(p.id)) return false;
+    const kinds = parseScrapePageKinds(p.kind);
+    return (
+      kinds.length === 0 ||
+      kinds.every((k) => !(PAGE_KINDS as readonly string[]).includes(k))
+    );
+  });
+
+  const kindGroups: Array<{ kind: string; pages: VenuePage[] }> = [
+    ...(mixedPages.length
+      ? [{ kind: 'mixed — AI rozdelí rozvrh / events / turnaje', pages: mixedPages }]
+      : []),
+    ...pagesByKind,
+    ...(otherPages.length ? [{ kind: 'other*', pages: otherPages }] : []),
+  ];
 
   const chip =
     'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors';
@@ -739,6 +893,11 @@ export function AdminReviewer({
             <p className="font-label-caps text-label-caps text-on-surface-variant">
               Športovisko {venueIndex + 1} / {venues.length}
               {total > venues.length ? ` (loaded of ${total})` : ''}
+              {doneCount > 0 ? (
+                <span className="ml-2 normal-case tracking-normal text-emerald-400/90">
+                  · hotové {doneCount}
+                </span>
+              ) : null}
             </p>
             <div className="flex gap-2">
               <button
@@ -763,9 +922,34 @@ export function AdminReviewer({
           <div>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="font-headline-sm text-headline-sm text-on-surface font-semibold">
-                  {currentVenue.venueName}
-                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-headline-sm text-headline-sm text-on-surface font-semibold">
+                    {currentVenue.venueName}
+                  </h2>
+                  <button
+                    type="button"
+                    disabled={togglingDone}
+                    onClick={() => void toggleScrapeReviewDone()}
+                    title={
+                      currentVenue.scrapeReviewDone
+                        ? 'Označené ako hotové — klikni pre zrušenie'
+                        : 'Označiť športovisko ako hotové'
+                    }
+                    aria-pressed={Boolean(currentVenue.scrapeReviewDone)}
+                    aria-label={
+                      currentVenue.scrapeReviewDone
+                        ? 'Hotové — zrušiť označenie'
+                        : 'Označiť ako hotové'
+                    }
+                    className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-sm transition-colors disabled:opacity-50 ${
+                      currentVenue.scrapeReviewDone
+                        ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-300'
+                        : 'border-white/20 text-on-surface-variant hover:border-emerald-400/40 hover:text-emerald-300'
+                    }`}
+                  >
+                    {currentVenue.scrapeReviewDone ? '✓' : '○'}
+                  </button>
+                </div>
                 <p className="text-sm text-on-surface-variant mt-1">
                   {[currentVenue.borough, currentVenue.venueCity].filter(Boolean).join(' · ')}
                   {' · '}
@@ -773,6 +957,7 @@ export function AdminReviewer({
                     ? 'nescrapujeme'
                     : `${scrapePages.length} scrape URL`}
                   {currentVenue.googlePlaceId ? ' · Google Places' : ''}
+                  {currentVenue.scrapeReviewDone ? ' · hotové' : ''}
                 </p>
                 {currentVenue.websiteUrl ? (
                   <a
@@ -862,9 +1047,8 @@ export function AdminReviewer({
                 Nič nescrapujeme — pridaj URL nižšie (schedule / availability / tournaments…).
               </p>
             )}
-            {[...pagesByKind, ...(otherPages.length ? [{ kind: 'other*', pages: otherPages }] : [])].map(
-              (group) => (
-                <div key={group.kind} className="space-y-2">
+            {kindGroups.map((group) => (
+              <div key={group.kind} className="space-y-2">
                   <p className="text-xs uppercase tracking-wide text-on-surface-variant">
                     {KIND_LABELS[group.kind] ?? group.kind} ({group.pages.length})
                   </p>
@@ -889,6 +1073,11 @@ export function AdminReviewer({
                               <span className="text-sm break-all text-on-surface">
                                 {page.url}
                               </span>
+                              {parseScrapePageKinds(page.kind).length > 1 && (
+                                <span className="block text-xs text-primary mt-0.5 normal-case tracking-normal">
+                                  {scrapePageKindLabel(page.kind)}
+                                </span>
+                              )}
                               {page.contentSelector && (
                                 <span className="block text-xs text-primary mt-0.5 font-mono">
                                   CSS: {page.contentSelector}
@@ -935,8 +1124,7 @@ export function AdminReviewer({
                     })}
                   </ul>
                 </div>
-              ),
-            )}
+            ))}
           </div>
 
           <div className="rounded-lg border border-dashed border-white/20 p-3 space-y-3">
@@ -944,10 +1132,11 @@ export function AdminReviewer({
               Pridať URL
             </p>
             <p className="text-xs text-on-surface-variant">
-              Pre kalendár kurtov (voľný / obsadený po hodinách) zvol kind{' '}
-              <code className="text-primary">availability</code> — neskôr sa zobrazí v Lobby
-              daného športu. Rozvrhy lekcií = schedule, turnaje = tournaments, viacdňové detské
-              tábory = kids_camps.
+              Zaškrtni všetky typy obsahu na stránke. Ak majú rozvrh aj turnaje/akcie na
+              jednom linku, označ <code className="text-primary">schedule</code> +{' '}
+              <code className="text-primary">events</code> /{' '}
+              <code className="text-primary">tournaments</code> — AI pri scrape rozdelí
+              položky. Samotný kalendár kurtov = availability.
             </p>
             <textarea
               className="w-full min-h-[5rem] rounded-lg border border-white/10 bg-background px-3 py-2 font-mono text-xs text-on-surface"
@@ -955,24 +1144,12 @@ export function AdminReviewer({
               onChange={(e) => setAddUrlsDraft(e.target.value)}
               placeholder={`https://example.sk/rezervacie\nhttps://example.sk/kurzy/deti`}
             />
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col gap-1 text-sm text-on-surface-variant">
-                Kind
-                <select
-                  className="rounded-lg border border-white/10 bg-surface-container-low px-3 py-2 text-on-surface max-w-md"
-                  value={addKind}
-                  onChange={(e) => setAddKind(e.target.value)}
-                >
-                  {ADD_KINDS.map((k) => (
-                    <option key={k} value={k}>
-                      {KIND_LABELS[k] ?? k}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div className="space-y-2">
+              <p className="text-sm text-on-surface-variant">Kind (viac naraz OK)</p>
+              <KindMultiSelect value={addKind} onChange={setAddKind} />
               <button
                 type="button"
-                disabled={addingUrls || !addUrlsDraft.trim()}
+                disabled={addingUrls || !addUrlsDraft.trim() || !parseScrapePageKinds(addKind).length}
                 onClick={() => void addSiblingUrls()}
                 className="rounded-lg bg-primary px-4 py-2 text-on-primary font-medium disabled:opacity-50"
               >
@@ -995,21 +1172,13 @@ export function AdminReviewer({
               >
                 {selectedPage.url}
               </a>
+              <div className="space-y-2">
+                <p className="text-sm text-on-surface-variant">
+                  Kind (uložené: {scrapePageKindLabel(kindDraft)})
+                </p>
+                <KindMultiSelect value={kindDraft} onChange={setKindDraft} />
+              </div>
               <div className="flex flex-col gap-2 md:flex-row md:items-end">
-                <label className="flex flex-col gap-1 text-sm text-on-surface-variant">
-                  Kind
-                  <select
-                    className="rounded-lg border border-white/10 bg-surface-container-low px-3 py-2 text-on-surface max-w-md"
-                    value={kindDraft}
-                    onChange={(e) => setKindDraft(e.target.value)}
-                  >
-                    {PAGE_KINDS.map((k) => (
-                      <option key={k} value={k}>
-                        {KIND_LABELS[k] ?? k}
-                      </option>
-                    ))}
-                  </select>
-                </label>
                 <label className="flex flex-col gap-1 text-sm text-on-surface-variant">
                   Booking provider
                   <select

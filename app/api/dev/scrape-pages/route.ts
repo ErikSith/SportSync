@@ -1,19 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireDevAdmin } from '@/lib/auth/dev-admin';
+import {
+  normalizeScrapePageKindInput,
+  scrapePageHasKind,
+} from '@/lib/scrape/scrape-page-kind';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const ALLOWED_KINDS = new Set([
-  'website',
-  'tournaments',
-  'schedule',
-  'events',
-  'availability',
-  'kids_camps',
-  'other',
-]);
 
 export type DevScrapePageRow = {
   id: string;
@@ -93,7 +87,6 @@ export async function GET(request: Request) {
   else if (enabledParam === '0') query = query.eq('enabled', false);
 
   if (borough) query = query.eq('borough', borough);
-  if (kind) query = query.eq('kind', kind);
   if (venueId) query = query.eq('venue_id', venueId);
   if (missingSelector) query = query.is('content_selector', null);
 
@@ -105,6 +98,11 @@ export async function GET(request: Request) {
   let pages: DevScrapePageRow[] = (data ?? []).map((r) =>
     mapRow(r as Record<string, unknown>),
   );
+
+  // Multi-kind rows store e.g. `schedule,events` — match by membership, not equality.
+  if (kind) {
+    pages = pages.filter((p) => scrapePageHasKind(p.kind, kind));
+  }
 
   if (q) {
     pages = pages.filter(
@@ -177,7 +175,7 @@ export async function POST(request: Request) {
   }
 
   const kindRaw = typeof body.kind === 'string' ? body.kind.trim().toLowerCase() : 'schedule';
-  const kind = ALLOWED_KINDS.has(kindRaw) ? kindRaw : 'other';
+  const kind = normalizeScrapePageKindInput(kindRaw) ?? 'other';
   const venueId =
     typeof body.venueId === 'string' && body.venueId.trim()
       ? body.venueId.trim()

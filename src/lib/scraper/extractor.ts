@@ -144,6 +144,9 @@ Pravidlá:
 - Ak stránka obsahuje TÝŽDENNÝ ROZVRH (Pondelok/Utorok/... alebo Po/Ut/... + čas + názov AKTIVITY),
   vygeneruj konkrétne lekcie na najbližších 7 dní od kotevného dátumu vyššie. Každý slot = 1 záznam so startTime v ISO 8601.
   Tieto sloty sú SKUPINOVÉ LEKCIE (isGroupClass = true, isTournament = false) — nie unikátne eventy.
+- Ak je na TEJ ISTEJ stránke aj rozvrh aj jednorazové akcie/turnaje, ROZDEĽ ich po položkách:
+  opakujúce sa lekcie → isGroupClass = true; turnaje s prihláškou → isTournament = true;
+  jednorazové workshopy/otvorenia → oboje false. Nikdy neoznač celú stránku jedným typom.
 - KLASIFIKÁCIA (povinná pri každom zázname):
   • isTournament = true: jednorazový turnaj/súťaž s otvorenou prihláškou (cup, championship, open, trophy, kvalifikácia).
     NIE ligový zápas „Tím A vs Tím B“ / „proti“ — to je divácky zápas (isTournament = false).

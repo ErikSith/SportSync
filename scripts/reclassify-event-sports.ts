@@ -57,6 +57,18 @@ function remapVenueSports(name: string, sports: string[]): string[] {
     next.add('DARTS');
     next.delete('OTHER');
   }
+  if (detected === 'SKATING') {
+    next.add('SKATING');
+    next.delete('OTHER');
+  }
+  if (detected === 'FLOORBALL') {
+    next.add('FLOORBALL');
+    next.delete('OTHER');
+  }
+  if (detected === 'BILLIARDS') {
+    next.add('BILLIARDS');
+    next.delete('OTHER');
+  }
   return [...next];
 }
 

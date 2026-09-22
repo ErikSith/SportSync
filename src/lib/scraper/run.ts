@@ -22,6 +22,10 @@ import type {
 } from './types';
 import { shouldForceGroupClassFromScrapePage } from '@/lib/feed/group-class';
 import {
+  shouldForceForKidsFromScrapePage,
+  shouldSkipEventExtractForKind,
+} from '@/lib/scrape/scrape-page-kind';
+import {
   recordUrlResult,
   shouldSkipUrl,
 } from '@/lib/scrape/source-health';
@@ -198,14 +202,11 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
   for (const page of scrapePages) {
     const venue = page.venue_id ? venueById.get(page.venue_id) : undefined;
     const kind = (page.kind ?? '').toLowerCase();
-    // Court booking calendars are for Lobby later — skip Gemini event extract.
-    if (kind === 'availability') continue;
+    // Court booking calendars alone are for Lobby later — skip Gemini event extract.
+    // Mixed availability+schedule still scrapes events.
+    if (shouldSkipEventExtractForKind(kind)) continue;
     const forceGroupClass = shouldForceGroupClassFromScrapePage(kind, page.url);
-    const forceForKids =
-      kind === 'kids_camps' ||
-      kind === 'camps' ||
-      kind === 'detsky-tabor' ||
-      kind === 'detskie-tabory';
+    const forceForKids = shouldForceForKidsFromScrapePage(kind);
     push(
       page.url,
       venue,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireDevAdmin } from '@/lib/auth/dev-admin';
+import { normalizeScrapePageKindInput } from '@/lib/scrape/scrape-page-kind';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,18 +66,15 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   if (typeof body.kind === 'string') {
-    const kind = body.kind.trim().toLowerCase();
-    const allowed = new Set([
-      'website',
-      'tournaments',
-      'schedule',
-      'events',
-      'availability',
-      'kids_camps',
-      'other',
-    ]);
-    if (!allowed.has(kind)) {
-      return NextResponse.json({ error: 'Invalid kind' }, { status: 400 });
+    const kind = normalizeScrapePageKindInput(body.kind);
+    if (!kind) {
+      return NextResponse.json(
+        {
+          error:
+            'Invalid kind (use schedule, events, tournaments, … or combine: schedule,events)',
+        },
+        { status: 400 },
+      );
     }
     update.kind = kind;
   }

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireDevAdmin } from '@/lib/auth/dev-admin';
+import { readScrapeReviewDone } from '@/lib/dev/group-class-schedule';
+import { normalizeScrapePageKindInput } from '@/lib/scrape/scrape-page-kind';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,6 +26,7 @@ export type VenueScrapeGroup = {
   borough: string | null;
   websiteUrl: string | null;
   googlePlaceId: string | null;
+  scrapeReviewDone: boolean;
   pages: VenueScrapePageBrief[];
 };
 
@@ -43,6 +46,7 @@ function kindRank(kind: string) {
     'availability',
     'events',
     'tournaments',
+    'kids_clubs',
     'kids_camps',
     'other',
   ];
@@ -87,7 +91,7 @@ export async function GET(request: Request) {
 
   let venueQuery = supabase
     .from('venues')
-    .select('id, name, city, district, website_url, google_place_id')
+    .select('id, name, city, district, website_url, google_place_id, amenities')
     .order('name', { ascending: true })
     .limit(3000);
 
@@ -112,6 +116,7 @@ export async function GET(request: Request) {
     district: string | null;
     website_url: string | null;
     google_place_id: string | null;
+    amenities: unknown;
   };
 
   const byId = new Map<string, VenueRow>();
@@ -124,10 +129,10 @@ export async function GET(request: Request) {
     if (missing.length > 0) {
       const { data: extraRows } = await supabase
         .from('venues')
-        .select('id, name, city, district, website_url, google_place_id')
+        .select('id, name, city, district, website_url, google_place_id, amenities')
         .in('id', missing);
       for (const v of extraRows ?? []) {
-        byId.set(v.id as string, v);
+        byId.set(v.id as string, v as VenueRow);
       }
     }
   }
@@ -140,6 +145,7 @@ export async function GET(request: Request) {
       borough: (v.district as string | null) ?? null,
       websiteUrl: (v.website_url as string | null) ?? null,
       googlePlaceId: (v.google_place_id as string | null) ?? null,
+      scrapeReviewDone: readScrapeReviewDone(v.amenities),
       pages: [] as VenueScrapePageBrief[],
     }))
     .sort((a, b) => a.venueName.localeCompare(b.venueName, 'sk'));
@@ -268,16 +274,7 @@ export async function POST(request: Request) {
 
   const kindRaw =
     typeof body.kind === 'string' ? body.kind.trim().toLowerCase() : 'schedule';
-  const allowed = new Set([
-    'website',
-    'tournaments',
-    'schedule',
-    'events',
-    'availability',
-    'kids_camps',
-    'other',
-  ]);
-  const extraKind = allowed.has(kindRaw) ? kindRaw : 'schedule';
+  const extraKind = normalizeScrapePageKindInput(kindRaw) ?? 'schedule';
 
   const rawExtra: string[] = [];
   if (typeof body.urls === 'string') {
