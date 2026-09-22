@@ -82,11 +82,6 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
     externalUrl && evidence?.textFragment
       ? sourceUrlWithTextFragment(externalUrl, evidence.textFragment)
       : externalUrl;
-  const timeUnverified =
-    event.timeKnown === false || evidence?.fields?.time === 'missing';
-  const dateUnverified = evidence?.fields?.date === 'missing';
-  const excerpt =
-    event.sourceExcerpt?.trim() || evidence?.excerpt?.trim() || null;
   const resolvedSourceName = sourceDisplayName(event.source, event.sourceName);
   const canRegister =
     !isAggregated && (event.status === 'open' || event.status === 'live');
@@ -211,8 +206,8 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
               </div>
             </div>
 
-            {/* Static body — no scroll */}
-            <div className="flex shrink-0 flex-col gap-3 overflow-hidden px-4 py-3">
+            {/* Static body — no scroll; overflow visible so Info rollup can float up */}
+            <div className="relative z-20 flex shrink-0 flex-col gap-3 overflow-visible px-4 py-3">
               <div className="space-y-2 rounded-xl border border-primary-container/20 bg-[#141210]/65 p-3">
                 <p className="flex items-center gap-2 font-body-md text-sm text-on-surface">
                   <Calendar className="h-4 w-4 shrink-0 text-primary-container" strokeWidth={2.25} />
@@ -278,44 +273,6 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
 
               {isAggregated ? (
                 <EventAggregatedDisclaimer sourceName={resolvedSourceName} compact />
-              ) : null}
-
-              {isAggregated && (excerpt || verifyUrl) ? (
-                <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-label-caps text-[10px] uppercase tracking-[0.14em] text-on-surface-variant">
-                      Dôkaz zo zdroja
-                    </p>
-                    {timeUnverified ? (
-                      <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 font-label-caps text-[9px] uppercase tracking-[0.12em] text-amber-200/90">
-                        Čas neoverený
-                      </span>
-                    ) : null}
-                    {dateUnverified ? (
-                      <span className="rounded-md bg-error/15 px-1.5 py-0.5 font-label-caps text-[9px] uppercase tracking-[0.12em] text-error">
-                        Dátum neoverený
-                      </span>
-                    ) : null}
-                  </div>
-                  {excerpt ? (
-                    <blockquote className="line-clamp-3 border-l-2 border-primary-container/40 pl-2.5 font-body-md text-[12px] leading-relaxed text-on-surface-variant">
-                      {excerpt}
-                    </blockquote>
-                  ) : null}
-                  {verifyUrl ? (
-                    <a
-                      href={verifyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 font-label-caps text-[10px] uppercase tracking-[0.14em] text-primary-container transition-colors hover:text-primary"
-                    >
-                      <span className="material-symbols-outlined text-[14px]" aria-hidden>
-                        open_in_new
-                      </span>
-                      Overiť na zdroji
-                    </a>
-                  ) : null}
-                </div>
               ) : null}
 
               <div className="flex items-center justify-end gap-2">
