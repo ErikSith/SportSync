@@ -147,7 +147,7 @@ function isUpcomingOrOngoing(end: Date, now = new Date()): boolean {
   return end.getTime() >= todayStart.getTime();
 }
 
-function cellText($: cheerio.CheerioAPI, el: cheerio.Element): string {
+function cellText($: cheerio.CheerioAPI, el: Parameters<typeof $>[0]): string {
   return $(el).text().replace(/\s+/g, ' ').trim();
 }
 
