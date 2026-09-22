@@ -6,6 +6,7 @@ const SPORT_ICONS: Record<string, string> = {
   TENNIS: 'sports_tennis',
   PADEL: 'sports_tennis',
   YOGA: 'self_improvement',
+  PILATES: 'self_improvement',
   SQUASH: 'sports_tennis',
   RUNNING: 'directions_run',
   CYCLING: 'directions_bike',

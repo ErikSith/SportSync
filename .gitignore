@@ -5,3 +5,5 @@ dist/
 
 .next/
 .vercel/
+.vercel
+.env*

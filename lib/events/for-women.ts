@@ -1,3 +1,5 @@
+import { titleLooksAdultOnly } from '@/lib/events/for-kids';
+
 /**
  * Detect activities that are exclusively for women — used both at scrape
  * (persist `for_women`) and in the "Pre ženy" feed filter.
@@ -48,19 +50,25 @@ const WOMEN_SOURCE =
   /ladies-only|women-only|\/pre-zeny|prezeny|w4w|women-for-women/;
 
 const EXPLICIT_WOMEN =
-  /pre zeny|len pre zeny|women\s+only|ladies\s+only|women for women|\bw4w\b|damsky|zensky turnaj|zenska kategoria|zenske (open|kolo|liga)|ladies\s*(night|padel|tenis|tennis|yoga|joga|fitness|run|cup|open)|joga pre zeny|yoga for women|female only|girl power|zensky padel|tenis pre zeny|padel pre zeny|fitness pre zeny|beh pre zeny|zeny only|only women|ladies cup|womens?\s+(only|open|cup|night|league|padel|tennis)|zeny 30\+|zeny 40\+/;
+  /pre zeny|len pre zeny|women\s+only|ladies\s+only|women for women|\bw4w\b|damsky|zensky turnaj|turnaj zien|tenisovy turnaj zien|padelovy turnaj zien|zenska kategoria|zenske (open|kolo|liga)|ladies\s*(night|padel|tenis|tennis|yoga|joga|fitness|run|cup|open)|joga pre zeny|yoga for women|female only|girl power|zensky padel|tenis pre zeny|padel pre zeny|fitness pre zeny|beh pre zeny|zeny only|only women|ladies cup|womens?\s+(only|open|cup|night|league|padel|tennis)|zeny 30\+|zeny 40\+|mamick|pre mam|mothers?|\bmoms?\b|ladies\s*first/;
 
 export function detectExplicitWomenAudience(input: WomenAudienceInput): boolean {
+  const title = fold(input.title ?? '');
+  // Adult-only titles: ignore women cues that leaked into the description.
+  if (titleLooksAdultOnly(input.title) && !/mamick|ladies|zeny|women/.test(title)) {
+    return false;
+  }
   if (input.forWomen) return true;
   const hay = haystack(input);
   if (!hay || MIXED_AUDIENCE.test(hay)) return false;
   if (WOMEN_SOURCE.test(hay)) return true;
-  const title = fold(input.title ?? '');
   if (!title) return EXPLICIT_WOMEN.test(hay);
   if (MIXED_AUDIENCE.test(title)) return false;
   if (/^(zeny|ladies|women)\b/.test(title)) return true;
   if (/\b(zeny|ladies|women)\b/.test(title)) return true;
-  return EXPLICIT_WOMEN.test(hay);
+  // Prefer title for mother/ladies cues — page descriptions often mix slots.
+  if (/mamick|pre mam|ladies\s*first/.test(title)) return true;
+  return EXPLICIT_WOMEN.test(title) || EXPLICIT_WOMEN.test(hay);
 }
 
 export function tagScrapedEventWomen<T extends WomenAudienceInput>(

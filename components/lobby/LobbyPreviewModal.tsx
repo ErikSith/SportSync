@@ -146,9 +146,9 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
           >
             <div className="h-px w-full shrink-0 bg-[#FF5722]" aria-hidden />
 
-            <header className="relative shrink-0 overflow-hidden border-b border-white/10 px-4 pb-4 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
+            <header className="relative shrink-0 overflow-hidden border-b border-white/10 px-4 pb-3 pt-[max(0.5rem,env(safe-area-inset-top,0px))]">
               <div
-                className="pointer-events-none absolute -right-6 top-8 select-none opacity-[0.1]"
+                className="pointer-events-none absolute -right-6 top-6 select-none opacity-[0.08]"
                 aria-hidden
               >
                 <SportLinearIcon
@@ -156,7 +156,7 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                   accent={sportAccent}
                   color={sportTint}
                   strokeWidth={1.35}
-                  className="h-36 w-36 rotate-[-12deg] opacity-100 blur-[0.3px]"
+                  className="h-28 w-28 rotate-[-12deg] opacity-100 blur-[0.3px]"
                 />
               </div>
 
@@ -177,14 +177,14 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex h-9 w-9 items-center justify-center border border-white/15 text-zinc-400 transition-colors hover:border-white/30 hover:text-white"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 text-zinc-400 transition-colors active:scale-95 hover:border-white/30 hover:text-white"
                   aria-label="Zavrieť"
                 >
                   <X className="h-4 w-4" strokeWidth={2} />
                 </button>
               </div>
 
-              <div className="relative z-[1] mt-4 flex items-center justify-center gap-1.5">
+              <div className="relative z-[1] mt-3 flex items-center justify-center gap-1.5">
                 {heroSlots.map((player, i) => (
                   <RosterSlot
                     key={player?.id ?? `open-${i}`}
@@ -195,7 +195,7 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                 ))}
               </div>
 
-              <div className="relative z-[1] mt-4 space-y-1 text-center">
+              <div className="relative z-[1] mt-3 space-y-0.5 text-center">
                 <p className="inline-flex max-w-full flex-wrap items-center justify-center gap-x-1.5 font-label-caps text-[10px] uppercase tracking-[0.18em] text-zinc-500">
                   <span className="inline-flex items-center gap-1.5" title={sportName}>
                     <SportLinearIcon
@@ -218,11 +218,11 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                 </p>
                 <h2
                   id={titleId}
-                  className="line-clamp-2 font-headline-md text-[20px] leading-snug text-white"
+                  className="line-clamp-2 font-headline-md text-[18px] leading-snug text-white sm:text-[20px]"
                 >
                   {preview.title}
                 </h2>
-                <p className="truncate text-sm text-zinc-500">
+                <p className="truncate text-[13px] text-zinc-500">
                   {preview.typeLabel}
                   {preview.hostName ? (
                     <>
@@ -234,32 +234,32 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
               </div>
             </header>
 
-            {/* Info first — no page scroll */}
+            {/* Compact meta — leave room for chat on phone */}
             <div className="shrink-0">
-              <dl className="divide-y divide-white/10 border-b border-white/10">
-                <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
-                  <dt className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] text-zinc-600">
+              <dl className="grid grid-cols-2 gap-px border-b border-white/10 bg-white/[0.04]">
+                <div className="bg-[#0f0e0c] px-3 py-2">
+                  <dt className="font-label-caps text-[8px] uppercase tracking-[0.14em] text-zinc-600">
                     Dátum
                   </dt>
-                  <dd className="truncate text-right text-sm text-zinc-200">{preview.dateLabel}</dd>
+                  <dd className="truncate text-[13px] text-zinc-200">{preview.dateLabel}</dd>
                 </div>
-                <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
-                  <dt className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] text-zinc-600">
+                <div className="bg-[#0f0e0c] px-3 py-2">
+                  <dt className="font-label-caps text-[8px] uppercase tracking-[0.14em] text-zinc-600">
                     Kickoff
                   </dt>
-                  <dd className="truncate text-right text-sm text-zinc-200">{preview.timeLabel}</dd>
+                  <dd className="truncate text-[13px] text-zinc-200">{preview.timeLabel}</dd>
                 </div>
-                <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
-                  <dt className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] text-zinc-600">
+                <div className="bg-[#0f0e0c] px-3 py-2">
+                  <dt className="font-label-caps text-[8px] uppercase tracking-[0.14em] text-zinc-600">
                     Miesto
                   </dt>
-                  <dd className="truncate text-right text-sm text-zinc-200">{venueLine}</dd>
+                  <dd className="truncate text-[13px] text-zinc-200">{venueLine}</dd>
                 </div>
-                <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
-                  <dt className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] text-zinc-600">
+                <div className="bg-[#0f0e0c] px-3 py-2">
+                  <dt className="font-label-caps text-[8px] uppercase tracking-[0.14em] text-zinc-600">
                     Squad
                   </dt>
-                  <dd className="text-right text-sm text-zinc-200">
+                  <dd className="truncate text-[13px] text-zinc-200">
                     <span className={almostFull ? 'text-error' : undefined}>
                       {preview.spotsFilled}/{preview.spotsTotal}
                     </span>
@@ -269,11 +269,11 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
                 </div>
               </dl>
 
-              <div className="flex items-center gap-px px-4 py-2.5" aria-hidden>
+              <div className="flex items-center gap-px px-4 py-2" aria-hidden>
                 {Array.from({ length: Math.max(preview.spotsTotal, 1) }).map((_, i) => (
                   <div
                     key={i}
-                    className={`h-px flex-1 ${
+                    className={`h-0.5 flex-1 rounded-full ${
                       i < preview.spotsFilled
                         ? almostFull
                           ? 'bg-error'
@@ -285,7 +285,7 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
               </div>
 
               {(preview.venueId || preview.websiteUrl) && (
-                <div className="border-t border-white/10 px-4 py-2.5">
+                <div className="border-t border-white/10 px-3 py-2">
                   <VenueEventBookingLinks
                     venueId={preview.venueId}
                     venueName={preview.venueName}
@@ -296,14 +296,10 @@ export function LobbyPreviewModal({ lobby, open, onClose }: LobbyPreviewModalPro
               )}
             </div>
 
-            {/* Compact chat panel — does not dominate the page */}
-            {canChat ? (
-              <div className="min-h-0 flex-1 border-t border-white/10 px-3 pb-1 pt-2">
-                <LobbyChat lobbyId={preview.id} compact />
-              </div>
-            ) : (
-              <div className="min-h-0 flex-1" aria-hidden />
-            )}
+            {/* Phone-native chat fills remaining height */}
+            <div className="flex min-h-0 flex-1 flex-col border-t border-white/10">
+              <LobbyChat lobbyId={preview.id} compact locked={!canChat} />
+            </div>
 
             <div className="shrink-0 border-t border-white/10 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
               <LobbyActions

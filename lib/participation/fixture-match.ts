@@ -2,7 +2,19 @@
  * Head-to-head fixtures ("FK Inter vs FC Petržalka", "FC Petržalka - ViOn")
  * are watch-only (Sledovať). Lobby "Tím vs Tím" challenges stay joinable —
  * do not use this helper there.
+ *
+ * Broader Sledovať signals (tickets, arenas, spectacle copy) live in
+ * {@link resolveParticipationMode}.
  */
+
+import {
+  AGGREGATOR_BOILERPLATE,
+  ALWAYS_SPECTATOR_SOURCES,
+  PLAYER_ENTRY_COPY,
+  SOFT_REGISTER,
+  TICKET_CHECKOUT,
+  WATCH_ONLY_COPY,
+} from '@/lib/participation/watch-signals';
 
 /** Explicit separators used on Slovak sports sites. */
 const EXPLICIT_SEP = /\s+(?:vs\.?|versus|proti|v\.?s\.?)\s+/i;
@@ -99,12 +111,69 @@ export function titleLooksLikeHeadToHeadFixture(title: string): boolean {
   return false;
 }
 
+export type ParticipationModeInput = {
+  title: string;
+  description?: string | null;
+  sourceUrl?: string | null;
+  ticketUrl?: string | null;
+  source?: string | null;
+  /** DB / adapter hint — used when no stronger watch/join signal wins. */
+  stored?: string | null;
+};
+
+/**
+ * Hrať vs Sledovať for listings (events + tournament cards).
+ *
+ * Order: H2H title → always-spectator source → ticket checkout URL →
+ * watch-only copy without player-entry → stored hint → participate.
+ */
+export function resolveParticipationMode(
+  input: ParticipationModeInput,
+): 'spectator' | 'participate' {
+  const title = input.title ?? '';
+  if (titleLooksLikeHeadToHeadFixture(title)) return 'spectator';
+
+  const source = (input.source ?? '').trim().toLowerCase();
+  if (source && ALWAYS_SPECTATOR_SOURCES.has(source)) return 'spectator';
+
+  const urls = `${input.sourceUrl ?? ''} ${input.ticketUrl ?? ''}`.toLowerCase();
+  if (TICKET_CHECKOUT.test(urls)) return 'spectator';
+
+  const rawHay =
+    `${title} ${input.description ?? ''} ${input.sourceUrl ?? ''} ${input.ticketUrl ?? ''}`.toLowerCase();
+  const hay = rawHay.replace(AGGREGATOR_BOILERPLATE, ' ');
+  const canEnter =
+    PLAYER_ENTRY_COPY.test(hay) ||
+    PLAYER_ENTRY_COPY.test(urls) ||
+    (SOFT_REGISTER.test(hay) && !WATCH_ONLY_COPY.test(hay));
+  if (WATCH_ONLY_COPY.test(hay) && !canEnter) return 'spectator';
+  // Ticket spectacle: watch copy + ticket-ish URL even if soft "registrácia" leftover
+  if (WATCH_ONLY_COPY.test(hay) && TICKET_CHECKOUT.test(urls)) return 'spectator';
+  if (WATCH_ONLY_COPY.test(hay) && /globetrotters|gopassarena\.sk\/e-/i.test(hay + urls)) {
+    return 'spectator';
+  }
+
+  if (input.stored === 'spectator') return 'spectator';
+  return 'participate';
+}
+
+/**
+ * Backward-compatible title + stored mode. Prefer {@link resolveParticipationMode}
+ * when description / URLs are available.
+ */
 export function listingParticipationMode(
   title: string,
   stored: string | null | undefined,
+  extra?: Omit<ParticipationModeInput, 'title' | 'stored'>,
 ): 'spectator' | 'participate' {
-  if (titleLooksLikeHeadToHeadFixture(title)) return 'spectator';
-  return stored === 'spectator' ? 'spectator' : 'participate';
+  return resolveParticipationMode({
+    title,
+    stored,
+    description: extra?.description,
+    sourceUrl: extra?.sourceUrl,
+    ticketUrl: extra?.ticketUrl,
+    source: extra?.source,
+  });
 }
 
 /** Keep cards whose resolved mode matches the feed tab (Hrať / Sledovať). */
@@ -112,7 +181,8 @@ export function matchesParticipationModeFilter(
   title: string,
   stored: string | null | undefined,
   mode: 'spectator' | 'participate' | 'all' | null | undefined,
+  extra?: Omit<ParticipationModeInput, 'title' | 'stored'>,
 ): boolean {
   if (!mode || mode === 'all') return true;
-  return listingParticipationMode(title, stored) === mode;
+  return listingParticipationMode(title, stored, extra) === mode;
 }

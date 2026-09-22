@@ -1,5 +1,5 @@
 /**
- * Backfill events.participation_mode from title heuristics (Hrať vs Sledovať).
+ * Backfill events.participation_mode from title + description + URL heuristics.
  * Usage: npx tsx scripts/backfill-participation-mode.ts
  */
 import { config } from 'dotenv';
@@ -7,7 +7,7 @@ config({ path: '.env' });
 config({ path: '.env.local', override: true });
 
 import { createAdminClient } from '../lib/supabase/admin';
-import { listingParticipationMode } from '../lib/participation/fixture-match';
+import { resolveParticipationMode } from '../lib/participation/fixture-match';
 
 const PAGE = 1000;
 
@@ -20,7 +20,7 @@ async function main() {
   for (;;) {
     const { data, error } = await supabase
       .from('events')
-      .select('id, title, participation_mode')
+      .select('id, title, description, participation_mode, source_url, ticket_url, source')
       .range(from, from + PAGE - 1);
     if (error) throw new Error(error.message);
     const rows = data ?? [];
@@ -28,7 +28,14 @@ async function main() {
 
     for (const row of rows) {
       scanned += 1;
-      const next = listingParticipationMode(row.title, row.participation_mode);
+      const next = resolveParticipationMode({
+        title: row.title,
+        description: row.description,
+        sourceUrl: row.source_url,
+        ticketUrl: row.ticket_url,
+        source: row.source,
+        stored: row.participation_mode,
+      });
       const prev = row.participation_mode === 'spectator' ? 'spectator' : 'participate';
       if (next === prev) continue;
       const { error: upErr } = await supabase

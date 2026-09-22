@@ -14,6 +14,7 @@ export const SCRAPE_ADAPTER_IDS: readonly ScrapeAdapterId[] = [
   'aurial-padel',
   'padel-ba',
   'ntc-ba',
+  'tenis-advantage',
   'ofa-mma',
   'chaos-mma',
   'prostor',
@@ -39,7 +40,7 @@ export const SCRAPE_ADAPTER_IDS: readonly ScrapeAdapterId[] = [
   'citylife',
 ] as const;
 
-/** 30 min slots × 26 adapters ≈ 13 h per venue (12 h cadence, never a midnight burst). */
+/** 30 min slots × N adapters ≈ 12 h+ cadence (never a midnight burst). */
 export const SCRAPE_SHARD_SLOT_MS = 30 * 60 * 1000;
 
 /** Hard cap: one Cheerio parse job per Cloudflare Worker invocation. */
@@ -66,6 +67,8 @@ export async function loadNamedScraper(id: ScrapeAdapterId): Promise<ScraperFn |
       return (await import('@/lib/scrape/adapters/padel-ba')).scrapePadelBa;
     case 'ntc-ba':
       return (await import('@/lib/scrape/adapters/ntc-ba')).scrapeNtcBa;
+    case 'tenis-advantage':
+      return (await import('@/lib/scrape/adapters/tenis-advantage')).scrapeTenisAdvantage;
     case 'ofa-mma':
       return (await import('@/lib/scrape/adapters/ofa-mma')).scrapeOfaMma;
     case 'chaos-mma':

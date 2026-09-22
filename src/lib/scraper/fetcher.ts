@@ -109,11 +109,31 @@ const MAIN_CONTENT_SELECTORS = [
 
 const MIN_MAIN_TEXT_CHARS = 40;
 
+export type CleanTextResult = {
+  text: string;
+  /** Selector that produced the text (preferred, main-content, or body). */
+  usedSelector: string | null;
+  /** True when preferredSelector matched with enough text. */
+  preferredMatched: boolean;
+};
+
+function normalizeCleanText(raw: string): string {
+  return raw
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 /**
  * Strip non-content + chrome nodes and return whitespace-normalized plain text
  * from the main content region only. Never follows images / assets.
+ * When `preferredSelector` matches with enough text, it wins over defaults.
  */
-export function htmlToCleanText(html: string): string {
+export function htmlToCleanTextDetailed(
+  html: string,
+  preferredSelector?: string | null,
+): CleanTextResult {
   const truncatedHtml = truncateHtml(html);
   const $ = cheerio.load(truncatedHtml);
   $(
@@ -144,7 +164,27 @@ export function htmlToCleanText(html: string): string {
     ].join(', '),
   ).remove();
 
+  const preferred = preferredSelector?.trim() || null;
+  if (preferred) {
+    try {
+      const nodes = $(preferred);
+      if (nodes.length) {
+        const candidate = normalizeCleanText(nodes.first().text());
+        if (candidate.length >= MIN_MAIN_TEXT_CHARS) {
+          return {
+            text: candidate,
+            usedSelector: preferred,
+            preferredMatched: true,
+          };
+        }
+      }
+    } catch {
+      // Invalid CSS selector — fall through to defaults
+    }
+  }
+
   let text = '';
+  let usedSelector: string | null = null;
   let selectorPasses = 0;
   for (const sel of MAIN_CONTENT_SELECTORS) {
     if (++selectorPasses > MAX_LOOP_ITERATIONS) {
@@ -156,20 +196,37 @@ export function htmlToCleanText(html: string): string {
     const candidate = nodes.first().text();
     if (candidate.trim().length >= MIN_MAIN_TEXT_CHARS) {
       text = candidate;
+      usedSelector = sel;
       break;
     }
   }
 
   if (!text.trim()) {
-    if ($('body').length) text = $('body').text();
-    else text = $.root().text();
+    if ($('body').length) {
+      text = $('body').text();
+      usedSelector = 'body';
+    } else {
+      text = $.root().text();
+      usedSelector = null;
+    }
   }
 
-  return text
-    .replace(/\u00a0/g, ' ')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  return {
+    text: normalizeCleanText(text),
+    usedSelector,
+    preferredMatched: false,
+  };
+}
+
+/**
+ * Strip non-content + chrome nodes and return whitespace-normalized plain text
+ * from the main content region only. Never follows images / assets.
+ */
+export function htmlToCleanText(
+  html: string,
+  preferredSelector?: string | null,
+): string {
+  return htmlToCleanTextDetailed(html, preferredSelector).text;
 }
 
 async function fetchHtmlOnce(url: string): Promise<string> {
@@ -247,9 +304,12 @@ export async function fetchHtml(url: string): Promise<string> {
 /**
  * Fetch a URL and return clean page text (no HTML chrome, no media).
  */
-export async function fetchCleanText(url: string): Promise<string> {
+export async function fetchCleanText(
+  url: string,
+  preferredSelector?: string | null,
+): Promise<string> {
   const html = await fetchHtml(url);
-  const text = htmlToCleanText(html);
+  const text = htmlToCleanText(html, preferredSelector);
   if (!text || text.length < 40) {
     throw new Error(`Insufficient text content from ${url} (${text.length} chars)`);
   }

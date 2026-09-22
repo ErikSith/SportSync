@@ -25551,7 +25551,7 @@
       ],
       "url": "http://www.tenisadvantage.sk/aktuality",
       "kind": "events",
-      "enabled": false,
+      "enabled": true,
       "borough": "bratislava"
     },
     {

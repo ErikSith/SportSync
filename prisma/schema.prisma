@@ -209,7 +209,9 @@ model VenueScrapePage {
   venue         Venue?    @relation(fields: [venueId], references: [id], onDelete: SetNull)
   /// Absolute URL to fetch (homepage, /turnaje, /rozvrh, …).
   url           String
-  /// 'website' | 'tournaments' | 'schedule' | 'events' | 'other'
+  /// 'website' | 'tournaments' | 'schedule' | 'events' | 'availability' | 'kids_camps' | 'other'
+  /// availability = court/slot booking calendar (free vs occupied by hour) for Lobby later.
+  /// kids_camps = multi-day children's camps / summer camps listing pages.
   kind          String    @default("website")
   /// Bratislava borough slug (e.g. ruzinov) when known.
   borough       String?
@@ -218,6 +220,12 @@ model VenueScrapePage {
   source        String    @default("google-places")
   lastScrapedAt DateTime? @map("last_scraped_at") @db.Timestamp(6)
   lastStatus    String?   @map("last_status")
+  /// Optional CSS selector narrowing HTML before Gemini (e.g. '.events-list').
+  contentSelector String? @map("content_selector")
+  /// null = Gemini (auto); 'reenio' = force Reenio Term/List booking adapter.
+  bookingProvider String? @map("booking_provider")
+  /// Reenio subject subdomain (e.g. 'eterna' → eterna.reenio.sk).
+  bookingSubject  String? @map("booking_subject")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)

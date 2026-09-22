@@ -15,7 +15,7 @@ const GROUP_CLASS_DESCRIPTION =
 
 /** Schedule, academy, or recurring-program pages — not unique event listings. */
 const SCHEDULE_OR_PROGRAM_URL =
-  /\/(rozvrh|schedule|calendar|kalendar|treningy?|tréningy?|lekcie?|classes?|skupinov|programy|akademi[ae]|treningovy-program|tréningový-program|online-treningovy)(\/|$|\?)/i;
+  /\/(?:rozvrh|schedule|calendar|kalendar|treningy?|tréningy?|lekcie?|classes?|programy|akademi[ae]|treningovy-program|tréningový-program|online-treningovy|kde-trenovat)(?:\/|$|\?)|\/[^/?#]*(?:skupinov|tr[eé]ningy?)[^/?#]*/i;
 
 const COURT_RENTAL_URL =
   /prenajom[-_]?(tenisovych[-_]?kurtov|kurtov)|court[-_]?rental|prenájom[-_ ]tenis/i;
@@ -64,6 +64,17 @@ export function shouldForceGroupClassFromUrl(url: string | null | undefined): bo
   if (!value) return false;
   if (COURT_RENTAL_URL.test(value)) return false;
   return SCHEDULE_OR_PROGRAM_URL.test(value);
+}
+
+/** Dev scrape-page kinds that mean weekly group lessons (EfectFit, Form Factory, …). */
+export function shouldForceGroupClassFromScrapePage(
+  kind: string | null | undefined,
+  url: string | null | undefined,
+): boolean {
+  const k = (kind ?? '').toLowerCase();
+  if (k === 'kids_camps' || k === 'tournaments') return false;
+  if (k === 'schedule' || k === 'rozvrh' || k === 'classes') return true;
+  return shouldForceGroupClassFromUrl(url);
 }
 
 export function looksLikeGroupClassListing(signals: GroupClassSignals): boolean {

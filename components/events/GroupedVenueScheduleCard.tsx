@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, ChevronDown, ChevronRight } from 'lucide-react';
 import {
   formatLessonTime,
+  groupLessonsByDay,
   groupedScheduleTitle,
   shortScheduleDayLabel,
   slovakLekcieCountLabel,
@@ -230,18 +231,35 @@ function ClassSessionTimeline({
   group: GroupedVenueSchedule;
   onSelect: (session: ClassSession) => void;
 }) {
+  const sections = useMemo(() => groupLessonsByDay(group.lessons), [group.lessons]);
+
   return (
-    <ul className="flex flex-col gap-1.5" aria-label={`Lekcie — ${group.venueName}`}>
-      {group.lessons.map((session) => (
-        <li key={session.id}>
-          <ClassSessionRow
-            session={session}
-            venueFallback={group.venueName}
-            onSelect={onSelect}
-          />
-        </li>
+    <div className="flex flex-col gap-3" aria-label={`Lekcie — ${group.venueName}`}>
+      {sections.map((section) => (
+        <div key={section.dayKey} className="space-y-1.5">
+          {sections.length > 1 ? (
+            <p className="font-label-caps text-[9px] uppercase tracking-[0.14em] text-primary-container/85">
+              {shortScheduleDayLabel(section.dayLabel)}
+              <span className="text-on-surface-variant/70">
+                {' '}
+                · {slovakLekcieCountLabel(section.lessons.length)}
+              </span>
+            </p>
+          ) : null}
+          <ul className="flex flex-col gap-1.5">
+            {section.lessons.map((session) => (
+              <li key={session.id}>
+                <ClassSessionRow
+                  session={session}
+                  venueFallback={group.venueName}
+                  onSelect={onSelect}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -258,7 +276,10 @@ export function GroupedVenueScheduleCard({
 
   const peak = useMemo(() => peakTimeLabel(group.lessons), [group.lessons]);
   const distance = distanceLabel(group.distanceKm);
+  const daySections = useMemo(() => groupLessonsByDay(group.lessons), [group.lessons]);
   const dayToken = shortScheduleDayLabel(group.dayLabel);
+  const headerDayToken =
+    daySections.length > 1 ? 'Rozpis' : dayToken;
   const lekcieCount = slovakLekcieCountLabel(group.lessons.length);
   const pricePill = pricePillLabel(group.lessons);
   const location = group.city?.trim() || 'Bratislava';
@@ -315,7 +336,7 @@ export function GroupedVenueScheduleCard({
               </span>
               <div className="min-w-0 flex-1">
                 <p className="font-label-caps text-[8px] uppercase tracking-[0.14em] text-on-surface-variant">
-                  {dayToken} · športovisko
+                  {headerDayToken} · športovisko
                 </p>
                 <h3 className="mt-0.5 truncate font-headline-md text-[14px] font-semibold tracking-wide text-white">
                   {group.venueName}
@@ -392,7 +413,7 @@ export function GroupedVenueScheduleCard({
           <span className="min-w-0 flex-1">
             <span className="mb-0.5 flex items-center gap-1.5">
               <span className="font-label-caps text-[8px] uppercase tracking-[0.14em] text-on-surface-variant">
-                {dayToken} · športovisko
+                {headerDayToken} · športovisko
               </span>
             </span>
             <span className="block truncate font-headline-md text-base font-semibold tracking-wide text-white">
@@ -428,7 +449,9 @@ export function GroupedVenueScheduleCard({
                   <p className="inline-flex min-w-0 items-center gap-1.5 truncate font-body-md text-[11px] text-on-surface-variant">
                     <CalendarDays className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
                     <span className="truncate">
-                      {dayToken} · {lekcieCount}
+                      {daySections.length > 1
+                        ? `${daySections.length} dni · ${lekcieCount}`
+                        : `${headerDayToken} · ${lekcieCount}`}
                     </span>
                   </p>
                   <button

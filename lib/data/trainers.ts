@@ -62,6 +62,7 @@ const SPORT_SPECIALTY: Record<string, string> = {
   GOLF: 'Golf Performance Coach',
   SQUASH: 'Squash Coach',
   YOGA: 'Yoga & Mobility Coach',
+  PILATES: 'Pilates Coach',
 };
 
 function venueNameFromRow(venues: LessonRow['venues']): string | null {

@@ -60,6 +60,8 @@ function filterToBorough(
       return { ...place, boroughSlug: slug } as DiscoveredPlace;
     })
     .filter((place) => {
+      // Never keep a place whose address already resolved to another borough.
+      if (place.boroughSlug && place.boroughSlug !== boroughSlug) return false;
       if (place.boroughSlug === boroughSlug) return true;
       if (circle) {
         const km = distanceKm(

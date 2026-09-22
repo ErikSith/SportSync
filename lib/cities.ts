@@ -5,6 +5,7 @@
  */
 
 import { distanceKm } from '@/lib/geo';
+import { locationKeywordAppearsIn } from '@/lib/scrape/bratislava-location';
 
 export interface CityOption {
   name: string;
@@ -46,7 +47,6 @@ export const BRATISLAVA_DISTRICTS: DistrictOption[] = [
     keywords: [
       'staré mesto',
       'stare mesto',
-      'centrum',
       'eurovea',
       'pribinova',
       'hodžovo',
@@ -108,6 +108,10 @@ export const BRATISLAVA_DISTRICTS: DistrictOption[] = [
       'tipos arena',
       'gopass aréna',
       'gopass arena',
+      'mladá garda',
+      'mlada garda',
+      'stará ivanská',
+      'stara ivanska',
     ],
   },
   {
@@ -160,7 +164,7 @@ export const BRATISLAVA_DISTRICTS: DistrictOption[] = [
     latitude: 48.1865,
     longitude: 17.0385,
     radiusKm: 3.5,
-    keywords: ['dúbravka', 'dubravka', 'pekná cesta', 'pekna cesta'],
+    keywords: ['dúbravka', 'dubravka'],
   },
   {
     id: 'lamac',
@@ -184,8 +188,8 @@ export const BRATISLAVA_DISTRICTS: DistrictOption[] = [
       'černockého',
       'cernockeho',
       'tbilisk',
-      'račianska',
-      'racianska',
+      'pekná cesta',
+      'pekna cesta',
       'aurial',
     ],
   },
@@ -285,13 +289,59 @@ export function isBratislavaCity(city: string | null | undefined): boolean {
  * real location. SportSync feeds are Bratislava-only for now.
  */
 const OUTSIDE_BRATISLAVA_PLACE =
-  /bansk(?:ej|á|ou|a)\s+bystric|slovensk(?:ej|á|ou|a)\s+[ľl]up[čc]|humenn|ko[sš]ic(?:e|iach|iam)?|pre[sš]ov|[žz]ilin|poprad|pie[sš][tť]an|tren[cč][ií]n|star(?:á|ej|ou|a)\s+tur[aá]|zvolen|prievidz|bardejov|michalov|kom[aá]rn|levic(?!\s+bratislav)|pov[aá]žsk(?:ej|á|a)\s+bystric|liptovsk|ru[zž]omberok|v\s+nitre|\bnitre\b|v\s+trnave|\btrnave\b|v\s+martine|dubn[ií]kom|beckov|soblahov/i;
+  /europa\s*bc|bansk(?:ej|á|ou|a)\s+bystric|slovensk(?:ej|á|ou|a)\s+[ľl]up[čc]|humenn|ko[sš]ic(?:e|iach|iam)?|pre[sš]ov|[žz]ilin|poprad|pie[sš][tť]an|tren[cč][ií]n|star(?:á|ej|ou|a)\s+tur[aá]|zvolen|prievidz|bardejov|michalov|kom[aá]rn|levic(?!\s+bratislav)|pov[aá]žsk(?:ej|á|a)\s+bystric|liptovsk|ru[zž]omberok|v\s+nitre|\bnitre\b|v\s+trnave|\btrnave\b|v\s+martine|dubn[ií]kom|beckov|soblahov/i;
 
 export function titleIsOutsideBratislava(title: string | null | undefined): boolean {
   if (!title) return false;
   const t = title.toLowerCase();
-  if (/bratislav/.test(t)) return false;
+  // Explicit Bratislava wins only when no other city is named in the same string.
+  if (/bratislav/.test(t)) {
+    const withoutBa = t.replace(/bratislav\w*/gi, ' ');
+    return OUTSIDE_BRATISLAVA_PLACE.test(withoutBa);
+  }
   return OUTSIDE_BRATISLAVA_PLACE.test(t);
+}
+
+/** Join title / city / location / description — reject if any part names another city. */
+export function listingIsOutsideBratislava(
+  ...parts: Array<string | null | undefined>
+): boolean {
+  const text = parts.filter(Boolean).join(' · ');
+  return titleIsOutsideBratislava(text);
+}
+
+/**
+ * Look around the event title in page text (date + city often sit on the same line:
+ * "365 Grand Prix 2026, 24.-25.10.2026, Košice").
+ * Prefer the same line as the title so a prior Košice line does not poison a BA row.
+ */
+export function pageContextIsOutsideBratislava(
+  pageText: string | null | undefined,
+  title: string | null | undefined,
+): boolean {
+  if (!pageText || !title) return false;
+  const fold = (s: string) =>
+    s
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  const needle = fold(title).slice(0, 48);
+  if (needle.length < 4) return false;
+
+  for (const rawLine of pageText.split(/\r?\n+/)) {
+    const line = fold(rawLine);
+    if (!line.includes(needle)) continue;
+    return titleIsOutsideBratislava(rawLine);
+  }
+
+  // Fallback: tight window mostly AFTER the title match.
+  const hay = fold(pageText);
+  const idx = hay.indexOf(needle);
+  if (idx < 0) return false;
+  const window = hay.slice(idx, idx + needle.length + 80);
+  return titleIsOutsideBratislava(window);
 }
 
 export function parseFeedArea(raw: string | null | undefined): FeedAreaId {
@@ -395,9 +445,9 @@ export function matchesDistrictText(
 ): boolean {
   const district = findDistrictById(districtId);
   if (!district) return true;
-  const hay = parts.filter(Boolean).join(' ').toLowerCase();
-  if (!hay) return false;
-  return district.keywords.some((k) => hay.includes(k));
+  const hay = parts.filter(Boolean).join(' ');
+  if (!hay.trim()) return false;
+  return district.keywords.some((k) => locationKeywordAppearsIn(hay, k));
 }
 
 export interface FeedAreaMatchInput {

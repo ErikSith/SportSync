@@ -178,7 +178,9 @@ function inferSports(name: string, types: string[], primaryType: string | null):
   if (/lezen|climb|bould/i.test(blob)) sports.add('CLIMBING');
   if (/badminton|bedminton/i.test(blob)) sports.add('OTHER');
   if (/bowling/i.test(blob)) sports.add('BOWLING');
+  if (/šipky|sipky|darts?\b/i.test(blob)) sports.add('DARTS');
   if (/yoga|joga/i.test(blob)) sports.add('YOGA');
+  if (/pilates/i.test(blob)) sports.add('PILATES');
   if (/crossfit/i.test(blob)) sports.add('FITNESS');
   if (/aikido|karate|judo|kickbox|zápas|zapas/i.test(blob)) sports.add('COMBAT');
 

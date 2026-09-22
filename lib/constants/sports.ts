@@ -2,11 +2,12 @@
  * Canonical sports / activity types used across events, tournaments, lobbies, and filters.
  * Values match `events.sport` / `tournaments.sport` strings in the DB (and scrapers).
  *
- * Yoga classes store YOGA (not FITNESS). Martial arts store COMBAT.
+ * Yoga classes store YOGA (not FITNESS). Pilates stores PILATES. Martial arts store COMBAT.
  */
 export const EVENT_SPORTS = [
   'TENNIS',
   'PADEL',
+  'BADMINTON',
   'FOOTBALL',
   'BASKETBALL',
   'HOCKEY',
@@ -16,6 +17,7 @@ export const EVENT_SPORTS = [
   'GOLF',
   'FITNESS',
   'YOGA',
+  'PILATES',
   'COMBAT',
   'SQUASH',
   'VOLLEYBALL',
@@ -24,12 +26,14 @@ export const EVENT_SPORTS = [
   'TABLE_TENNIS',
   'CLIMBING',
   'BOWLING',
+  'DARTS',
   'OTHER',
 ] as const;
 
 export const LOBBY_SPORTS = [
   'TENNIS',
   'PADEL',
+  'BADMINTON',
   'FOOTBALL',
   'BASKETBALL',
   'HOCKEY',
@@ -39,6 +43,7 @@ export const LOBBY_SPORTS = [
   'GOLF',
   'FITNESS',
   'YOGA',
+  'PILATES',
   'COMBAT',
   'SQUASH',
   'VOLLEYBALL',
@@ -47,6 +52,7 @@ export const LOBBY_SPORTS = [
   'TABLE_TENNIS',
   'CLIMBING',
   'BOWLING',
+  'DARTS',
   'OTHER',
 ] as const;
 
@@ -57,6 +63,7 @@ export type LobbySport = (typeof LOBBY_SPORTS)[number];
 export const EVENT_SPORT_LABELS: Record<EventSport, string> = {
   TENNIS: 'Tenis',
   PADEL: 'Padel',
+  BADMINTON: 'Badminton',
   FOOTBALL: 'Futbal',
   BASKETBALL: 'Basketbal',
   HOCKEY: 'Hokej',
@@ -66,6 +73,7 @@ export const EVENT_SPORT_LABELS: Record<EventSport, string> = {
   GOLF: 'Golf',
   FITNESS: 'Fitness',
   YOGA: 'Joga',
+  PILATES: 'Pilates',
   COMBAT: 'Bojové umenia',
   SQUASH: 'Squash',
   VOLLEYBALL: 'Volejbal',
@@ -74,6 +82,7 @@ export const EVENT_SPORT_LABELS: Record<EventSport, string> = {
   TABLE_TENNIS: 'Stolný tenis',
   CLIMBING: 'Lezenie',
   BOWLING: 'Bowling',
+  DARTS: 'Šipky',
   OTHER: 'Iné',
 };
 
@@ -85,6 +94,7 @@ export const EVENT_SPORT_LABELS: Record<EventSport, string> = {
 export const EVENT_SPORT_KEYWORDS: Record<EventSport, string[]> = {
   TENNIS: ['tennis', 'tenis', 'davis cup'],
   PADEL: ['padel'],
+  BADMINTON: ['badminton', 'bedminton'],
   FOOTBALL: ['football', 'soccer', 'futbal', 'futsal'],
   BASKETBALL: ['basketball', 'basket', 'košík', 'kosik', '3x3', '3 x 3'],
   HOCKEY: ['hockey', 'hokej'],
@@ -94,7 +104,6 @@ export const EVENT_SPORT_KEYWORDS: Record<EventSport, string[]> = {
   GOLF: ['golf'],
   FITNESS: [
     'fitness',
-    'pilates',
     'trx',
     'gymstick',
     'instagym',
@@ -114,8 +123,18 @@ export const EVENT_SPORT_KEYWORDS: Record<EventSport, string[]> = {
     'kruhov',
     'power plate',
     'rpm',
+    'funkčný',
+    'funkcny',
+    'functional',
+    're-move',
+    'remove',
+    'kettlebell',
+    'silový',
+    'silovy',
+    'kb5',
   ],
   YOGA: ['yoga', 'joga'],
+  PILATES: ['pilates'],
   COMBAT: [
     'mma',
     'muay thai',
@@ -144,6 +163,10 @@ export const EVENT_SPORT_KEYWORDS: Record<EventSport, string[]> = {
     'gladiator',
     'combat',
     'ufc',
+    'sebaobran',
+    'self-defense',
+    'self defense',
+    'selfdefence',
   ],
   SQUASH: ['squash'],
   VOLLEYBALL: ['volleyball', 'volejbal'],
@@ -161,6 +184,18 @@ export const EVENT_SPORT_KEYWORDS: Record<EventSport, string[]> = {
   TABLE_TENNIS: ['table tennis', 'stolný tenis', 'stolny tenis', 'ping pong'],
   CLIMBING: ['climbing', 'lezen', 'lezeck', 'boulder', 'bouldering'],
   BOWLING: ['bowling'],
+  DARTS: [
+    'šipky',
+    'sipky',
+    'šípk',
+    'sipk',
+    'šípková',
+    'sipkova',
+    'šípkar',
+    'sipkar',
+    'darts',
+    'dart',
+  ],
   OTHER: ['korčuľ', 'korcul', 'skating', 'decathlon', 'inline'],
 };
 
@@ -206,7 +241,7 @@ export const SPORT_PLAY_GROUPS: readonly SportPlayGroup[] = [
     id: 'rackets',
     label: 'Raketami',
     hint: 'Tenis, padel…',
-    sports: ['TENNIS', 'PADEL', 'SQUASH', 'TABLE_TENNIS'],
+    sports: ['TENNIS', 'PADEL', 'BADMINTON', 'SQUASH', 'TABLE_TENNIS'],
   },
   {
     id: 'sticks',
@@ -217,8 +252,19 @@ export const SPORT_PLAY_GROUPS: readonly SportPlayGroup[] = [
   {
     id: 'body',
     label: 'Telom',
-    hint: 'Fitness, joga, plávanie…',
-    sports: ['FITNESS', 'YOGA', 'COMBAT', 'SWIMMING', 'SURFING', 'CLIMBING', 'BOWLING', 'OTHER'],
+    hint: 'Fitness, joga, pilates…',
+    sports: [
+      'FITNESS',
+      'YOGA',
+      'PILATES',
+      'COMBAT',
+      'SWIMMING',
+      'SURFING',
+      'CLIMBING',
+      'BOWLING',
+      'DARTS',
+      'OTHER',
+    ],
   },
 ] as const;
 
@@ -236,11 +282,14 @@ export function detectEventSport(
   // Prefer longer / more specific families before generic ones
   const priority: EventSport[] = [
     'PADEL',
+    'BADMINTON',
     'SURFING',
     'TABLE_TENNIS',
+    'PILATES',
     'YOGA',
     'CLIMBING',
     'BOWLING',
+    'DARTS',
     'COMBAT',
     'TENNIS',
     'HANDBALL',

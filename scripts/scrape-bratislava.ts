@@ -157,7 +157,7 @@ async function main() {
       console.log(
         `[ba-scrape] (${i + 1}/${targets.length}) [${borough}/${target.kind}] ${label} → ${target.url}`,
       );
-      const text = await fetchCleanText(target.url);
+      const text = await fetchCleanText(target.url, target.contentSelector);
       const events = await extractEventsFromText(target.url, text);
       consecutiveGeminiFails = 0;
       extracted += events.length;

@@ -6,6 +6,8 @@ export const SPORT_PLATE_COLORS: Record<string, { from: string; to: string; labe
   BASKETBALL: { from: '#7c2d12', to: '#ea580c', label: 'BASKETBALL' },
   HOCKEY: { from: '#0c4a6e', to: '#0284c7', label: 'HOCKEY' },
   FITNESS: { from: '#5f1500', to: '#c84b24', label: 'FITNESS' },
+  YOGA: { from: '#4c1d95', to: '#a78bfa', label: 'YOGA' },
+  PILATES: { from: '#9d174d', to: '#f9a8d4', label: 'PILATES' },
   COMBAT: { from: '#1c1917', to: '#78716c', label: 'COMBAT' },
   RUNNING: { from: '#78350f', to: '#d97706', label: 'RUNNING' },
   SWIMMING: { from: '#0e7490', to: '#22d3ee', label: 'SWIM' },

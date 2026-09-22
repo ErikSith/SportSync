@@ -22,6 +22,8 @@ export const SPORT_EMOJIS: Record<string, string> = {
   GOLF: '⛳',
   SQUASH: '🎾',
   FITNESS: '💪',
+  YOGA: '🧘',
+  PILATES: '🧘',
   HOCKEY: '🏒',
   HANDBALL: '🤾',
   COMBAT: '🥊',

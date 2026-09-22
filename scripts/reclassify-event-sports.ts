@@ -43,6 +43,7 @@ function remapVenueSports(name: string, sports: string[]): string[] {
   const next = new Set(sports.map((s) => s.toUpperCase()).filter(Boolean));
   const detected = detectEventSport(name, 'OTHER');
   if (detected === 'YOGA') next.add('YOGA');
+  if (detected === 'PILATES') next.add('PILATES');
   if (detected === 'COMBAT') next.add('COMBAT');
   if (detected === 'CLIMBING') {
     next.add('CLIMBING');
@@ -50,6 +51,10 @@ function remapVenueSports(name: string, sports: string[]): string[] {
   }
   if (detected === 'BOWLING') {
     next.add('BOWLING');
+    next.delete('OTHER');
+  }
+  if (detected === 'DARTS') {
+    next.add('DARTS');
     next.delete('OTHER');
   }
   return [...next];

@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {
   titleLooksLikeHeadToHeadFixture,
   listingParticipationMode,
+  resolveParticipationMode,
 } from './fixture-match';
 
 describe('titleLooksLikeHeadToHeadFixture', () => {
@@ -62,5 +63,57 @@ describe('listingParticipationMode', () => {
 
   it('respects stored spectator when title is not a fixture', () => {
     assert.equal(listingParticipationMode('Davis Cup vstupenky', 'spectator'), 'spectator');
+  });
+});
+
+describe('resolveParticipationMode', () => {
+  it('marks Harlem Globetrotters ticket spectacle as spectator', () => {
+    assert.equal(
+      resolveParticipationMode({
+        title: 'HARLEM GLOBETROTTERS - 100. výročie',
+        description:
+          'Kúpiť vstupenky. Streda, 7. októbra 2026 19:00. Gopass Aréna. Od 39 €.',
+        sourceUrl: 'https://gopassarena.sk/e-22427/harlem-globetrotters-100-vyrocie',
+        ticketUrl: 'https://gopassarena.sk/e-22427/harlem-globetrotters-100-vyrocie',
+        source: 'gopass-arena',
+        stored: 'participate',
+      }),
+      'spectator',
+    );
+  });
+
+  it('marks predpredaj ticket URLs as spectator', () => {
+    assert.equal(
+      resolveParticipationMode({
+        title: 'Noc Gladiátorov XIII',
+        sourceUrl: 'https://predpredaj.zoznam.sk/sk/listky/noc-gladiatorov-xiii-2026-10-17/',
+        stored: 'participate',
+      }),
+      'spectator',
+    );
+  });
+
+  it('keeps open training as participate', () => {
+    assert.equal(
+      resolveParticipationMode({
+        title: 'Thajský box - Skupina B',
+        description: 'Otvorený tréning, registrácia na mieste.',
+        sourceUrl: 'https://siamgym.sk/',
+        stored: 'participate',
+      }),
+      'participate',
+    );
+  });
+
+  it('keeps open cup with registration as participate', () => {
+    assert.equal(
+      resolveParticipationMode({
+        title: 'Open padel cup',
+        description: 'Uzávierka prihlášok 1.10. Štartovné 20 €. Registrácia online.',
+        sourceUrl: 'https://example.com/turnaj/open-padel',
+        stored: 'participate',
+      }),
+      'participate',
+    );
   });
 });

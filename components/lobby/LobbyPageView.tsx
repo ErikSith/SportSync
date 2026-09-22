@@ -220,15 +220,15 @@ export function LobbyPageView({
         <div className="ambient-glow right-[-120px] top-56 h-[360px] w-[360px] bg-secondary-container/5" />
       </div>
 
-      <div className="relative z-10 mx-auto flex w-full max-w-screen-xl min-w-0 flex-col gap-4 px-container-margin-mobile pb-28 pt-5 md:gap-5 md:px-container-margin-desktop">
+      <div className="relative z-10 mx-auto flex w-full max-w-lg min-w-0 flex-col gap-3 px-4 pb-[max(7rem,env(safe-area-inset-bottom,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] sm:max-w-screen-xl sm:gap-5 sm:px-container-margin-desktop sm:pb-28 sm:pt-5">
         {selectedSport && sportMeta ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex items-center gap-2.5 sm:gap-3">
               <button
                 type="button"
                 onClick={clearSport}
                 aria-label="Back to sports"
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-zinc-900/40 text-zinc-300 transition hover:border-white/15 hover:text-white active:scale-95"
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900/40 text-zinc-300 transition active:scale-95 hover:border-white/15 hover:text-white"
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
@@ -236,7 +236,7 @@ export function LobbyPageView({
                 <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-zinc-500">
                   {t('lobby.title')}
                 </p>
-                <h1 className="font-headline-md text-[26px] leading-tight tracking-wide text-white sm:text-3xl">
+                <h1 className="font-headline-md text-[24px] leading-tight tracking-wide text-white sm:text-3xl">
                   {sportMeta.label}
                 </h1>
               </div>
@@ -275,7 +275,7 @@ export function LobbyPageView({
                   <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-zinc-500">
                     {t('lobby.eyebrow')}
                   </p>
-                  <h1 className="font-headline-md text-[28px] leading-tight tracking-wide text-white sm:text-3xl md:text-4xl">
+                  <h1 className="font-headline-md text-[26px] leading-tight tracking-wide text-white sm:text-3xl md:text-4xl">
                     {t('lobby.title')}
                   </h1>
                 </div>
@@ -707,7 +707,8 @@ function SearchField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low py-2.5 pl-10 pr-3 text-sm text-on-surface outline-none placeholder:text-zinc-500 focus:border-outline-variant/40"
+        enterKeyHint="search"
+        className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low py-3 pl-10 pr-3 text-[15px] text-on-surface outline-none placeholder:text-zinc-500 focus:border-outline-variant/40 sm:rounded-xl sm:py-2.5 sm:text-sm"
       />
     </label>
   );

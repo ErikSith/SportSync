@@ -239,7 +239,10 @@ export function parseAmenities(raw: unknown): AmenityItem[] {
 
   if (typeof raw === 'object') {
     return Object.entries(raw as Record<string, unknown>)
-      .filter(([, value]) => value === true || (typeof value === 'string' && value.length > 0))
+      .filter(([key, value]) => {
+        if (key === 'groupClassSchedule') return false;
+        return value === true || (typeof value === 'string' && value.length > 0);
+      })
       .map(([key, value]) => {
         const meta = AMENITY_LABELS[key] ?? AMENITY_LABELS[key.toLowerCase()];
         return {

@@ -52,18 +52,27 @@ export type ClassSession = EventCardData;
  */
 export type CommunityEvent = EventCardData;
 
+/** One calendar day inside a venue schedule accordion. */
+export interface ScheduleDaySection {
+  dayKey: string;
+  dayLabel: string;
+  lessons: ClassSession[];
+}
+
 export interface GroupedVenueSchedule {
   kind: 'ROUTINE_LESSON_GROUP';
-  /** Stable key: venue/source + local day. */
+  /** Stable key: venue/source (all upcoming days). */
   id: string;
   venueId: string | null;
   venueName: string;
   city: string;
   source: string | null;
   sourceName: string | null;
+  /** Earliest upcoming day (or today if present) — used for sort / overview. */
   dayKey: string;
+  /** Span label: Dnešný / Zajtrajší / Týždenný / weekday. */
   dayLabel: string;
-  /** Day's ClassSessions, chronological. */
+  /** All ClassSessions across days, chronological. */
   lessons: ClassSession[];
   distanceKm: number;
   coverUrl: string | null;
@@ -104,6 +113,45 @@ function dayLabelFor(startsAt: Date): string {
   return `${capped} ${datePart}`;
 }
 
+/** Group chronological lessons into day sections for accordion / drawer UI. */
+export function groupLessonsByDay(lessons: ClassSession[]): ScheduleDaySection[] {
+  const buckets = new Map<string, ClassSession[]>();
+  for (const lesson of lessons) {
+    const key = eventDayKey(lesson.startsAt);
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(lesson);
+    else buckets.set(key, [lesson]);
+  }
+
+  return [...buckets.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dayKey, dayLessons]) => {
+      const sorted = [...dayLessons].sort(
+        (a, b) => asDate(a.startsAt).getTime() - asDate(b.startsAt).getTime(),
+      );
+      return {
+        dayKey,
+        dayLabel: dayLabelFor(asDate(sorted[0]!.startsAt)),
+        lessons: sorted,
+      };
+    });
+}
+
+function scheduleSpanMeta(lessons: EventCardData[]): { dayKey: string; dayLabel: string } {
+  const keys = [...new Set(lessons.map((l) => eventDayKey(l.startsAt)))].sort();
+  if (keys.length === 0) {
+    const today = toAppDateKey(new Date());
+    return { dayKey: today, dayLabel: 'Týždenný' };
+  }
+  if (keys.length === 1) {
+    const sample = lessons.find((l) => eventDayKey(l.startsAt) === keys[0]) ?? lessons[0]!;
+    return { dayKey: keys[0]!, dayLabel: dayLabelFor(asDate(sample.startsAt)) };
+  }
+  const todayKey = toAppDateKey(new Date());
+  const dayKey = keys.includes(todayKey) ? todayKey : keys[0]!;
+  return { dayKey, dayLabel: 'Týždenný' };
+}
+
 export function slovakLessonCountLabel(count: number): string {
   if (count === 1) return '1 cvičenie';
   if (count >= 2 && count <= 4) return `${count} cvičenia`;
@@ -121,6 +169,7 @@ export function slovakLekcieCountLabel(count: number): string {
 export function shortScheduleDayLabel(dayLabel: string): string {
   if (dayLabel === 'Dnešný') return 'Dnes';
   if (dayLabel === 'Zajtrajší') return 'Zajtra';
+  if (dayLabel === 'Týždenný') return 'Rozpis';
   return dayLabel;
 }
 
@@ -148,13 +197,17 @@ export function isRoutineLesson(
   recurringSeriesIds?: ReadonlySet<string>,
 ): boolean {
   if (!passesRoutineGates(event)) return false;
+
+  const externalId = (event.externalId ?? '').toLowerCase();
+  // Schedule upserts always use class-* — keep HYROX / Open Air studio slots in
+  // Skupinové lekcie even when the title matches a one-off race/festival keyword.
+  if (externalId.startsWith('class-')) return true;
+  if (externalId.startsWith('event-')) return false;
+
   if (looksLikeSpecialEventTitle(event.title)) return false;
 
   if (recurringSeriesIds?.has(event.id)) return true;
   if (denseVenueDayIds?.has(event.id)) return true;
-
-  const externalId = (event.externalId ?? '').toLowerCase();
-  if (externalId.startsWith('event-')) return false;
 
   if (
     looksLikeGroupClassListing({
@@ -178,6 +231,7 @@ export function isRoutineLesson(
       sport === 'COMBAT' ||
       sport === 'BOXING' ||
       sport === 'YOGA' ||
+      sport === 'PILATES' ||
       sport === 'CLIMBING'
     ) {
       return true;
@@ -200,7 +254,8 @@ export function denseVenueDayLessonIds(events: EventCardData[]): Set<string> {
     if (!event.isAggregated) continue;
     if (looksLikeSpecialEventTitle(event.title)) continue;
 
-    const key = groupKey(event);
+    // Density is still measured per venue+day (timetable on one calendar day).
+    const key = `${groupKey(event)}__${eventDayKey(event.startsAt)}`;
     const bucket = buckets.get(key);
     if (bucket) bucket.push(event);
     else buckets.set(key, [event]);
@@ -214,12 +269,12 @@ export function denseVenueDayLessonIds(events: EventCardData[]): Set<string> {
   return ids;
 }
 
+/** Venue identity only — one accordion per športovisko across all days. */
 function groupKey(event: EventCardData): string {
-  const day = eventDayKey(event.startsAt);
-  const venuePart =
+  return (
     event.venueId ??
-    `${(event.source ?? 'unknown').toLowerCase()}::${(event.venueName ?? event.city).toLowerCase()}`;
-  return `${venuePart}__${day}`;
+    `${(event.source ?? 'unknown').toLowerCase()}::${(event.venueName ?? event.city).toLowerCase()}`
+  );
 }
 
 function buildGroupedSchedule(lessons: EventCardData[], key: string): GroupedVenueSchedule {
@@ -233,6 +288,7 @@ function buildGroupedSchedule(lessons: EventCardData[], key: string): GroupedVen
     namedLesson.venueName,
     first.city?.trim() || 'Športovisko',
   );
+  const span = scheduleSpanMeta(sorted);
 
   return {
     kind: 'ROUTINE_LESSON_GROUP',
@@ -242,8 +298,8 @@ function buildGroupedSchedule(lessons: EventCardData[], key: string): GroupedVen
     city: first.city,
     source: first.source,
     sourceName: first.sourceName,
-    dayKey: eventDayKey(first.startsAt),
-    dayLabel: dayLabelFor(asDate(first.startsAt)),
+    dayKey: span.dayKey,
+    dayLabel: span.dayLabel,
     lessons: sorted,
     distanceKm: Math.min(...sorted.map((l) => l.distanceKm)),
     coverUrl: sorted.find((l) => l.coverUrl)?.coverUrl ?? null,
@@ -273,7 +329,7 @@ export function sortFeedItemsChronologically(
 
 /**
  * Collapse dense routine venue lessons into one Grouped Venue Schedule per
- * venue+day, while keeping tournaments / unique actions as independent cards.
+ * venue (all days), while keeping tournaments / unique actions as independent cards.
  * Result is sorted strictly by start time (group uses first lesson's startsAt).
  */
 export function aggregateEventsForFeed(
@@ -333,7 +389,7 @@ export function aggregateEventsForFeed(
   return sortFeedItemsChronologically(result);
 }
 
-/** Hybrid Hub partition: unique events vs venue-day schedule groups. */
+/** Hybrid Hub partition: unique events vs venue schedule groups. */
 export interface PartitionedFeed {
   uniqueEvents: IndependentFeedEvent[];
   venueGroupedSchedules: GroupedVenueSchedule[];
@@ -411,9 +467,11 @@ export function scheduleOverviewPillLabel(
   now: Date = new Date(),
 ): string {
   const todayKey = eventDayKey(now);
-  const todayCount = groups
-    .filter((g) => g.dayKey === todayKey)
-    .reduce((sum, g) => sum + g.lessons.length, 0);
+  const todayCount = groups.reduce(
+    (sum, g) =>
+      sum + g.lessons.filter((lesson) => eventDayKey(lesson.startsAt) === todayKey).length,
+    0,
+  );
   const total = groups.reduce((sum, g) => sum + g.lessons.length, 0);
   const datePart = slovakScheduleDateOverview(now);
   const capped = datePart.charAt(0).toUpperCase() + datePart.slice(1);
@@ -442,6 +500,9 @@ export function formatLessonTime(startsAt: Date | string): string {
 
 export function groupedScheduleTitle(group: GroupedVenueSchedule): string {
   const count = slovakLessonCountLabel(group.lessons.length);
+  if (group.dayLabel === 'Týždenný') {
+    return `${group.venueName} — Rozpis lekcií (${count})`;
+  }
   if (group.dayLabel === 'Dnešný' || group.dayLabel === 'Zajtrajší') {
     return `${group.venueName} — ${group.dayLabel} rozpis lekcií (${count})`;
   }

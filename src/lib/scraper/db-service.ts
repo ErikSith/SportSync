@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { detectEventSport } from '@/lib/constants/sports';
 import { resolveSportType, buildThemeConfig } from '@/lib/ai/theme-config';
 import { classifyListingAudience } from '@/lib/events/audience';
+import { listingIsOutsideBratislava } from '@/lib/cities';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   GEMINI_SCRAPER_SOURCE,
@@ -78,8 +79,6 @@ export function buildExternalId(
     : event.timeKnown === false
       ? toAppDateKey(startsAt)
       : startsAt.toISOString();
-  const raw = `${canonicalizeSourceUrl(event.originalUrl)}|${startKey}|${titleKey(event.title)}`;
-  const hash = createHash('sha1').update(raw).digest('hex').slice(0, 40);
   const pageUrl = opts.scrapePageUrl ?? event.originalUrl;
   const fromSchedulePage =
     opts.forceGroupClass ||
@@ -90,6 +89,14 @@ export function buildExternalId(
       sourceUrl: pageUrl,
       isGroupClass: event.isGroupClass,
     });
+  // Hash against the schedule page when this is a group-class write so Gemini
+  // detail URLs (/sebaobrana-…) don't create a second identity for the same slot.
+  const urlForHash =
+    fromSchedulePage && opts.scrapePageUrl
+      ? canonicalizeSourceUrl(opts.scrapePageUrl)
+      : canonicalizeSourceUrl(event.originalUrl);
+  const raw = `${urlForHash}|${startKey}|${titleKey(event.title)}`;
+  const hash = createHash('sha1').update(raw).digest('hex').slice(0, 40);
   if (fromSchedulePage && !event.isTournament) {
     return `class-${hash}`;
   }
@@ -132,6 +139,8 @@ export interface UpsertScrapedOptions {
   longitude?: number | null;
   /** True when scraped from a rozvrh/schedule/program page — store as class-* lessons. */
   forceGroupClass?: boolean;
+  /** True when scraped from kids_camps pages — mark listings for_kids. */
+  forceForKids?: boolean;
   /** Canonical scrape page URL (preferred over Gemini's originalUrl for class detection). */
   scrapePageUrl?: string;
   /** Normalized titles that repeat on 2+ days in this scrape batch. */
@@ -262,10 +271,17 @@ async function upsertEvent(
   }
 
   const supabase = createAdminClient();
-  const originalUrl = canonicalizeSourceUrl(event.originalUrl);
+  const geminiUrl = canonicalizeSourceUrl(event.originalUrl);
   const asGroupClass = isGroupClassWrite(event, opts);
+  const scheduleUrl =
+    asGroupClass && opts.scrapePageUrl
+      ? canonicalizeSourceUrl(opts.scrapePageUrl)
+      : null;
+  const sourceUrl = scheduleUrl ?? geminiUrl;
+  const ticketUrl =
+    scheduleUrl && geminiUrl !== scheduleUrl ? geminiUrl : sourceUrl;
   const externalId = buildExternalId(
-    { ...event, originalUrl, timeKnown, startTime: startsAt.toISOString() },
+    { ...event, originalUrl: sourceUrl, timeKnown, startTime: startsAt.toISOString() },
     { ...opts, forceGroupClass: asGroupClass || opts.forceGroupClass },
   );
   const sport = detectEventSport(`${event.sportType} ${event.title}`);
@@ -273,7 +289,7 @@ async function upsertEvent(
   const priceCents = parsePriceCents(event.priceText);
   const description = withNotice(
     event.description,
-    originalUrl,
+    sourceUrl,
     asGroupClass,
     event.ageCategory,
   );
@@ -307,7 +323,10 @@ async function upsertEvent(
 
   const existing =
     (byKey as ExistingEvent | null) ??
-    (await findEventByUrlAndStart(originalUrl, startsAt, event.title));
+    (await findEventByUrlAndStart(sourceUrl, startsAt, event.title)) ??
+    (geminiUrl !== sourceUrl
+      ? await findEventByUrlAndStart(geminiUrl, startsAt, event.title)
+      : null);
 
   const { venueId, named } = resolveWriteVenue(event, opts, existing?.venue_id ?? null);
   const latitude =
@@ -318,10 +337,10 @@ async function upsertEvent(
   const { forKids, forWomen } = classifyListingAudience({
     title: event.title,
     description: event.description,
-    sourceUrl: originalUrl,
+    sourceUrl,
     venueName: sourceName,
     locationName: event.locationName,
-    forKids: event.isForKids,
+    forKids: opts.forceForKids || event.isForKids,
     forWomen: event.isForWomenOnly,
   });
 
@@ -344,23 +363,23 @@ async function upsertEvent(
     theme_config: themeConfig,
     source: GEMINI_SCRAPER_SOURCE,
     external_id: externalId,
-    source_url: originalUrl,
+    source_url: sourceUrl,
     source_name: sourceName,
-    ticket_url: originalUrl,
+    ticket_url: ticketUrl,
     scraped_at: new Date().toISOString(),
     is_aggregated: true,
     participation_mode: resolveParticipationMode({
       title: event.title,
       description: event.description,
-      sourceUrl: originalUrl,
-      ticketUrl: originalUrl,
+      sourceUrl,
+      ticketUrl,
       source: GEMINI_SCRAPER_SOURCE,
     }),
     ai_enriched: false,
     venue_id: venueId,
     latitude,
     longitude,
-    for_kids: forKids,
+    for_kids: forKids || Boolean(opts.forceForKids),
     for_women: forWomen,
     source_excerpt: event.sourceExcerpt?.slice(0, 500) ?? null,
     source_evidence: event.sourceEvidence ?? null,
@@ -372,7 +391,7 @@ async function upsertEvent(
       strEq(existing.sport, shared.sport) &&
       new Date(existing.starts_at).getTime() === startsAt.getTime() &&
       Number(existing.price_cents ?? 0) === priceCents &&
-      strEq(existing.source_url, originalUrl) &&
+      strEq(existing.source_url, sourceUrl) &&
       strEq(existing.venue_id, venueId) &&
       Boolean(existing.for_kids) === forKids &&
       Boolean(existing.for_women) === forWomen;
@@ -469,7 +488,7 @@ async function upsertTournament(
     sourceUrl: originalUrl,
     venueName: sourceName,
     locationName: event.locationName,
-    forKids: event.isForKids,
+    forKids: opts.forceForKids || event.isForKids,
     forWomen: event.isForWomenOnly,
   });
 
@@ -494,7 +513,7 @@ async function upsertTournament(
     venue_id: venueId,
     latitude,
     longitude,
-    for_kids: forKids,
+    for_kids: forKids || Boolean(opts.forceForKids),
     for_women: forWomen,
   };
 
@@ -590,6 +609,21 @@ export async function upsertScrapedEvents(
 
   for (const event of uniqueEvents) {
     try {
+      if (
+        listingIsOutsideBratislava(
+          event.title,
+          event.city,
+          event.locationName,
+          event.description,
+        )
+      ) {
+        stats.skipped += 1;
+        console.log(
+          `[scraper.db] skip outside Bratislava: ${event.title}` +
+            (event.city ? ` (${event.city})` : ''),
+        );
+        continue;
+      }
       const asTournament = looksLikeTournament(event);
       const result = asTournament
         ? await upsertTournament(event, writeOpts)

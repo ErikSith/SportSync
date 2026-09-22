@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MapPin, X } from 'lucide-react';
 import type { EventCardData } from '@/lib/data/events';
 import {
   formatLessonTime,
+  groupLessonsByDay,
+  shortScheduleDayLabel,
   slovakLessonCountLabel,
   type ClassSession,
   type GroupedVenueSchedule,
@@ -38,6 +40,10 @@ function startsAtIso(value: Date | string): string {
 export function VenueScheduleDrawer({ group, open, onClose }: VenueScheduleDrawerProps) {
   const titleId = useId();
   const [previewLesson, setPreviewLesson] = useState<ClassSession | null>(null);
+  const daySections = useMemo(
+    () => (group ? groupLessonsByDay(group.lessons) : []),
+    [group],
+  );
   useBodyScrollLock(open && Boolean(group));
 
   useEffect(() => {
@@ -113,7 +119,9 @@ export function VenueScheduleDrawer({ group, open, onClose }: VenueScheduleDrawe
                     </span>
                     <span className="text-white/25">·</span>
                     <span>
-                      {group.dayLabel} · {slovakLessonCountLabel(group.lessons.length)}
+                      {daySections.length > 1
+                        ? `${daySections.length} dni · ${slovakLessonCountLabel(group.lessons.length)}`
+                        : `${group.dayLabel} · ${slovakLessonCountLabel(group.lessons.length)}`}
                     </span>
                   </p>
                 </div>
@@ -128,66 +136,81 @@ export function VenueScheduleDrawer({ group, open, onClose }: VenueScheduleDrawe
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5">
-                <ol className="space-y-2" aria-label={`${group.venueName} — ${group.dayLabel}`}>
-                  {group.lessons.map((lesson) => {
-                    const externalUrl = lesson.sourceUrl ?? lesson.ticketUrl;
-                    return (
-                      <li
-                        key={lesson.id}
-                        className="rounded-xl border border-outline-variant/15 bg-surface-container-low/80 px-3 py-2.5"
-                      >
-                        <div className="flex items-start gap-3">
-                          <time
-                            dateTime={startsAtIso(lesson.startsAt)}
-                            className="w-[3.5rem] shrink-0 font-headline-md text-[18px] leading-none tracking-tight text-primary"
-                          >
-                            {formatLessonTime(lesson.startsAt)}
-                          </time>
-                          <div className="min-w-0 flex-1">
-                            <button
-                              type="button"
-                              onClick={() => setPreviewLesson(lesson)}
-                              className="text-left font-headline-md text-[14px] leading-snug text-on-surface transition-colors hover:text-primary"
+                <div className="space-y-4" aria-label={`${group.venueName} — rozpis`}>
+                  {daySections.map((section) => (
+                    <div key={section.dayKey} className="space-y-2">
+                      {daySections.length > 1 ? (
+                        <p className="font-label-caps text-[10px] uppercase tracking-[0.14em] text-primary">
+                          {shortScheduleDayLabel(section.dayLabel)}
+                          <span className="text-on-surface-variant/80">
+                            {' '}
+                            · {slovakLessonCountLabel(section.lessons.length)}
+                          </span>
+                        </p>
+                      ) : null}
+                      <ol className="space-y-2">
+                        {section.lessons.map((lesson) => {
+                          const externalUrl = lesson.sourceUrl ?? lesson.ticketUrl;
+                          return (
+                            <li
+                              key={lesson.id}
+                              className="rounded-xl border border-outline-variant/15 bg-surface-container-low/80 px-3 py-2.5"
                             >
-                              {lesson.title}
-                            </button>
-                            <p className="mt-0.5 font-label-caps text-[10px] uppercase tracking-[0.12em] text-on-surface-variant">
-                              {priceLabel(lesson)}
-                              {lesson.isAggregated ? (
-                                <>
-                                  <span className="mx-1.5 text-white/25">·</span>
-                                  Zdroj
-                                </>
-                              ) : null}
-                            </p>
-                            {externalUrl && lesson.isAggregated ? (
-                              <div className="mt-2">
-                                <EventExternalCta
-                                  eventId={lesson.id}
-                                  sourceUrl={externalUrl}
-                                  sourceName={displayVenueName(
-                                    lesson.venueName ?? group.venueName,
-                                    sourceDisplayName(lesson.source, lesson.sourceName),
+                              <div className="flex items-start gap-3">
+                                <time
+                                  dateTime={startsAtIso(lesson.startsAt)}
+                                  className="w-[3.5rem] shrink-0 font-headline-md text-[18px] leading-none tracking-tight text-primary"
+                                >
+                                  {formatLessonTime(lesson.startsAt)}
+                                </time>
+                                <div className="min-w-0 flex-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewLesson(lesson)}
+                                    className="text-left font-headline-md text-[14px] leading-snug text-on-surface transition-colors hover:text-primary"
+                                  >
+                                    {lesson.title}
+                                  </button>
+                                  <p className="mt-0.5 font-label-caps text-[10px] uppercase tracking-[0.12em] text-on-surface-variant">
+                                    {priceLabel(lesson)}
+                                    {lesson.isAggregated ? (
+                                      <>
+                                        <span className="mx-1.5 text-white/25">·</span>
+                                        Zdroj
+                                      </>
+                                    ) : null}
+                                  </p>
+                                  {externalUrl && lesson.isAggregated ? (
+                                    <div className="mt-2">
+                                      <EventExternalCta
+                                        eventId={lesson.id}
+                                        sourceUrl={externalUrl}
+                                        sourceName={displayVenueName(
+                                          lesson.venueName ?? group.venueName,
+                                          sourceDisplayName(lesson.source, lesson.sourceName),
+                                        )}
+                                        variant="compact"
+                                        label="Rezervovať ↗"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewLesson(lesson)}
+                                      className="mt-2 inline-flex rounded-lg border border-primary-container/35 bg-primary-container/10 px-3 py-1.5 font-label-caps text-[10px] uppercase tracking-[0.14em] text-primary transition-colors hover:bg-primary-container/20"
+                                    >
+                                      Detail
+                                    </button>
                                   )}
-                                  variant="compact"
-                                  label="Rezervovať ↗"
-                                />
+                                </div>
                               </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setPreviewLesson(lesson)}
-                                className="mt-2 inline-flex rounded-lg border border-primary-container/35 bg-primary-container/10 px-3 py-1.5 font-label-caps text-[10px] uppercase tracking-[0.14em] text-primary transition-colors hover:bg-primary-container/20"
-                              >
-                                Detail
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ol>
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    </div>
+                  ))}
+                </div>
               </div>
             </motion.div>
           </motion.div>

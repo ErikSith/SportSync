@@ -6,11 +6,13 @@ export const GROUP_SPORT_ICONS: Record<string, string> = {
   FOOTBALL: 'sports_soccer',
   BASKETBALL: 'sports_basketball',
   YOGA: 'self_improvement',
+  PILATES: 'self_improvement',
   COMBAT: 'sports_mma',
   FITNESS: 'fitness_center',
   SWIMMING: 'pool',
   CLIMBING: 'hiking',
   BOWLING: 'sports',
+  DARTS: 'target',
 };
 
 export type SessionRsvpStatus = 'pending' | 'going' | 'maybe' | 'declined';

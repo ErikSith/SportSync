@@ -5,6 +5,7 @@ import { resolveEventCover } from '@/lib/media/cover-factory';
 import { aggregatorNotice, persistScrapedCoverUrl, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
 import { classifyListingAudience } from '@/lib/events/audience';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
+import { resolveVenueDistrictSlug } from '@/lib/scrape/bratislava-location';
 import {
   DEFAULT_COVERS,
   VENUE_SEEDS,
@@ -101,8 +102,19 @@ async function syncVenueBorough(
   event: NormalizedScrapedEvent,
 ): Promise<void> {
   if (!venueId) return;
-  const districtSlug = boroughSlugForEvent(event);
-  if (!districtSlug) return;
+
+  const venueRes = await client.query<{
+    address: string | null;
+    name: string | null;
+    district: string | null;
+  }>(`select address, name, district from venues where id = $1::uuid`, [venueId]);
+  const venue = venueRes.rows[0];
+  if (!venue) return;
+
+  const fromAddress = resolveVenueDistrictSlug(venue.address, venue.name);
+  const districtSlug = fromAddress ?? boroughSlugForEvent(event);
+  if (!districtSlug || districtSlug === venue.district) return;
+
   await client.query(`update venues set district = $1 where id = $2::uuid`, [
     districtSlug,
     venueId,
@@ -146,6 +158,11 @@ export async function ensureVenuesPg(): Promise<Map<string, string>> {
         existingId = byWebsiteName.rows[0]?.id ?? null;
       }
 
+      const district =
+        seed.district ??
+        resolveVenueDistrictSlug(seed.address, seed.name) ??
+        null;
+
       if (existingId) {
         await client.query(
           `update venues set
@@ -164,7 +181,7 @@ export async function ensureVenuesPg(): Promise<Map<string, string>> {
             seed.longitude,
             seed.address,
             seed.sports,
-            seed.district ?? null,
+            district,
             existingId,
           ],
         );
@@ -185,7 +202,7 @@ export async function ensureVenuesPg(): Promise<Map<string, string>> {
           seed.latitude,
           seed.longitude,
           seed.websiteUrl,
-          seed.district ?? null,
+          district,
         ],
       );
 

@@ -11,6 +11,10 @@ import {
 import { isListingNoise } from '@/lib/feed/group-class';
 import { classifyListingAudience } from '@/lib/events/audience';
 import {
+  listingIsOutsideBratislava,
+  pageContextIsOutsideBratislava,
+} from '@/lib/cities';
+import {
   activityToIsoEnd,
   activityToIsoStart,
   looksLikeAnnouncementCalendar,
@@ -61,6 +65,7 @@ const RESPONSE_SCHEMA: ResponseSchema = {
           timeKnown: { type: SchemaType.BOOLEAN },
           endTime: { type: SchemaType.STRING },
           locationName: { type: SchemaType.STRING },
+          city: { type: SchemaType.STRING },
           priceText: { type: SchemaType.STRING },
           description: { type: SchemaType.STRING },
           originalUrl: { type: SchemaType.STRING },
@@ -154,6 +159,12 @@ Pravidlá:
   Ak nie je HH:MM, timeKnown = false a oba časy na 12:00 toho dňa.
 - startTime (a endTime) musia byť ISO 8601 s offsetom Bratislavy (+02:00 alebo +01:00).
 - locationName ber len z hlavného obsahu (adresa / názov športoviska pri udalosti), nie z menu ani footera.
+- city: mesto konania (Bratislava, Košice, Žilina, …). Ber LEN z riadku pri udalosti
+  (napr. „Pripravujeme: 365 Grand Prix 2026, 24.-25.10.2026, Košice“ → city = Košice).
+- SportSync je VÝHRADNE Bratislava: ak city / locationName / riadok s dátumom uvádza iné mesto
+  (Košice, Žilina, Prešov, Banská Bystrica, Nitra, Trnava, …), udalosť NEEXTRAHUJ — aj keď
+  stránka patrí bratislavskému športovisku (pobočka len oznamuje cudzí event).
+- Past / „Udialo sa“ bez budúceho dátumu NEEXTRAHUJ.
 - originalUrl MUSÍ byť platná absolútna http(s) URL: použi priamy rezervačný/registračný odkaz
   (rezervácia, booking, prihláška, lístky), ak je na stránke uvedený. Inak použi: ${pageUrl}
 - Nikdy nevymýšľaj URL. originalUrl musí patriť organizátorovi / rezervačnému systému.
@@ -434,6 +445,7 @@ function normalizeExtractedEvents(
         title: e.title.trim(),
         sportType: e.sportType.trim(),
         locationName: e.locationName.trim(),
+        city: e.city?.trim() || null,
         originalUrl: absoluteHttpUrl(e.originalUrl, pageUrl),
         description: e.description?.trim() || null,
         priceText: e.priceText?.trim() || null,
@@ -458,6 +470,21 @@ function normalizeExtractedEvents(
     .filter((e) => {
       const t = Date.parse(e.startTime);
       if (!Number.isFinite(t) || t < now || e.title.length < 3) return false;
+      if (
+        listingIsOutsideBratislava(
+          e.title,
+          e.city,
+          e.locationName,
+          e.description,
+        ) ||
+        pageContextIsOutsideBratislava(cleanText, e.title)
+      ) {
+        console.log(
+          `[scraper] skip outside Bratislava: ${e.title}` +
+            (e.city ? ` (${e.city})` : ''),
+        );
+        return false;
+      }
       return !isListingNoise({
         title: e.title,
         description: e.description,

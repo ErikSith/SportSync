@@ -13,7 +13,7 @@
     "build:api": "tsc -p tsconfig.server.json",
     "start:api": "node dist/server.js",
     "typecheck:api": "tsc -p tsconfig.server.json --noEmit",
-    "test:unit": "tsx --test lib/participation/fixture-match.test.ts",
+    "test:unit": "tsx --test lib/participation/fixture-match.test.ts lib/retention/feed-window.test.ts lib/scrape/detail-enrich.test.ts src/lib/scraper/announcement-calendar.test.ts src/lib/scraper/date-only-time.test.ts src/lib/scraper/source-evidence.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",

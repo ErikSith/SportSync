@@ -3,6 +3,7 @@ import { SPORT_TYPE_THEMES } from '@/lib/ai/theme-config';
 import { sourceDisplayName } from '@/lib/constants/event-sources';
 import { aggregatorNotice, persistScrapedCoverUrl, SCRAPE_ETHICS } from '@/lib/scrape/ethics';
 import { classifyListingAudience } from '@/lib/events/audience';
+import { resolveParticipationMode } from '@/lib/participation/fixture-match';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import { scrapeTextListing } from '@/lib/scrape/adapters/_text-listing';
 import {
@@ -380,6 +381,18 @@ async function upsertEvents(
       forWomen: event.forWomen,
     });
 
+    const participationMode = resolveParticipationMode({
+      title: event.title,
+      description,
+      sourceUrl: event.sourceUrl,
+      ticketUrl: event.ticketUrl,
+      source: event.source,
+      stored: event.participationMode,
+    });
+
+    const timeKnown = event.timeKnown !== false;
+    const startTimeIso = timeKnown ? startsAt : null;
+
     // Compare factual fields first — avoid Cover Factory / write when nothing changed
     if (existing?.id) {
       const same =
@@ -392,16 +405,20 @@ async function upsertEvents(
         strEq(existing.venue_id, venueId) &&
         strEq(existing.source_url, event.sourceUrl ?? null) &&
         strEq(existing.ticket_url, event.ticketUrl ?? null) &&
-        strEq(existing.participation_mode, event.participationMode) &&
+        strEq(existing.participation_mode, participationMode) &&
         (!hasAudience ||
           (Boolean((existing as { for_kids?: boolean | null }).for_kids) === forKids &&
             Boolean((existing as { for_women?: boolean | null }).for_women) === forWomen)) &&
         Boolean(existing.is_aggregated) === SCRAPE_ETHICS.isAggregatedRedirector;
 
       if (same) {
-        // Touch scraped_at only — proves last successful poll without rewriting content
-        const touch: { scraped_at: string; cover_url?: null; photos?: string[] } = {
+        // Touch scraped_at + provenance even when identity unchanged
+        const touch: Record<string, unknown> = {
           scraped_at: new Date().toISOString(),
+          participation_mode: participationMode,
+          start_time: startTimeIso,
+          source_excerpt: event.sourceExcerpt?.slice(0, 500) ?? null,
+          source_evidence: event.sourceEvidence ?? null,
         };
         if (event.source === 'form-factory' && existing.cover_url) {
           touch.cover_url = null;
@@ -431,7 +448,7 @@ async function upsertEvents(
       city: event.city,
       starts_at: startsAt,
       event_date: startsAt,
-      start_time: startsAt,
+      start_time: startTimeIso,
       price: priceCents / 100,
       price_cents: priceCents,
       currency: 'EUR',
@@ -449,12 +466,14 @@ async function upsertEvents(
       is_aggregated: SCRAPE_ETHICS.isAggregatedRedirector,
       ticket_url: event.ticketUrl ?? null,
       scraped_at: new Date().toISOString(),
-      participation_mode: event.participationMode,
+      participation_mode: participationMode,
       theme_config: theme,
       ai_enriched: false,
       // Never store scraped venue galleries
       photos: [],
       sponsors_json: [],
+      source_excerpt: event.sourceExcerpt?.slice(0, 500) ?? null,
+      source_evidence: event.sourceEvidence ?? null,
     };
 
     // Optional columns — only write when present.

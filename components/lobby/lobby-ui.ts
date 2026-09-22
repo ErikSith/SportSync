@@ -127,6 +127,7 @@ export function sportToIconKind(sport: string, title?: string): SportIconKind {
     case 'combat':
       return 'football';
     case 'tennis':
+    case 'badminton':
     case 'table_tennis':
       return 'tennis';
     case 'padel':
@@ -149,6 +150,7 @@ export function sportToIconKind(sport: string, title?: string): SportIconKind {
     case 'hockey':
     case 'golf':
     case 'bowling':
+    case 'darts':
       return 'hockey';
     default:
       return 'tennis';
@@ -177,6 +179,7 @@ export const LOBBY_SPORT_META: Record<
   padel: { label: sportDisplayLabel('PADEL'), materialIcon: SPORT_ICONS.PADEL ?? 'sports_tennis', countSuffix: 'zápasov' },
   football: { label: sportDisplayLabel('FOOTBALL'), materialIcon: SPORT_ICONS.FOOTBALL ?? 'sports_soccer', countSuffix: 'tímov' },
   tennis: { label: sportDisplayLabel('TENNIS'), materialIcon: SPORT_ICONS.TENNIS ?? 'sports_tennis', countSuffix: 'hľadá hráčov' },
+  badminton: { label: sportDisplayLabel('BADMINTON'), materialIcon: SPORT_ICONS.BADMINTON ?? 'sports_tennis', countSuffix: 'zápasov' },
   basketball: { label: sportDisplayLabel('BASKETBALL'), materialIcon: SPORT_ICONS.BASKETBALL ?? 'sports_basketball', countSuffix: 'zápasov' },
   squash: { label: sportDisplayLabel('SQUASH'), materialIcon: SPORT_ICONS.SQUASH ?? 'sports_tennis', countSuffix: 'kurtov' },
   running: { label: sportDisplayLabel('RUNNING'), materialIcon: SPORT_ICONS.RUNNING ?? 'directions_run', countSuffix: 'skupín' },
@@ -187,32 +190,19 @@ export const LOBBY_SPORT_META: Record<
   golf: { label: sportDisplayLabel('GOLF'), materialIcon: SPORT_ICONS.GOLF ?? 'sports_golf', countSuffix: 'termínov' },
   fitness: { label: sportDisplayLabel('FITNESS'), materialIcon: SPORT_ICONS.FITNESS ?? 'fitness_center', countSuffix: 'tréningov' },
   yoga: { label: sportDisplayLabel('YOGA'), materialIcon: SPORT_ICONS.YOGA ?? 'self_improvement', countSuffix: 'lekcií' },
+  pilates: { label: sportDisplayLabel('PILATES'), materialIcon: SPORT_ICONS.PILATES ?? 'self_improvement', countSuffix: 'lekcií' },
   combat: { label: sportDisplayLabel('COMBAT'), materialIcon: SPORT_ICONS.COMBAT ?? 'sports_mma', countSuffix: 'tréningov' },
   swimming: { label: sportDisplayLabel('SWIMMING'), materialIcon: SPORT_ICONS.SWIMMING ?? 'pool', countSuffix: 'tréningov' },
   surfing: { label: sportDisplayLabel('SURFING'), materialIcon: SPORT_ICONS.SURFING ?? 'surfing', countSuffix: 'termínov' },
   table_tennis: { label: sportDisplayLabel('TABLE_TENNIS'), materialIcon: SPORT_ICONS.TABLE_TENNIS ?? 'sports_tennis', countSuffix: 'zápasov' },
   climbing: { label: sportDisplayLabel('CLIMBING'), materialIcon: SPORT_ICONS.CLIMBING ?? 'hiking', countSuffix: 'tréningov' },
   bowling: { label: sportDisplayLabel('BOWLING'), materialIcon: SPORT_ICONS.BOWLING ?? 'sports', countSuffix: 'dráhy' },
+  darts: { label: sportDisplayLabel('DARTS'), materialIcon: SPORT_ICONS.DARTS ?? 'target', countSuffix: 'hier' },
 };
 
-export const LOBBY_SPORT_ORDER: LobbySportKey[] = [
-  'padel',
-  'football',
-  'tennis',
-  'basketball',
-  'squash',
-  'running',
-  'volleyball',
-  'hockey',
-  'yoga',
-  'combat',
-  'fitness',
-  'swimming',
-  'handball',
-  'cycling',
-  'golf',
-  'table_tennis',
-  'climbing',
-  'bowling',
-  'surfing',
-];
+/** Hub grid order — Slovak A→Z by display label. */
+export const LOBBY_SPORT_ORDER: LobbySportKey[] = (
+  Object.keys(LOBBY_SPORT_META) as LobbySportKey[]
+).sort((a, b) =>
+  LOBBY_SPORT_META[a].label.localeCompare(LOBBY_SPORT_META[b].label, 'sk'),
+);

@@ -23,6 +23,7 @@ export type LobbySportKey =
   | 'padel'
   | 'football'
   | 'tennis'
+  | 'badminton'
   | 'basketball'
   | 'squash'
   | 'running'
@@ -33,12 +34,14 @@ export type LobbySportKey =
   | 'golf'
   | 'fitness'
   | 'yoga'
+  | 'pilates'
   | 'combat'
   | 'swimming'
   | 'surfing'
   | 'table_tennis'
   | 'climbing'
-  | 'bowling';
+  | 'bowling'
+  | 'darts';
 
 export type LobbyFilterTab = 'ALL' | LobbyType;
 

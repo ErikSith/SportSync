@@ -13,6 +13,7 @@ export {
   fetchCleanText,
   fetchHtml,
   htmlToCleanText,
+  htmlToCleanTextDetailed,
   pageHasEventSignal,
   EVENT_SIGNAL_KEYWORDS,
   SCRAPER_USER_AGENT,
@@ -25,6 +26,7 @@ export {
   withUrlProcessingTimeout,
   sleep,
 } from './fetcher';
+export type { CleanTextResult } from './fetcher';
 
 export { extractEventsFromText } from './extractor';
 export { groundScrapedEventDates } from './ground-dates';

@@ -70,12 +70,23 @@ export default async function ManagePage() {
               Create official events and tournaments at your venues. AI handles promotion and registration follow-up.
             </p>
           </div>
-          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary/10 border border-secondary/30 font-label-caps text-label-caps text-secondary uppercase">
-            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-              verified
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {profile.role === 'ADMIN' && (
+              <Link
+                href="/dev/scrape-pages"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/40 font-label-caps text-label-caps text-primary uppercase hover:bg-primary/20 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">rate_review</span>
+                Admin Reviewer
+              </Link>
+            )}
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary/10 border border-secondary/30 font-label-caps text-label-caps text-secondary uppercase">
+              <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                verified
+              </span>
+              Organizer
             </span>
-            Organizer
-          </span>
+          </div>
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">

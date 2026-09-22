@@ -51,10 +51,11 @@ function joinCandidate(base: string, pathSeg: string): string | null {
 }
 
 function tagBorough(place: DiscoveredPlace, preferredSlug?: string | null): string | null {
-  if (preferredSlug) return preferredSlug;
-  if (place.boroughSlug) return place.boroughSlug;
+  // Address/name resolution always wins over the Places search borough.
   const resolved = resolveBorough(place.address ?? '', place.name);
-  return resolved?.slug ?? null;
+  if (resolved) return resolved.slug;
+  if (place.boroughSlug) return place.boroughSlug;
+  return preferredSlug ?? null;
 }
 
 type VenueRow = {
@@ -403,6 +404,7 @@ export async function listEnabledScrapePages(opts: {
     venueName: string | null;
     latitude: number | null;
     longitude: number | null;
+    contentSelector: string | null;
   }>
 > {
   const supabase = createAdminClient();
@@ -410,7 +412,7 @@ export async function listEnabledScrapePages(opts: {
   let q = supabase
     .from('venue_scrape_pages')
     .select(
-      'id, url, kind, borough, venue_id, last_scraped_at, venues ( id, name, latitude, longitude )',
+      'id, url, kind, borough, venue_id, content_selector, last_scraped_at, venues ( id, name, latitude, longitude )',
     )
     .eq('enabled', true)
     .order('last_scraped_at', { ascending: true, nullsFirst: true })
@@ -445,6 +447,7 @@ export async function listEnabledScrapePages(opts: {
       venueName: venue?.name ?? null,
       latitude: (venue?.latitude as number | null) ?? null,
       longitude: (venue?.longitude as number | null) ?? null,
+      contentSelector: (r.content_selector as string | null) ?? null,
     };
   });
 

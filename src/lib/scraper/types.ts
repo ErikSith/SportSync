@@ -4,7 +4,7 @@ export const ScrapedEventSchema = z.object({
   title: z.string().describe('Presný názov športovej udalosti alebo turnaja'),
   sportType: z
     .string()
-    .describe('Druh športu (napr. Padel, Futbal, Tenis, Joga, Beh)'),
+    .describe('Druh športu (napr. Padel, Futbal, Tenis, Joga, Pilates, Beh)'),
   isTournament: z
     .boolean()
     .describe(
@@ -61,6 +61,13 @@ export const ScrapedEventSchema = z.object({
       'Dátum a čas konca ak je uvedený. Pri viacdňovom festivale/turnaji (5.–9. novembra) nastav posledný deň.',
     ),
   locationName: z.string().describe('Názov športoviska alebo adresa'),
+  city: z
+    .string()
+    .optional()
+    .nullable()
+    .describe(
+      'Mesto konania (Bratislava, Košice, …) — len ak je explicitne pri udalosti (napr. „24.10.2026, Košice“)',
+    ),
   priceText: z
     .string()
     .optional()
@@ -104,7 +111,7 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
           },
           sportType: {
             type: 'string',
-            description: 'Druh športu (napr. Padel, Futbal, Tenis, Joga, Beh)',
+            description: 'Druh športu (napr. Padel, Futbal, Tenis, Joga, Pilates, Beh)',
           },
           isTournament: {
             type: 'boolean',
@@ -151,6 +158,12 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
           locationName: {
             type: 'string',
             description: 'Názov športoviska alebo adresa',
+          },
+          city: {
+            type: 'string',
+            nullable: true,
+            description:
+              'Mesto konania (Bratislava, Košice, …) — len ak je explicitne pri udalosti',
           },
           priceText: {
             type: 'string',

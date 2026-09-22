@@ -70,7 +70,6 @@ export const BRATISLAVA_BOROUGHS: BoroughDefinition[] = [
     keywords: [
       'stare mesto',
       'staré mesto',
-      'centrum',
       'historic centre',
       'old town',
       'nivy',
@@ -163,6 +162,10 @@ export const BRATISLAVA_BOROUGHS: BoroughDefinition[] = [
       'lezecká stena',
       'bnc',
       '3x3',
+      'mlada garda',
+      'mladá garda',
+      'stara ivanska',
+      'stará ivanská',
     ],
   },
   {
@@ -176,9 +179,9 @@ export const BRATISLAVA_BOROUGHS: BoroughDefinition[] = [
       'na pántoch',
       'cernockeho',
       'černockého',
-      'racianska',
-      'račianska',
       'tbilisk',
+      'pekna cesta',
+      'pekná cesta',
     ],
   },
   {
@@ -213,7 +216,7 @@ export const BRATISLAVA_BOROUGHS: BoroughDefinition[] = [
     borough: 'Dúbravka',
     district: 'Bratislava IV',
     slug: 'dubravka',
-    keywords: ['dubravka', 'dúbravka', 'pekna cesta', 'pekná cesta'],
+    keywords: ['dubravka', 'dúbravka'],
   },
   {
     borough: 'Lamač',
@@ -315,28 +318,83 @@ export function normalizeLocationText(value: string): string {
     .trim();
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Keyword hit that does not false-match mid-word (e.g. "centrum" inside "Fitcentrum"),
+ * but still allows street prefixes ("tbilisk" → "tbiliska").
+ */
+export function locationKeywordAppearsIn(haystack: string, keyword: string): boolean {
+  const hay = normalizeLocationText(haystack);
+  const needle = normalizeLocationText(keyword);
+  if (!hay || !needle) return false;
+
+  const escaped = escapeRegExp(needle);
+  if (needle.includes(' ')) {
+    const phrase = new RegExp(
+      `(?:^|[^\\p{L}\\p{N}])${escaped}(?:[^\\p{L}\\p{N}]|$)`,
+      'u',
+    );
+    return phrase.test(hay);
+  }
+
+  // Token must start at a non-letter boundary (not mid-word), then optional letters.
+  const token = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}\\p{L}*`, 'u');
+  return token.test(hay);
+}
+
 export interface ResolvedBorough {
   district: BratislavaDistrict;
   borough: BratislavaBorough;
   slug: BratislavaBoroughSlug;
 }
 
+/** Prefer address hits over name/body so venue titles cannot steal the borough. */
+const ADDRESS_MATCH_BONUS = 1000;
+/** Explicit mestská časť in the address (e.g. Bratislava-Rača) beats street-name collisions. */
+const BOROUGH_NAME_BONUS = 5000;
+
 /**
  * Resolve mestská časť from free-text address / listing body (aggregators).
- * Longer / more specific keywords win when multiple boroughs match.
+ * Longer / more specific keywords win; address matches beat name/body matches.
+ * Explicit borough names in the address beat ambiguous street keywords.
  */
 export function resolveBorough(address: string, text: string): ResolvedBorough | null {
-  const hay = normalizeLocationText(`${address} ${text}`);
-  if (!hay) return null;
+  const addressHay = normalizeLocationText(address);
+  const textHay = normalizeLocationText(text);
+  if (!addressHay && !textHay) return null;
 
   let best: { def: BoroughDefinition; score: number } | null = null;
 
   for (const def of BRATISLAVA_BOROUGHS) {
+    // Official borough label / slug in the address always wins (Bratislava-Rača, etc.).
+    if (addressHay) {
+      const slugAsWords = def.slug.replace(/-/g, ' ');
+      if (
+        locationKeywordAppearsIn(addressHay, def.borough) ||
+        locationKeywordAppearsIn(addressHay, slugAsWords) ||
+        locationKeywordAppearsIn(addressHay, def.slug)
+      ) {
+        const score = BOROUGH_NAME_BONUS + def.borough.length;
+        if (!best || score > best.score) {
+          best = { def, score };
+        }
+        continue;
+      }
+    }
+
     for (const keyword of def.keywords) {
       const needle = normalizeLocationText(keyword);
-      if (!needle || !hay.includes(needle)) continue;
+      if (!needle) continue;
+
+      const inAddress = addressHay ? locationKeywordAppearsIn(addressHay, needle) : false;
+      const inText = !inAddress && textHay ? locationKeywordAppearsIn(textHay, needle) : false;
+      if (!inAddress && !inText) continue;
+
       // Prefer longer keyword hits (e.g. "devinska nova ves" over "devin")
-      const score = needle.length;
+      const score = needle.length + (inAddress ? ADDRESS_MATCH_BONUS : 0);
       if (!best || score > best.score) {
         best = { def, score };
       }
@@ -349,6 +407,14 @@ export function resolveBorough(address: string, text: string): ResolvedBorough |
     borough: best.def.borough,
     slug: best.def.slug,
   };
+}
+
+/** Feed / DB slug for `venues.district` from address (+ optional name). */
+export function resolveVenueDistrictSlug(
+  address: string | null | undefined,
+  name?: string | null,
+): BratislavaBoroughSlug | null {
+  return resolveBorough(address ?? '', name ?? '')?.slug ?? null;
 }
 
 /**

@@ -16,8 +16,10 @@ export interface LobbyChatMessage {
 
 interface LobbyChatProps {
   lobbyId: string;
-  /** Fixed-height panel under lobby info (not full-page). */
+  /** Fill parent flex area (phone sheet). */
   compact?: boolean;
+  /** Show chat chrome but block send until join. */
+  locked?: boolean;
 }
 
 const POLL_MS = 8000;
@@ -28,17 +30,18 @@ function formatTime(iso: string) {
   return d.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' });
 }
 
-/** Private match chat — visible only after join / host. */
-export function LobbyChat({ lobbyId, compact = false }: LobbyChatProps) {
+/** Private match chat — write after join / host; locked preview before join. */
+export function LobbyChat({ lobbyId, compact = false, locked = false }: LobbyChatProps) {
   const [messages, setMessages] = useState<LobbyChatMessage[]>([]);
   const [draft, setDraft] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!locked);
   const [sending, setSending] = useState(false);
   const [viewerName, setViewerName] = useState('Ty');
   const [viewerAvatarUrl, setViewerAvatarUrl] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
+    if (locked) return;
     let cancelled = false;
     async function loadViewer() {
       const supabase = createClient();
@@ -61,10 +64,14 @@ export function LobbyChat({ lobbyId, compact = false }: LobbyChatProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locked]);
 
   const loadMessages = useCallback(
     async (opts?: { silent?: boolean }) => {
+      if (locked) {
+        setLoading(false);
+        return;
+      }
       if (!opts?.silent) setLoading(true);
       try {
         const res = await authedFetch(`/api/lobbies/${lobbyId}/messages`);
@@ -75,25 +82,27 @@ export function LobbyChat({ lobbyId, compact = false }: LobbyChatProps) {
         if (!opts?.silent) setLoading(false);
       }
     },
-    [lobbyId],
+    [lobbyId, locked],
   );
 
   useEffect(() => {
     void loadMessages();
+    if (locked) return;
     const timer = window.setInterval(() => {
       void loadMessages({ silent: true });
     }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [loadMessages]);
+  }, [loadMessages, locked]);
 
   useEffect(() => {
     const el = listRef.current;
-    if (!el) return;
+    if (!el || locked) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages, loading]);
+  }, [messages, loading, locked]);
 
   async function send(e?: FormEvent) {
     e?.preventDefault();
+    if (locked) return;
     const body = draft.trim();
     if (!body || sending) return;
 
@@ -137,67 +146,90 @@ export function LobbyChat({ lobbyId, compact = false }: LobbyChatProps) {
     <section
       className={
         compact
-          ? 'flex h-full max-h-[200px] min-h-[140px] flex-col overflow-hidden rounded-xl border border-white/[0.06] bg-[#1a1816]/80'
-          : 'flex min-h-0 flex-1 flex-col overflow-hidden'
+          ? 'relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#141210]'
+          : 'relative flex min-h-0 flex-1 flex-col overflow-hidden'
       }
     >
-      <div className="flex shrink-0 items-center gap-1.5 px-3 py-1.5">
-        <span className="material-symbols-outlined text-[14px] text-[#FF5722]">forum</span>
-        <h3 className="font-label-caps text-[9px] uppercase tracking-[0.14em] text-zinc-500">
-          Chat
+      <div className="flex shrink-0 items-center gap-1.5 border-b border-white/[0.06] px-3 py-2">
+        <span className="material-symbols-outlined text-[16px] text-[#FF5722]">forum</span>
+        <h3 className="font-label-caps text-[10px] uppercase tracking-[0.14em] text-zinc-400">
+          Squad chat
         </h3>
+        {locked ? (
+          <span className="ml-auto font-label-caps text-[8px] uppercase tracking-[0.12em] text-zinc-600">
+            Po pripojení
+          </span>
+        ) : null}
       </div>
 
-      <ul
-        ref={listRef}
-        className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain px-3 pb-1"
-      >
-        {loading && messages.length === 0 ? (
-          <li className="py-3 text-center text-[11px] text-zinc-600">Načítavam…</li>
-        ) : null}
-        {!loading && messages.length === 0 ? (
-          <li className="py-3 text-center text-[11px] text-zinc-600">
-            Napíš správu squadu…
-          </li>
-        ) : null}
-        {messages.map((msg) => (
-          <li key={msg.id} className="flex gap-1.5">
-            <CrewAvatarStack
-              people={[{ id: msg.id, name: msg.author, avatarUrl: msg.avatarUrl }]}
-              size="xs"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="truncate text-[10px] font-semibold text-zinc-300">{msg.author}</p>
-                <span className="shrink-0 text-[8px] text-zinc-600">
-                  {formatTime(msg.createdAt)}
-                </span>
-              </div>
-              <p className="text-[12px] leading-snug text-zinc-400">{msg.body}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {locked ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
+            <span className="material-symbols-outlined text-[22px] text-[#FF5722]">lock</span>
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-zinc-200">Chat so squadom</p>
+            <p className="text-[12px] leading-relaxed text-zinc-500">
+              Pripoj sa tlačidlom dole — potom môžeš písať ostatným hráčom.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <ul
+            ref={listRef}
+            className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-2"
+          >
+            {loading && messages.length === 0 ? (
+              <li className="py-4 text-center text-[11px] text-zinc-600">Načítavam…</li>
+            ) : null}
+            {!loading && messages.length === 0 ? (
+              <li className="py-4 text-center text-[11px] text-zinc-600">
+                Napíš prvú správu squadu…
+              </li>
+            ) : null}
+            {messages.map((msg) => (
+              <li key={msg.id} className="flex gap-2">
+                <CrewAvatarStack
+                  people={[{ id: msg.id, name: msg.author, avatarUrl: msg.avatarUrl }]}
+                  size="xs"
+                />
+                <div className="min-w-0 flex-1 rounded-2xl rounded-tl-md bg-white/[0.04] px-2.5 py-1.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="truncate text-[10px] font-semibold text-zinc-300">{msg.author}</p>
+                    <span className="shrink-0 text-[8px] text-zinc-600">
+                      {formatTime(msg.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-[13px] leading-snug text-zinc-300">{msg.body}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
 
-      <form
-        onSubmit={send}
-        className="flex shrink-0 items-center gap-1.5 border-t border-white/[0.06] px-2 py-1.5"
-      >
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Správa…"
-          maxLength={2000}
-          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0f0e0c] px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:border-[#FF5722]/40 focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={!draft.trim() || sending}
-          className="rounded-lg bg-[#FF5722] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white transition hover:brightness-110 disabled:opacity-40"
-        >
-          Poslať
-        </button>
-      </form>
+          <form
+            onSubmit={send}
+            className="flex shrink-0 items-center gap-2 border-t border-white/[0.06] px-2 py-2"
+          >
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Správa…"
+              maxLength={2000}
+              enterKeyHint="send"
+              className="min-w-0 flex-1 rounded-full border border-white/10 bg-[#0f0e0c] px-3.5 py-2.5 text-[15px] text-white placeholder:text-zinc-600 focus:border-[#FF5722]/40 focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={!draft.trim() || sending}
+              aria-label="Poslať"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FF5722] text-white transition active:scale-95 disabled:opacity-40"
+            >
+              <span className="material-symbols-outlined text-[20px]">send</span>
+            </button>
+          </form>
+        </>
+      )}
     </section>
   );
 }

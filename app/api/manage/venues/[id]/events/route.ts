@@ -9,6 +9,7 @@ import { parseStructuredEventIntent } from '@/lib/ai/event-parse-structured';
 import { emitDomainEvent } from '@/lib/orchestration/emit';
 import { DOMAIN_EVENTS } from '@/lib/orchestration/types';
 import { EVENT_SPORTS } from '@/lib/constants/sports';
+import { activeFeedSinceIso, isListingStillActive } from '@/lib/retention/feed-window';
 
 export const runtime = 'edge';
 
@@ -32,57 +33,73 @@ export async function GET(
     return NextResponse.json({ error: 'You do not have access to this venue' }, { status: 403 });
   }
 
-  const now = new Date().toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const feedFloorIso = activeFeedSinceIso(now);
 
   const [eventsResult, tournamentsResult] = await Promise.all([
     supabase
       .from('events')
-      .select('id, title, sport, city, type, status, price, capacity, registered_count, starts_at, created_at')
+      .select('id, title, sport, city, type, status, price, capacity, registered_count, starts_at, end_time, created_at')
       .eq('venue_id', params.id)
-      .order('starts_at', { ascending: false })
+      .or(`starts_at.gte."${feedFloorIso}",end_time.gte."${nowIso}"`)
+      .order('starts_at', { ascending: true })
       .limit(50),
     supabase
       .from('tournaments')
-      .select('id, name, sport, format, city, status, entry_fee, max_participants, current_participants, starts_at, created_at')
+      .select('id, name, sport, format, city, status, entry_fee, max_participants, current_participants, starts_at, ends_at, created_at')
       .eq('venue_id', params.id)
-      .order('starts_at', { ascending: false })
+      .or(`starts_at.gte."${feedFloorIso}",ends_at.gte."${nowIso}"`)
+      .order('starts_at', { ascending: true })
       .limit(20),
   ]);
 
-  const events = (eventsResult.data ?? []).map((e) => ({
-    id: e.id as string,
-    kind: 'event' as const,
-    title: e.title as string,
-    sport: e.sport as string,
-    city: e.city as string,
-    type: e.type as string,
-    status: e.status as string,
-    price: e.price as string,
-    capacity: e.capacity as number | null,
-    registered: (e.registered_count as number) ?? 0,
-    startsAt: e.starts_at as string,
-    createdAt: e.created_at as string,
-    isUpcoming: (e.starts_at as string) >= now,
-  }));
+  const events = (eventsResult.data ?? [])
+    .map((e) => ({
+      id: e.id as string,
+      kind: 'event' as const,
+      title: e.title as string,
+      sport: e.sport as string,
+      city: e.city as string,
+      type: e.type as string,
+      status: e.status as string,
+      price: e.price as string,
+      capacity: e.capacity as number | null,
+      registered: (e.registered_count as number) ?? 0,
+      startsAt: e.starts_at as string,
+      createdAt: e.created_at as string,
+      isUpcoming: isListingStillActive(
+        e.starts_at as string,
+        (e.end_time as string | null) ?? null,
+        now,
+      ),
+    }))
+    .filter((e) => e.isUpcoming);
 
-  const tournaments = (tournamentsResult.data ?? []).map((t) => ({
-    id: t.id as string,
-    kind: 'tournament' as const,
-    title: t.name as string,
-    sport: t.sport as string,
-    city: t.city as string,
-    format: t.format as string,
-    status: t.status as string,
-    entryFee: t.entry_fee as string,
-    maxParticipants: t.max_participants as number,
-    currentParticipants: (t.current_participants as number) ?? 0,
-    startsAt: t.starts_at as string,
-    createdAt: t.created_at as string,
-    isUpcoming: (t.starts_at as string) >= now,
-  }));
+  const tournaments = (tournamentsResult.data ?? [])
+    .map((t) => ({
+      id: t.id as string,
+      kind: 'tournament' as const,
+      title: t.name as string,
+      sport: t.sport as string,
+      city: t.city as string,
+      format: t.format as string,
+      status: t.status as string,
+      entryFee: t.entry_fee as string,
+      maxParticipants: t.max_participants as number,
+      currentParticipants: (t.current_participants as number) ?? 0,
+      startsAt: t.starts_at as string,
+      createdAt: t.created_at as string,
+      isUpcoming: isListingStillActive(
+        t.starts_at as string,
+        (t.ends_at as string | null) ?? null,
+        now,
+      ),
+    }))
+    .filter((t) => t.isUpcoming);
 
   const all = [...events, ...tournaments].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
   );
 
   return NextResponse.json({

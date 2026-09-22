@@ -28,3 +28,23 @@ export function feedStartsAtFloor(windowFrom?: Date | null, now = new Date()): s
   if (!windowFrom) return grace.toISOString();
   return (windowFrom > grace ? windowFrom : grace).toISOString();
 }
+
+/**
+ * Whether a listing should still appear in feeds / admin lists.
+ * Uses the same Bratislava calendar-day floor as feeds; multi-day ranges
+ * stay visible until `endsAt` (festival 5.–9.).
+ */
+export function isListingStillActive(
+  startsAt: Date | string,
+  endsAt?: Date | string | null,
+  now = new Date(),
+): boolean {
+  const startMs = typeof startsAt === 'string' ? Date.parse(startsAt) : startsAt.getTime();
+  if (!Number.isFinite(startMs)) return false;
+  const floor = activeFeedSince(now).getTime();
+  if (startMs >= floor) return true;
+  if (endsAt == null || endsAt === '') return false;
+  const endMs = typeof endsAt === 'string' ? Date.parse(endsAt) : endsAt.getTime();
+  if (!Number.isFinite(endMs)) return false;
+  return endMs >= now.getTime();
+}

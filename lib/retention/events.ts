@@ -6,6 +6,7 @@ export {
   activeFeedSince,
   activeFeedSinceIso,
   feedStartsAtFloor,
+  isListingStillActive,
 } from '@/lib/retention/feed-window';
 
 /** Hard-delete scraped events this many hours after `starts_at`. */

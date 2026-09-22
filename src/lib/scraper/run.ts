@@ -1,9 +1,6 @@
 import { SCRAPE_TARGETS } from '@/lib/scrape/sources';
 import { SCRAPING_SOURCES } from '@/lib/scrape/scraping-sources';
-import { extractEventsFromText } from './extractor';
 import {
-  fetchCleanText,
-  pageHasEventSignal,
   sleep,
   URL_PAUSE_MS,
   URL_PROCESS_TIMEOUT_MS,
@@ -23,11 +20,12 @@ import type {
   ScraperUpsertStats,
   ScraperUrlResult,
 } from './types';
-import { shouldForceGroupClassFromUrl } from '@/lib/feed/group-class';
+import { shouldForceGroupClassFromScrapePage } from '@/lib/feed/group-class';
 import {
   recordUrlResult,
   shouldSkipUrl,
 } from '@/lib/scrape/source-health';
+import { scrapeVenuePage } from './scrape-venue-page';
 
 export interface VenueScrapeTarget {
   url: string;
@@ -35,6 +33,13 @@ export interface VenueScrapeTarget {
   latitude?: number | null;
   longitude?: number | null;
   forceGroupClass?: boolean;
+  forceForKids?: boolean;
+  /** Per-URL CSS selector from venue_scrape_pages.content_selector. */
+  contentSelector?: string | null;
+  /** null = Gemini; 'reenio' = force Reenio adapter. */
+  bookingProvider?: string | null;
+  bookingSubject?: string | null;
+  venueName?: string | null;
 }
 
 export interface RunScraperOptions {
@@ -87,6 +92,7 @@ function addStats(a: ScraperUpsertStats, b: ScraperUpsertStats): ScraperUpsertSt
 
 type VenueRow = {
   id: string;
+  name: string | null;
   website_url: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -96,6 +102,9 @@ type ScrapePageRow = {
   url: string;
   kind: string;
   venue_id: string | null;
+  content_selector: string | null;
+  booking_provider: string | null;
+  booking_subject: string | null;
 };
 
 /**
@@ -109,7 +118,7 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
 
   const { data: venueRows, error: venueError } = await supabase
     .from('venues')
-    .select('id, website_url, latitude, longitude')
+    .select('id, name, website_url, latitude, longitude')
     .not('website_url', 'is', null);
 
   if (venueError) {
@@ -121,7 +130,9 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
 
   const { data: pageRows, error: pageError } = await supabase
     .from('venue_scrape_pages')
-    .select('url, kind, venue_id')
+    .select(
+      'url, kind, venue_id, content_selector, booking_provider, booking_subject',
+    )
     .eq('enabled', true);
 
   if (pageError) {
@@ -129,24 +140,55 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
   }
   const scrapePages = (pageRows ?? []) as ScrapePageRow[];
 
-  const seen = new Set<string>();
+  const seen = new Map<string, VenueScrapeTarget>();
   const out: VenueScrapeTarget[] = [];
 
   const push = (
     url: string | null | undefined,
     venue: VenueRow | undefined,
     forceGroupClass = false,
+    contentSelector?: string | null,
+    forceForKids = false,
+    bookingProvider?: string | null,
+    bookingSubject?: string | null,
   ) => {
     const trimmed = url?.trim();
-    if (!trimmed || seen.has(trimmed) || !isHttpUrl(trimmed)) return;
-    seen.add(trimmed);
-    out.push({
+    if (!trimmed || !isHttpUrl(trimmed)) return;
+    const existing = seen.get(trimmed);
+    if (existing) {
+      if (contentSelector?.trim() && !existing.contentSelector) {
+        existing.contentSelector = contentSelector.trim();
+      }
+      if (forceGroupClass) existing.forceGroupClass = true;
+      if (forceForKids) existing.forceForKids = true;
+      if (bookingProvider && !existing.bookingProvider) {
+        existing.bookingProvider = bookingProvider;
+      }
+      if (bookingSubject && !existing.bookingSubject) {
+        existing.bookingSubject = bookingSubject;
+      }
+      if (venue?.id && !existing.venueId) {
+        existing.venueId = venue.id;
+        existing.latitude = venue.latitude ?? null;
+        existing.longitude = venue.longitude ?? null;
+        existing.venueName = venue.name ?? null;
+      }
+      return;
+    }
+    const target: VenueScrapeTarget = {
       url: trimmed,
       venueId: venue?.id,
       latitude: venue?.latitude ?? null,
       longitude: venue?.longitude ?? null,
       forceGroupClass,
-    });
+      forceForKids,
+      contentSelector: contentSelector?.trim() || null,
+      bookingProvider: bookingProvider?.trim() || null,
+      bookingSubject: bookingSubject?.trim() || null,
+      venueName: venue?.name ?? null,
+    };
+    seen.set(trimmed, target);
+    out.push(target);
   };
 
   for (const venue of venues) {
@@ -156,12 +198,23 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
   for (const page of scrapePages) {
     const venue = page.venue_id ? venueById.get(page.venue_id) : undefined;
     const kind = (page.kind ?? '').toLowerCase();
-    const forceGroupClass =
-      kind === 'schedule' ||
-      kind === 'rozvrh' ||
-      kind === 'classes' ||
-      (kind !== 'tournaments' && shouldForceGroupClassFromUrl(page.url));
-    push(page.url, venue, forceGroupClass);
+    // Court booking calendars are for Lobby later — skip Gemini event extract.
+    if (kind === 'availability') continue;
+    const forceGroupClass = shouldForceGroupClassFromScrapePage(kind, page.url);
+    const forceForKids =
+      kind === 'kids_camps' ||
+      kind === 'camps' ||
+      kind === 'detsky-tabor' ||
+      kind === 'detskie-tabory';
+    push(
+      page.url,
+      venue,
+      forceGroupClass,
+      page.content_selector,
+      forceForKids,
+      page.booking_provider,
+      page.booking_subject,
+    );
   }
 
   return out;
@@ -250,21 +303,33 @@ export async function runGeminiScraper(
       await withUrlProcessingTimeout(
         target.url,
         async () => {
-          const text = await fetchCleanText(target.url);
-          if (!pageHasEventSignal(text)) {
-            result.skippedGemini = true;
-            console.log(
-              `[scraper] skip Gemini (no event keywords) ${target.url}`,
+          const scraped = await scrapeVenuePage({
+            url: target.url,
+            contentSelector: target.contentSelector,
+            bookingProvider: target.bookingProvider,
+            bookingSubject: target.bookingSubject,
+            venueName: target.venueName,
+          });
+          if (scraped.path === 'empty' && scraped.events.length === 0) {
+            if (scraped.skippedGemini) {
+              result.skippedGemini = true;
+              console.log(
+                `[scraper] skip (${scraped.message ?? 'empty'}) ${target.url}`,
+              );
+              return;
+            }
+            throw new Error(
+              scraped.message ?? `No events from ${target.url}`,
             );
-            return;
           }
-          const events = await extractEventsFromText(target.url, text);
+          const events = scraped.events;
           result.events = events;
+          result.skippedGemini = scraped.skippedGemini;
           extracted += events.length;
           const kids = events.filter((e) => e.isForKids).length;
           const women = events.filter((e) => e.isForWomenOnly).length;
           console.log(
-            `[scraper] ${target.url} → ${events.length} event(s)` +
+            `[scraper] ${target.url} → ${events.length} event(s) [${scraped.path}]` +
               (kids || women ? ` [kids=${kids} women=${women}]` : ''),
           );
 
@@ -273,6 +338,7 @@ export async function runGeminiScraper(
               latitude: target.latitude,
               longitude: target.longitude,
               forceGroupClass: target.forceGroupClass,
+              forceForKids: target.forceForKids,
               scrapePageUrl: target.url,
             };
             const writeStats = target.venueId

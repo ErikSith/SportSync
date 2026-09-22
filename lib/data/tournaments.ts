@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
 import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
-import { activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { activeFeedSinceIso, isListingStillActive } from '@/lib/retention/feed-window';
 import { titleIsOutsideBratislava, isBratislavaCity } from '@/lib/cities';
 
 export interface TournamentCardData {
@@ -110,10 +110,7 @@ function isBratislavaScopedTournament(row: TournamentRow): boolean {
 }
 
 function isUpcomingTournamentRow(row: TournamentRow, now = new Date()): boolean {
-  const starts = parseDbInstant(row.starts_at).getTime();
-  const ends = row.ends_at ? parseDbInstant(row.ends_at).getTime() : null;
-  const grace = now.getTime() - 2 * 60 * 60 * 1000;
-  return starts >= grace || (ends != null && ends >= now.getTime());
+  return isListingStillActive(row.starts_at, row.ends_at, now);
 }
 
 function mapTournamentRow(row: TournamentRow): TournamentCardData {

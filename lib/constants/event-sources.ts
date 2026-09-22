@@ -14,6 +14,7 @@ export const SOURCE_DISPLAY_NAMES: Record<ScrapeAdapterId, string> = {
   citylife: 'CityLife',
   'padel-ba': 'Arena Padel / Padel Bratislava',
   'ntc-ba': 'NTC Bratislava',
+  'tenis-advantage': 'Tenisová škola Advantage',
   'ofa-mma': 'OFA Gym',
   'chaos-mma': 'Chaos MMA',
   prostor: 'CrossFit Proton',

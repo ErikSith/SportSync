@@ -256,6 +256,8 @@ async function scrapeFormFactoryEventy(): Promise<NormalizedScrapedEvent[]> {
 
     const title = extractEventTitle(text, $, el);
     const { city, venueKey } = resolveFormFactoryVenue(text, hrefAttr);
+    // National Form Factory eventy/ page lists every city — SportSync is BA-only.
+    if (!/^bratislava$/i.test(city) || titleLooksOutsideBratislava(title, text)) return;
 
     const description = text
       .replace(/^(PIATKOVICA|OPEN AIR LETNÉ SKUPINOVKY|HYROX)\s*/i, '')
@@ -286,9 +288,11 @@ async function scrapeFormFactoryEventy(): Promise<NormalizedScrapedEvent[]> {
         const startsAt = extractDate(text);
         if (startsAt && text.length < 800) {
           const { city, venueKey } = resolveFormFactoryVenue(text, href);
+          const title = extractEventTitle(text, $, parent);
+          if (!/^bratislava$/i.test(city) || titleLooksOutsideBratislava(title, text)) break;
           drafts.push({
             href,
-            title: extractEventTitle(text, $, parent),
+            title,
             description: text.slice(0, 300),
             startsAt,
             city,
@@ -386,12 +390,13 @@ function extractEventTitle(text: string, $: ReturnType<typeof cheerio.load>, el:
   }
   if (/piatkovica/i.test(text)) {
     const venue = text.match(
-      /Form Factory\s+([A-ZÁÉÍÓÚÝŽŠČŤŇOC][\wÁÉÍÓÚÝŽŠČŤŇáéíóúýžščťň .-]{1,40}?)(?=Bratislava|Košice|Žilina|Trenčín|\d)/i,
+      /Form Factory\s+([A-ZÁÉÍÓÚÝŽŠČŤŇOC][\wÁÉÍÓÚÝŽŠČŤŇáéíóúýžščťň .-]{1,40}?)(?=Bratislava|Košice|Žilina|Trenčín|Banská\s+Bystrica|Považská\s+Bystrica|Prešov|\d)/i,
     );
     const venueName = venue?.[1]?.trim();
     if (venueName) return `Piatkovica — ${venueName}`;
     if (/farsk/i.test(text)) return 'Piatkovica — Farského';
     if (/nivy/i.test(text)) return 'Piatkovica — OC Nivy';
+    if (/europa\s*bc/i.test(text)) return 'Piatkovica — EUROPA BC';
     return 'Piatkovica';
   }
   if (/hyrox/i.test(text)) return 'HYROX Form Factory';
@@ -442,6 +447,10 @@ function resolveFormFactoryVenue(
   if (/pova[zž]sk[aá]\s*bystrica|bpark/i.test(hay)) {
     return { city: 'Považská Bystrica', venueKey: 'form-factory-bpark' };
   }
+  // EUROPA BC is Form Factory Banská Bystrica (not a BA club).
+  if (/europa\s*bc|bansk[aá]\s*bystric/i.test(hay)) {
+    return { city: 'Banská Bystrica', venueKey: 'form-factory-europa-bc' };
+  }
 
   const cityMatch = text.match(
     /\b(Bratislava|Košice|Kosice|Žilina|Zilina|Trenčín|Trencin|Nitra|Banská Bystrica|Prešov|Presov)\b/i,
@@ -456,7 +465,19 @@ function resolveFormFactoryVenue(
   if (/bratislava/i.test(city)) {
     return { city: 'Bratislava', venueKey: 'form-factory-fitcamp' };
   }
-  return { city, venueKey: 'form-factory-fitcamp' };
+  // Never pin out-of-city marketing events onto FitCamp Bratislava.
+  return { city, venueKey: `form-factory-${slugify(city)}` };
+}
+
+/** Extra BA gate for titles/copy that omit a clean city token (e.g. EUROPA BC). */
+function titleLooksOutsideBratislava(title: string, listingText: string): boolean {
+  const hay = `${title} ${listingText}`;
+  if (/bratislav/i.test(hay) && !/europa\s*bc|bansk[aá]\s*bystric|ko[sš]ic|[žz]ilin|tren[cč][ií]n|pre[sš]ov/i.test(hay)) {
+    return false;
+  }
+  return /europa\s*bc|bansk[aá]\s*bystric|ko[sš]ic|[žz]ilin|tren[cč][ií]n|cassovar|mirage|oc\s*max|pre[sš]ov|pova[zž]sk[aá]\s*bystric/i.test(
+    hay,
+  );
 }
 
 function inferParticipationMode(title: string, description: string): 'participate' | 'spectator' {

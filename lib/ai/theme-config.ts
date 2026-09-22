@@ -87,7 +87,7 @@ export const SPORT_TYPE_THEMES: Record<SportTypeKey, ThemeConfig> = {
 export function resolveSportType(sport: string): SportTypeKey {
   const s = sport.toUpperCase();
   if (s === 'PADEL') return 'PADEL';
-  if (s === 'TENNIS') return 'TENNIS';
+  if (s === 'TENNIS' || s === 'BADMINTON' || s === 'SQUASH' || s === 'TABLE_TENNIS') return 'TENNIS';
   if (s === 'FOOTBALL' || s === 'SOCCER' || s === 'FUTSAL') return 'FOOTBALL';
   if (s === 'BASKETBALL' || s === 'BASKET') return 'BASKETBALL';
   if (
@@ -101,7 +101,7 @@ export function resolveSportType(sport: string): SportTypeKey {
     s === 'CLIMBING'
   )
     return 'ATLETIKA';
-  // FITNESS, YOGA, HOCKEY, HANDBALL, COMBAT, SQUASH, VOLLEYBALL, BOWLING, OTHER → brand coral
+  // FITNESS, YOGA, PILATES, HOCKEY, HANDBALL, COMBAT, VOLLEYBALL, BOWLING, DARTS, OTHER → brand coral
   return 'OTHER';
 }
 

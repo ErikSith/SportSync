@@ -184,6 +184,16 @@ export const SCRAPING_SOURCES: ScrapingSource[] = [
     borough: 'Karlova Ves',
   },
   {
+    id: 'tenis-advantage',
+    name: 'Tenisová škola Advantage',
+    url: 'https://www.tenisadvantage.sk/',
+    category: 'Tennis',
+    district: 'Bratislava IV',
+    borough: 'Karlova Ves',
+    adapterId: 'tenis-advantage',
+    venueKey: 'tenis-advantage',
+  },
+  {
     id: 'lamac-sport',
     name: 'Runfest Lamač / KarpatyRun',
     url: 'https://www.lamac.sk/',
