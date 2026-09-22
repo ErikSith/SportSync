@@ -11,11 +11,12 @@ import { saveEventsForVenue } from '../src/lib/scraper/db-service';
 import { shouldForceGroupClassFromScrapePage } from '../lib/feed/group-class';
 import { scrapeVenuePage } from '../src/lib/scraper/scrape-venue-page';
 
-const arg = process.argv[2]?.trim();
-if (!arg) {
+const argRaw = process.argv[2]?.trim();
+if (!argRaw) {
   console.error('Usage: npx tsx scripts/scrape-one-page.ts <url-or-page-id>');
   process.exit(1);
 }
+const arg = argRaw;
 
 async function main() {
   const supabase = createAdminClient();

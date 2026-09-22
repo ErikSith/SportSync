@@ -81,6 +81,7 @@ function mergeSetCookie(jar: CookieJar, res: Response) {
         })();
   for (const line of list) {
     const part = line.split(';')[0];
+    if (!part) continue;
     const eq = part.indexOf('=');
     if (eq <= 0) continue;
     jar.set(part.slice(0, eq).trim(), part.slice(eq + 1).trim());

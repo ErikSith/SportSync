@@ -19,7 +19,7 @@ function loadEnv() {
       const raw = readFileSync(file, 'utf8');
       for (const line of raw.split(/\r?\n/)) {
         const m = line.match(/^([^#=]+)=(.*)$/);
-        if (!m) continue;
+        if (!m || !m[1] || !m[2]) continue;
         const k = m[1].trim();
         let v = m[2].trim();
         if (
