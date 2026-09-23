@@ -61,6 +61,9 @@ const RESPONSE_SCHEMA: ResponseSchema = {
           sportType: { type: SchemaType.STRING },
           isTournament: { type: SchemaType.BOOLEAN },
           isGroupClass: { type: SchemaType.BOOLEAN },
+          isCamp: { type: SchemaType.BOOLEAN },
+          isWorkshop: { type: SchemaType.BOOLEAN },
+          isCourse: { type: SchemaType.BOOLEAN },
           startTime: { type: SchemaType.STRING },
           timeKnown: { type: SchemaType.BOOLEAN },
           endTime: { type: SchemaType.STRING },
@@ -144,18 +147,19 @@ Pravidlá:
 - Ak stránka obsahuje TÝŽDENNÝ ROZVRH (Pondelok/Utorok/... alebo Po/Ut/... + čas + názov AKTIVITY),
   vygeneruj konkrétne lekcie na najbližších 7 dní od kotevného dátumu vyššie. Každý slot = 1 záznam so startTime v ISO 8601.
   Tieto sloty sú SKUPINOVÉ LEKCIE (isGroupClass = true, isTournament = false) — nie unikátne eventy.
-- Ak je na TEJ ISTEJ stránke aj rozvrh aj jednorazové akcie/turnaje, ROZDEĽ ich po položkách:
-  opakujúce sa lekcie → isGroupClass = true; turnaje s prihláškou → isTournament = true;
-  jednorazové workshopy/otvorenia → oboje false. Nikdy neoznač celú stránku jedným typom.
-- KLASIFIKÁCIA (povinná pri každom zázname):
-  • isTournament = true: jednorazový turnaj/súťaž s otvorenou prihláškou (cup, championship, open, trophy, kvalifikácia).
-    NIE ligový zápas „Tím A vs Tím B“ / „proti“ — to je divácky zápas (isTournament = false).
-  • isGroupClass = true: niečo, čo sa STÁLE OPAKUJE na tom istom športovisku v obvykle rovnakom čase
-    (týždenný rozvrh, akademia, náborové tréningy, footwork, joga, HIIT, skupinové cvičenie, online tréningový program).
-  • isGroupClass = false a isTournament = false: jednorazový event s vlastným názvom
-    (workshop, exhibícia, otvorenie, koncert, zápas A vs B na sledovanie).
-- Unikátny EVENT/turnaj = jednorazové podujatie s vlastným názvom (cup, open, marathon, workshop, zápas).
-- Bežný názov lekcie (Pilates, HIIT, Box, Yoga, Kickbox, footwork, nábor, akademia…) = skupinová lekcia, nie unikátny event.
+- Ak je na TEJ ISTEJ stránke aj rozvrh aj jednorazové akcie/turnaje/tábory, ROZDEĽ ich po položkách.
+  Nikdy neoznač celú stránku jedným typom.
+- KLASIFIKÁCIA (práve jedna primárna role):
+  • isTournament = true: turnaj s otvorenou prihláškou (cup, championship, open, trophy).
+    NIE ligový zápas „Tím A vs Tím B“ — to je divácky zápas (isTournament = false).
+  • isGroupClass = true: týždenný rozvrh / skupinové cvičenie (Pilates, HIIT, Box, Yoga, Fitbox,
+    stolný tenis, pole dance, akademia, nábor, footwork). Aj „Stronger kurz“ v rozvrhu = isGroupClass.
+  • isCamp = true: viacdňový tábor/kemp. startTime = prvý deň, endTime = posledný. isGroupClass = false.
+  • isWorkshop = true: jednorazový workshop / masterclass / seminár. isGroupClass = false.
+  • isCourse = true: viactýždňový kurz s prihláškou, NIE drop-in slot. isGroupClass = false.
+  • Inak (exhibícia, otvorenie, koncert, zápas A vs B): všetky flagy false.
+- Unikátny EVENT = otvorenie, exhibícia, koncert, zápas. Tábory/workshopy/kurzy nie sú bežné eventy.
+- Bežný názov lekcie (Pilates, HIIT, Box, Yoga, Kickbox, Fitbox, Pole Dance) = skupinová lekcia.
 - Ak sú uvedené konkrétne dátumy (deň.mesiac.rok / ISO), použi ich.
 - Viacdňové festivaly/turnaje (napr. „5 novembra – 9 novembra“, „24.–25. 10.“, „5-9“):
   startTime = prvý deň, endTime = posledný deň. Jeden záznam na celé obdobie (nie karty po dňoch).
@@ -387,6 +391,9 @@ function activityToScrapedEvent(
     sportType: activity.sportType,
     isTournament: activity.isTournament,
     isGroupClass: false,
+    isCamp: false,
+    isWorkshop: false,
+    isCourse: false,
     isForWomenOnly: audience.forWomen,
     isForKids: audience.forKids,
     ageCategory: null,
@@ -617,6 +624,9 @@ function coerceOriginalUrls(parsed: unknown, pageUrl: string): unknown {
           pageUrl,
         ),
         isGroupClass: row.isGroupClass === true || row.isGroupClass === 'true',
+        isCamp: row.isCamp === true || row.isCamp === 'true',
+        isWorkshop: row.isWorkshop === true || row.isWorkshop === 'true',
+        isCourse: row.isCourse === true || row.isCourse === 'true',
         timeKnown:
           row.timeKnown !== false &&
           row.timeKnown !== 'false' &&

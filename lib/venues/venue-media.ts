@@ -130,15 +130,18 @@ export function resolveVenueCover(input: {
   return DEFAULT_FACILITY;
 }
 
-/** Atmosphere tabs: prefer event cover, else a sport-readable facility photo. */
+/**
+ * Atmosphere tabs: only use an explicit listing cover.
+ * Stock facility / court Unsplash photos are disabled — we cannot redistribute
+ * venue-looking imagery until rights are clear. Callers should treat null as
+ * “neutral brand gradient” (see AtmosphereTabMedia / ListingCover).
+ */
 export function resolveSportAtmosphereCover(
-  sport: string | null | undefined,
+  _sport: string | null | undefined,
   coverUrl?: string | null,
-): string {
-  if (coverUrl) return coverUrl;
-  const key = sport?.toUpperCase();
-  if (key && FACILITY_BY_SPORT[key]) return FACILITY_BY_SPORT[key];
-  return FACILITY_BY_SPORT.OTHER ?? DEFAULT_FACILITY;
+): string | null {
+  const trimmed = coverUrl?.trim();
+  return trimmed || null;
 }
 
 export function resolveVenueLogo(input: {

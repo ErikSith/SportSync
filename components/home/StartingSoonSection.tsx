@@ -19,9 +19,15 @@ const DECK_LIMIT = 12;
 
 interface StartingSoonSectionProps {
   events: EventCardData[];
+  title?: string;
+  subtitle?: string;
 }
 
-export function StartingSoonSection({ events }: StartingSoonSectionProps) {
+export function StartingSoonSection({
+  events,
+  title = 'Coming up',
+  subtitle = 'Čo ide čoskoro — scrollni termíny',
+}: StartingSoonSectionProps) {
   const deck = useMemo(
     () => partitionFeedForHybridHub(events).chronological.slice(0, DECK_LIMIT),
     [events],
@@ -121,14 +127,12 @@ export function StartingSoonSection({ events }: StartingSoonSectionProps) {
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-0.5 flex items-center gap-2">
-            <span className="h-1 w-5 rounded-full bg-primary-container" />
+            <span className="h-1 w-5 rounded-full bg-[#FF5722]" />
             <h3 className="font-headline-md text-[15px] tracking-wide text-on-background md:text-headline-md">
-              Coming up
+              {title}
             </h3>
           </div>
-          <p className="pl-7 font-body-md text-sm text-on-surface-variant">
-            Čo ide čoskoro — scrollni termíny
-          </p>
+          <p className="pl-7 font-body-md text-sm text-on-surface-variant">{subtitle}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {showArrows && (

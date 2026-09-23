@@ -48,6 +48,7 @@ function kindRank(kind: string) {
     'tournaments',
     'kids_clubs',
     'kids_camps',
+    'workshops',
     'other',
   ];
   const i = order.indexOf(kind);

@@ -9,6 +9,8 @@ config({ path: '.env.local', override: true });
 import { createAdminClient } from '../lib/supabase/admin';
 import { saveEventsForVenue } from '../src/lib/scraper/db-service';
 import { shouldForceGroupClassFromScrapePage } from '../lib/feed/group-class';
+import { shouldForceForKidsFromScrapePage } from '../lib/scrape/scrape-page-kind';
+import { programKindFromScrapePage } from '../lib/programs/classify';
 import { scrapeVenuePage } from '../src/lib/scraper/scrape-venue-page';
 
 const argRaw = process.argv[2]?.trim();
@@ -80,6 +82,9 @@ async function main() {
             page.kind as string | null,
             url,
           ),
+          forceForKids: shouldForceForKidsFromScrapePage(page.kind as string | null),
+          forceProgramKind: programKindFromScrapePage(page.kind as string | null),
+          scrapePageKind: page.kind as string | null,
         })
       : null;
 

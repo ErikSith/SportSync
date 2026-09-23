@@ -17,6 +17,25 @@ export const ScrapedEventSchema = z.object({
     .describe(
       'True ak ide o opakovanú skupinovú lekciu/tréning na tom istom športovisku v obvykle rovnakom čase',
     ),
+  isCamp: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'True pre viacdňový tábor/kemp (detský, letný). False pre týždenný krúžok.',
+    ),
+  isWorkshop: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('True pre jednorazový workshop / masterclass / seminár.'),
+  isCourse: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'True pre viactýždňový kurz s prihláškou. False pre týždennú lekciu, ktorá má v názve slovo kurz.',
+    ),
 
   // FILTRE PRE ŽENY A DETI
   isForWomenOnly: z
@@ -122,6 +141,19 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
             type: 'boolean',
             description:
               'True ak ide o opakovanú skupinovú lekciu/tréning na tom istom športovisku v obvykle rovnakom čase',
+          },
+          isCamp: {
+            type: 'boolean',
+            description: 'True pre viacdňový tábor/kemp. False pre týždenný krúžok.',
+          },
+          isWorkshop: {
+            type: 'boolean',
+            description: 'True pre jednorazový workshop / masterclass / seminár.',
+          },
+          isCourse: {
+            type: 'boolean',
+            description:
+              'True pre viactýždňový kurz. False pre týždennú lekciu so slovom kurz v názve.',
           },
           isForWomenOnly: {
             type: 'boolean',

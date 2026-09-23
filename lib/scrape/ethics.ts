@@ -30,19 +30,19 @@ export function aggregatorNotice(sourceName: string, sourceUrl?: string | null):
 }
 
 /**
- * Covers we may keep on scraped rows: SportSync Cover Factory storage or
- * our Unsplash sport plates. Never keep venue CDN / og:image / Predpredaj media.
+ * Covers we may keep on scraped rows: SportSync Cover Factory storage only.
+ * Stock Unsplash / venue CDN / og:image are not redistributed until rights clear.
  */
 export function isAllowedScrapedCoverUrl(url: string | null | undefined): boolean {
   if (!url?.trim()) return false;
   const value = url.trim().toLowerCase();
   if (value.includes('formfactory')) return false;
+  if (value.includes('images.unsplash.com/')) return false;
   if (value.includes('/storage/v1/object/public/event-covers/')) return true;
-  if (value.includes('images.unsplash.com/')) return true;
   return false;
 }
 
-/** Form Factory listings stay text-only — no Unsplash plate, no Cover Factory file. */
+/** Scraped listings stay without stock photography — Cover Factory or null. */
 export function persistScrapedCoverUrl(
   source: string,
   existingCover: string | null | undefined,
@@ -50,5 +50,6 @@ export function persistScrapedCoverUrl(
 ): string | null {
   if (source === 'form-factory') return null;
   if (isAllowedScrapedCoverUrl(existingCover)) return existingCover!.trim();
-  return generated;
+  if (isAllowedScrapedCoverUrl(generated)) return generated!.trim();
+  return null;
 }

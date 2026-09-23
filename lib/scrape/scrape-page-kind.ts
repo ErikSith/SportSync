@@ -14,6 +14,7 @@ export const SCRAPE_PAGE_KINDS = [
   'tournaments',
   'kids_clubs',
   'kids_camps',
+  'workshops',
   'other',
 ] as const;
 
@@ -31,6 +32,7 @@ export const COMBINABLE_CONTENT_KINDS = [
   'tournaments',
   'kids_clubs',
   'kids_camps',
+  'workshops',
 ] as const;
 
 export function parseScrapePageKinds(kind: string | null | undefined): ScrapePageKind[] {
@@ -57,6 +59,9 @@ export function parseScrapePageKinds(kind: string | null | undefined): ScrapePag
     camps: 'kids_camps',
     'detsky-tabor': 'kids_camps',
     'detskie-tabory': 'kids_camps',
+    workshop: 'workshops',
+    workshopy: 'workshops',
+    workshops: 'workshops',
     mixed: 'events', // legacy soft label → treat as multi via callers
   };
 

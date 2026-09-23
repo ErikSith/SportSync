@@ -9,7 +9,7 @@ import {
 } from '@/lib/scrape/scrape-page-kind';
 
 const SPECIAL_EVENT_TITLE =
-  /\b(piatkovica|open\s*air|hyrox|workshop|masterclass|marathon|turnaj|tournament|cup|championship|liga|match|zápas|exhibition|exhib[íi]cia|koncert|festival)\b/i;
+  /\b(piatkovica|open\s*air|hyrox|workshop|masterclass|seminar|t[aá]bor|summer\s*camp|kids?\s*camp|marathon|turnaj|tournament|cup|championship|liga|match|zápas|exhibition|exhib[íi]cia|koncert|festival)\b/i;
 
 /** Typical repeating studio / academy / group-class names (not one-off events). */
 const GROUP_CLASS_TITLE =
@@ -78,7 +78,11 @@ export function shouldForceGroupClassFromScrapePage(
 ): boolean {
   // Mixed schedule+events(+tournaments): let Gemini flags decide per item.
   if (isMixedScrapePageKind(kind)) return false;
-  if (scrapePageHasKind(kind, 'kids_camps') || scrapePageHasKind(kind, 'tournaments')) {
+  if (
+    scrapePageHasKind(kind, 'kids_camps') ||
+    scrapePageHasKind(kind, 'workshops') ||
+    scrapePageHasKind(kind, 'tournaments')
+  ) {
     return false;
   }
   // Weekly kids clubs/krúžky are repeating lessons (unlike multi-day kids_camps).

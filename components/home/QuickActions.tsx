@@ -1,117 +1,130 @@
 'use client';
 
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { useT } from '@/components/i18n/LocaleProvider';
 import type { MessageKey } from '@/lib/i18n/messages';
+
+type HubAccent = 'coral' | 'teal';
 
 const ACTIONS: Array<{
   href: string;
   labelKey: MessageKey;
   icon: string;
-  color: string;
-  comingSoon?: boolean;
+  hintKey?: MessageKey;
+  accent: HubAccent;
 }> = [
-  { href: '/lobby', labelKey: 'home.quick.lobby', icon: 'group', color: 'text-primary' },
+  {
+    href: '/lobby',
+    labelKey: 'home.quick.lobby',
+    icon: 'group',
+    hintKey: 'home.quick.lobbyHint',
+    accent: 'coral',
+  },
   {
     href: '/tournaments',
     labelKey: 'home.quick.tournaments',
     icon: 'emoji_events',
-    color: 'text-secondary',
+    hintKey: 'home.quick.tournamentsHint',
+    accent: 'coral',
   },
-  { href: '/events', labelKey: 'home.quick.events', icon: 'event', color: 'text-primary' },
   {
-    href: '/trainers',
-    labelKey: 'home.quick.trainers',
-    icon: 'school',
-    color: 'text-secondary',
-    comingSoon: true,
+    href: '/events',
+    labelKey: 'home.quick.events',
+    icon: 'event',
+    hintKey: 'home.quick.eventsHint',
+    accent: 'coral',
   },
-  { href: '/venues', labelKey: 'home.quick.venues', icon: 'stadium', color: 'text-primary' },
   {
-    href: '/leaderboard',
-    labelKey: 'home.quick.rankings',
-    icon: 'leaderboard',
-    color: 'text-secondary',
-    comingSoon: true,
+    href: '/programs',
+    labelKey: 'home.quick.programs',
+    icon: 'camping',
+    hintKey: 'home.quick.programsHint',
+    accent: 'teal',
   },
 ];
 
-const cardClassName =
-  'glass-card relative flex h-full min-h-[7.5rem] w-full flex-col items-start gap-2.5 overflow-hidden rounded-xl p-3 sm:min-h-[8.25rem] sm:gap-3 sm:p-4';
+const ACCENT = {
+  coral: {
+    hoverBorder: 'hover:border-[#FF5722]/40',
+    glow: 'bg-[#FF5722]/10',
+    ring: 'group-hover:ring-[#FF5722]/35',
+    icon: 'text-[#FF5722]',
+  },
+  teal: {
+    hoverBorder: 'hover:border-teal-400/45',
+    glow: 'bg-teal-400/15',
+    ring: 'group-hover:ring-teal-400/40',
+    icon: 'text-teal-300',
+  },
+} as const;
+
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06, delayChildren: 0.05 },
+  },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.28, ease: 'easeOut' as const } },
+};
 
 export function QuickActions() {
   const t = useT();
 
   return (
-    <div className="grid auto-rows-fr grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 lg:grid-cols-6">
+    <motion.div
+      variants={container}
+      initial="hidden"
+      animate="show"
+      className="grid grid-cols-2 gap-2.5 sm:gap-3"
+      aria-label={t('home.quickHub')}
+    >
       {ACTIONS.map((action) => {
-        const comingSoon = Boolean(action.comingSoon);
-
-        const body = (
-          <>
-            <div
+        const accent = ACCENT[action.accent];
+        return (
+          <motion.div key={action.href} variants={item}>
+            <Link
+              href={action.href}
               className={[
-                'relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-surface-container shadow-inner sm:h-10 sm:w-10',
-                comingSoon
-                  ? 'border-outline-variant/25'
-                  : 'border-transparent transition-all group-hover:border-secondary/30 group-hover:bg-primary-container/20',
+                'group relative flex min-h-[5.75rem] flex-col justify-between overflow-hidden rounded-2xl',
+                'border border-white/[0.06] bg-[#1F1F1F] p-3.5 sm:min-h-[6.5rem] sm:p-4',
+                'transition duration-200 hover:bg-[#262626] active:scale-[0.98]',
+                accent.hoverBorder,
               ].join(' ')}
             >
+              <div
+                className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full blur-2xl transition-opacity group-hover:opacity-100 ${accent.glow}`}
+                aria-hidden
+              />
               <span
                 className={[
-                  'material-symbols-outlined text-[22px] sm:text-[24px]',
-                  action.color,
-                  comingSoon ? 'opacity-70' : 'transition-all',
+                  'relative z-10 flex h-9 w-9 items-center justify-center rounded-xl bg-[#121212] ring-1 ring-white/[0.06] transition',
+                  accent.ring,
                 ].join(' ')}
+                aria-hidden
               >
-                {action.icon}
+                <span className={`material-symbols-outlined text-[22px] ${accent.icon}`}>
+                  {action.icon}
+                </span>
               </span>
-            </div>
-            <div className="relative z-10 mt-auto min-w-0 w-full space-y-1">
-              <span
-                className={[
-                  'block truncate font-headline-md text-[13px] font-semibold sm:text-body-md',
-                  comingSoon
-                    ? 'text-on-surface-variant'
-                    : 'text-on-surface transition-colors group-hover:text-secondary',
-                ].join(' ')}
-              >
-                {t(action.labelKey)}
-              </span>
-              <span
-                className={[
-                  'block min-h-[1rem] font-label-caps text-[8px] uppercase tracking-[0.14em] sm:text-[9px]',
-                  comingSoon ? 'text-outline' : 'invisible',
-                ].join(' ')}
-                aria-hidden={!comingSoon}
-              >
-                {t('common.comingSoon')}
-              </span>
-            </div>
-          </>
-        );
-
-        if (comingSoon) {
-          return (
-            <div
-              key={action.href}
-              aria-disabled="true"
-              title={t('common.comingSoon')}
-              className={`${cardClassName} cursor-not-allowed opacity-55`}
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-outline-variant/10 to-transparent" />
-              {body}
-            </div>
-          );
-        }
-
-        return (
-          <Link key={action.href} href={action.href} className={`${cardClassName} group`}>
-            <div className="absolute inset-0 bg-gradient-to-br from-secondary/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-            {body}
-          </Link>
+              <div className="relative z-10 mt-3 min-w-0 space-y-0.5">
+                <span className="block truncate font-headline-md text-[14px] font-semibold text-on-surface transition-colors group-hover:text-white sm:text-[15px]">
+                  {t(action.labelKey)}
+                </span>
+                {action.hintKey ? (
+                  <span className="block truncate font-body-md text-[11px] text-on-surface-variant/80">
+                    {t(action.hintKey)}
+                  </span>
+                ) : null}
+              </div>
+            </Link>
+          </motion.div>
         );
       })}
-    </div>
+    </motion.div>
   );
 }

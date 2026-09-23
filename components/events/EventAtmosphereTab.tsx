@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { MapPin } from 'lucide-react';
 import type { EventCardData } from '@/lib/data/events';
 import { isFormFactoryListing } from '@/lib/media/listing-cover';
-import { resolveSportAtmosphereCover } from '@/lib/venues/venue-media';
 import { AtmosphereTabMedia } from '@/components/shared/AtmosphereTabMedia';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
@@ -53,9 +52,8 @@ export function EventAtmosphereTab({
 }: EventAtmosphereTabProps) {
   const t = useT();
   const [previewOpen, setPreviewOpen] = useState(false);
-  const cover = isFormFactoryListing(event)
-    ? null
-    : resolveSportAtmosphereCover(event.sport, event.coverUrl);
+  // No Unsplash court/venue stand-ins — only an explicit cover or a neutral gradient.
+  const cover = isFormFactoryListing(event) ? null : event.coverUrl;
   const free = isFreeEvent(event);
   const venue = event.venueName ?? event.city;
   const timeKnown = event.timeKnown !== false;

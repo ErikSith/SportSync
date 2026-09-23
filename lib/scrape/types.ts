@@ -495,7 +495,7 @@ export const VENUE_SEEDS: Array<{
   },
 ];
 
-/** Fallback Unsplash plates used only when Cover Factory cannot run. */
+/** Fallback plates — deprecated; scrapers must not persist these (rights). Kept for scripts. */
 export const DEFAULT_COVERS: Record<string, string> = {
   FOOTBALL: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
   HOCKEY: 'https://images.unsplash.com/photo-1515703407324-5f753afd8be8?w=800&q=80',

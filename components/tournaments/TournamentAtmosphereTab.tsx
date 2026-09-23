@@ -5,7 +5,6 @@ import { MapPin } from 'lucide-react';
 import type { TournamentCardData } from '@/lib/data/tournaments';
 import { tournamentParticipationMode } from '@/lib/tournament-participation';
 import { isFormFactoryListing } from '@/lib/media/listing-cover';
-import { resolveSportAtmosphereCover } from '@/lib/venues/venue-media';
 import { AtmosphereTabMedia } from '@/components/shared/AtmosphereTabMedia';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { TournamentPreviewModal } from '@/components/tournaments/TournamentPreviewModal';
@@ -69,6 +68,8 @@ export function TournamentAtmosphereTab({
 }: TournamentAtmosphereTabProps) {
   const t = useT();
   const [previewOpen, setPreviewOpen] = useState(false);
+  // No stock facility / court photos until we have rights to show venue imagery.
+  // Missing cover → brand gradient only (AtmosphereTabMedia).
   const cover = isFormFactoryListing({
     source: tournament.source,
     sourceUrl: tournament.sourceUrl,
@@ -78,7 +79,7 @@ export function TournamentAtmosphereTab({
     coverUrl: tournament.coverUrl,
   })
     ? null
-    : resolveSportAtmosphereCover(tournament.sport, tournament.coverUrl);
+    : tournament.coverUrl;
   const status = statusMeta(tournament.status, t);
   const venue = tournament.venueName ?? tournament.venueCity ?? 'Venue TBA';
   const filled = tournament.currentParticipants;

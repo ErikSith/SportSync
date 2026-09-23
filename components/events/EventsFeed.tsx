@@ -1,4 +1,5 @@
 import type { EventCardData } from '@/lib/data/events';
+import { isProgramEvent } from '@/lib/programs/classify';
 import type { ParticipationMode } from '@/lib/data/events';
 import type { EventType } from '@/lib/constants/events';
 import { t } from '@/lib/i18n/server';
@@ -195,8 +196,9 @@ export function EventsFeed({
   emptyTitle,
   emptySubtitle,
 }: EventsFeedProps) {
-  const participate = events.filter((e) => e.participationMode === 'participate');
-  const spectator = events.filter((e) => e.participationMode === 'spectator');
+  const listingEvents = events.filter((event) => !isProgramEvent(event));
+  const participate = listingEvents.filter((e) => e.participationMode === 'participate');
+  const spectator = listingEvents.filter((e) => e.participationMode === 'spectator');
 
   const filterBar = (
     <EventFiltersBar

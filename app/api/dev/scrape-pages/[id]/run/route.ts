@@ -4,6 +4,7 @@ import { requireDevAdmin } from '@/lib/auth/dev-admin';
 import { saveEventsForVenue } from '@/src/lib/scraper/db-service';
 import { shouldForceGroupClassFromScrapePage } from '@/lib/feed/group-class';
 import { shouldForceForKidsFromScrapePage } from '@/lib/scrape/scrape-page-kind';
+import { programKindFromScrapePage } from '@/lib/programs/classify';
 import { scrapeVenuePage } from '@/src/lib/scraper/scrape-venue-page';
 
 export const runtime = 'nodejs';
@@ -135,6 +136,8 @@ export async function POST(request: Request, context: RouteContext) {
             scrapePageUrl: url,
             forceGroupClass: shouldForceGroupClassFromScrapePage(pageKind, url),
             forceForKids: shouldForceForKidsFromScrapePage(pageKind),
+            forceProgramKind: programKindFromScrapePage(pageKind),
+            scrapePageKind: pageKind,
           })
         : {
             created: 0,

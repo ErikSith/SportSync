@@ -18,7 +18,6 @@ import {
   shouldSkipUrl,
 } from '@/lib/scrape/source-health';
 import {
-  DEFAULT_COVERS,
   VENUE_SEEDS,
   type AdapterResult,
   type NormalizedScrapedEvent,
@@ -299,13 +298,13 @@ async function coverForEvent(
   event: NormalizedScrapedEvent,
   _venueId: string | null,
 ): Promise<string | null> {
-  // Scraped events always require AI graphics — never persist third-party photos.
-  // Cover factory uses `sharp` (Node-only); Edge cron uses SportSync plates.
+  // Scraped listings: never persist third-party / stock facility photos.
+  // Missing cover → UI shows a neutral brand gradient.
   if (event.source === 'form-factory') return null;
   if (SCRAPE_ETHICS.allowThirdPartyMedia && event.coverUrl && event.requiresAiGraphic === false) {
     return event.coverUrl;
   }
-  return DEFAULT_COVERS[event.sport] ?? DEFAULT_COVERS.OTHER ?? DEFAULT_COVERS.FITNESS!;
+  return null;
 }
 
 function withAggregatorDescription(

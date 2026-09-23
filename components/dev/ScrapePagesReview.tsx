@@ -113,6 +113,7 @@ const PAGE_KINDS = [
   'tournaments',
   'kids_clubs',
   'kids_camps',
+  'workshops',
   'other',
 ] as const satisfies readonly ScrapePageKind[];
 
@@ -123,6 +124,7 @@ const MIXABLE_KINDS = [
   'tournaments',
   'kids_clubs',
   'kids_camps',
+  'workshops',
 ] as const satisfies readonly ScrapePageKind[];
 
 const KIND_LABELS: Record<string, string> = {
@@ -133,6 +135,7 @@ const KIND_LABELS: Record<string, string> = {
   tournaments: 'tournaments — turnaje',
   kids_clubs: 'kids_clubs — detské krúžky',
   kids_camps: 'kids_camps — detské tábory (viacdňové)',
+  workshops: 'workshops — jednorazové workshopy / masterclass',
   other: 'other',
 };
 

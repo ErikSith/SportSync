@@ -74,11 +74,16 @@ describe('scrape-page-kind', () => {
       shouldForceGroupClassFromScrapePage('kids_camps', 'https://x.sk/tabory'),
       false,
     );
+    assert.equal(
+      shouldForceGroupClassFromScrapePage('workshops', 'https://x.sk/workshopy'),
+      false,
+    );
   });
 
-  it('parses kids_clubs aliases', () => {
+  it('parses kids_clubs and workshops aliases', () => {
     assert.deepEqual(parseScrapePageKinds('detske-kruzky'), ['kids_clubs']);
     assert.deepEqual(parseScrapePageKinds('kruzky'), ['kids_clubs']);
+    assert.deepEqual(parseScrapePageKinds('workshopy'), ['workshops']);
   });
 
   it('scrapePageHasKind matches members of multi-kind', () => {

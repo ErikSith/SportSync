@@ -631,12 +631,18 @@ export function EventFiltersBar({
       </AnimatePresence>
 
       {showAudience || showMode ? (
-      <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-2">
+      <div
+        className={
+          showAudience && showMode
+            ? 'flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-2'
+            : 'flex min-w-0 w-full'
+        }
+      >
         {showAudience ? (
         <div
-          className={`grid min-w-0 w-full grid-cols-3 items-stretch gap-0 rounded-2xl border border-white/10 bg-transparent p-1 md:max-w-[min(100%,22rem)] md:flex-1 ${
-            modePending ? 'opacity-70' : ''
-          }`}
+          className={`grid min-w-0 w-full grid-cols-3 items-stretch gap-0 rounded-2xl border border-white/10 bg-transparent p-1 ${
+            showMode ? 'md:max-w-[min(100%,22rem)] md:flex-1' : ''
+          } ${modePending ? 'opacity-70' : ''}`}
           role="list"
           aria-label="Publikum"
         >

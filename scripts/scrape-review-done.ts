@@ -15,6 +15,7 @@ import {
   shouldForceForKidsFromScrapePage,
   shouldSkipEventExtractForKind,
 } from '../lib/scrape/scrape-page-kind';
+import { programKindFromScrapePage } from '../lib/programs/classify';
 import { saveEventsForVenue } from '../src/lib/scraper/db-service';
 import { scrapeVenuePage } from '../src/lib/scraper/scrape-venue-page';
 
@@ -143,6 +144,8 @@ async function main() {
               scrapePageUrl: url,
               forceGroupClass: shouldForceGroupClassFromScrapePage(kind, url),
               forceForKids: shouldForceForKidsFromScrapePage(kind),
+              forceProgramKind: programKindFromScrapePage(kind),
+              scrapePageKind: kind,
             })
           : null;
 

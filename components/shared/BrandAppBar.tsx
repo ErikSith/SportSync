@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { useT } from '@/components/i18n/LocaleProvider';
 
 /**
- * Shared sticky brand header used on Events / Tournaments / Lobby.
+ * Shared sticky brand header used on Events / Tournaments / Lobby / Programs.
  * Structure is identical — only accent colors change per section.
  */
-export type BrandAppBarAccent = 'primary' | 'secondary';
+export type BrandAppBarAccent = 'primary' | 'secondary' | 'programs';
 
 const ACCENT: Record<
   BrandAppBarAccent,
@@ -23,10 +23,15 @@ const ACCENT: Record<
     brand: 'text-secondary hover:text-secondary-fixed',
     iconHover: 'hover:text-secondary',
   },
+  programs: {
+    border: 'border-teal-400/20',
+    brand: 'text-teal-300 hover:text-teal-200',
+    iconHover: 'hover:text-teal-300',
+  },
 };
 
 interface BrandAppBarProps {
-  /** primary = Events / Lobby (orange), secondary = Tournaments (gold) */
+  /** primary = Events / Lobby (coral), secondary = Tournaments (gold), programs = Camps (teal) */
   accent?: BrandAppBarAccent;
 }
 

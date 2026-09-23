@@ -1,6 +1,8 @@
 /**
  * Listing covers for events / tournaments.
  * Form Factory photography and brand assets must never be shown or persisted.
+ * Stock Unsplash / facility stand-ins are also hidden until we have rights
+ * to redistribute venue-looking imagery — UI uses a neutral gradient instead.
  */
 
 export type ListingCoverContext = {
@@ -15,6 +17,10 @@ export type ListingCoverContext = {
 
 const FORM_FACTORY_TEXT =
   /formfactory|form-factory|form\s*factory/i;
+
+/** Stock plates (courts, tracks, gyms) — not cleared for redistribution yet. */
+const STOCK_FACILITY_HOST =
+  /(?:^|\.)(?:images\.)?unsplash\.com|(?:^|\.)pexels\.com|(?:^|\.)pixabay\.com/i;
 
 export function isFormFactoryListing(ctx: ListingCoverContext): boolean {
   if ((ctx.source ?? '').trim().toLowerCase() === 'form-factory') return true;
@@ -31,12 +37,22 @@ export function isFormFactoryListing(ctx: ListingCoverContext): boolean {
   return FORM_FACTORY_TEXT.test(hay);
 }
 
-export function isBlockedOrganizerImageUrl(url: string | null | undefined): boolean {
+export function isStockFacilityImageUrl(url: string | null | undefined): boolean {
   if (!url?.trim()) return false;
-  return FORM_FACTORY_TEXT.test(url);
+  try {
+    return STOCK_FACILITY_HOST.test(new URL(url).hostname);
+  } catch {
+    return STOCK_FACILITY_HOST.test(url);
+  }
 }
 
-/** Drop Form Factory covers so UI never renders their photos (or Unsplash stand-ins on FF rows). */
+export function isBlockedOrganizerImageUrl(url: string | null | undefined): boolean {
+  if (!url?.trim()) return false;
+  if (FORM_FACTORY_TEXT.test(url)) return true;
+  return isStockFacilityImageUrl(url);
+}
+
+/** Drop blocked covers so UI never renders venue/stock photos without rights. */
 export function sanitizeListingCoverUrl(
   coverUrl: string | null | undefined,
   ctx: ListingCoverContext = {},

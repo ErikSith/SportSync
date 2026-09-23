@@ -5,6 +5,10 @@ import { classifyListingAudience } from '@/lib/events/audience';
 import { listingIsOutsideBratislava } from '@/lib/cities';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
+  classifyProgramSignals,
+  type ProgramBucket,
+} from '@/lib/programs/classify';
+import {
   GEMINI_SCRAPER_SOURCE,
   type ScrapedEvent,
   type ScraperUpsertStats,
@@ -141,6 +145,10 @@ export interface UpsertScrapedOptions {
   forceGroupClass?: boolean;
   /** True when scraped from kids_camps pages — mark listings for_kids. */
   forceForKids?: boolean;
+  /** Persist theme_config.programKind (camps / workshops / courses). */
+  forceProgramKind?: ProgramBucket | null;
+  /** venue_scrape_pages.kind — used when forceProgramKind is not set. */
+  scrapePageKind?: string | null;
   /** Canonical scrape page URL (preferred over Gemini's originalUrl for class detection). */
   scrapePageUrl?: string;
   /** Normalized titles that repeat on 2+ days in this scrape batch. */
@@ -167,8 +175,29 @@ function resolveWriteVenue(
   return { venueId, named };
 }
 
+function resolveProgramKind(
+  event: ScrapedEvent,
+  opts: UpsertScrapedOptions,
+): ProgramBucket | null {
+  return classifyProgramSignals({
+    title: event.title,
+    description: event.description,
+    sourceUrl: opts.scrapePageUrl ?? event.originalUrl,
+    ticketUrl: event.originalUrl,
+    isGroupClass: event.isGroupClass,
+    isCamp: event.isCamp,
+    isWorkshop: event.isWorkshop,
+    isCourse: event.isCourse,
+    scrapePageKind: opts.scrapePageKind,
+    themeProgramKind: opts.forceProgramKind,
+  });
+}
+
 function isGroupClassWrite(event: ScrapedEvent, opts: UpsertScrapedOptions): boolean {
-  if (looksLikeTournament(event)) return false;
+  if (resolveProgramKind(event, opts)) return false;
+  if (looksLikeTournament(event) && !event.isCamp && !event.isWorkshop && !event.isCourse) {
+    return false;
+  }
   if (opts.forceGroupClass) return true;
   if (event.isGroupClass) return true;
   if (opts.recurringTitles?.has(normalizeLessonTitle(event.title))) return true;
@@ -273,6 +302,7 @@ async function upsertEvent(
   const supabase = createAdminClient();
   const geminiUrl = canonicalizeSourceUrl(event.originalUrl);
   const asGroupClass = isGroupClassWrite(event, opts);
+  const programKind = resolveProgramKind(event, opts);
   const scheduleUrl =
     asGroupClass && opts.scrapePageUrl
       ? canonicalizeSourceUrl(opts.scrapePageUrl)
@@ -293,7 +323,10 @@ async function upsertEvent(
     asGroupClass,
     event.ageCategory,
   );
-  const themeConfig = buildThemeConfig(sportType, null);
+  const themeConfig = {
+    ...buildThemeConfig(sportType, null),
+    ...(programKind ? { programKind } : {}),
+  };
   const startsAtIso = startsAt.toISOString();
   // Persist end for timed windows and date-only multi-day festivals (5.–9. nov).
   let endAtIso: string | null = null;
@@ -624,7 +657,8 @@ export async function upsertScrapedEvents(
         );
         continue;
       }
-      const asTournament = looksLikeTournament(event);
+      const programKind = resolveProgramKind(event, writeOpts);
+      const asTournament = !programKind && looksLikeTournament(event);
       const result = asTournament
         ? await upsertTournament(event, writeOpts)
         : await upsertEvent(event, writeOpts);

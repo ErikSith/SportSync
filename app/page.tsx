@@ -5,18 +5,24 @@ import { createClient } from '@/lib/supabase/server';
 import {
   buildHomepageInspirationFromCards,
   getHomepageEventInspiration,
+  getVenuesForHomeFilter,
   homepageInspirationHasEvents,
   mapRawEventRowsToCards,
+  type HomeFilterVenue,
   type HomepageEventInspiration,
 } from '@/lib/data/homepage';
+import { getActivePromotedBanners } from '@/lib/data/promoted';
+import type { PromotedBannerItem } from '@/lib/data/promoted-types';
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
 import { t } from '@/lib/i18n/server';
 import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { TopAppBar } from '@/components/home/TopAppBar';
+import { CockpitHeader } from '@/components/home/CockpitHeader';
 import { QuickActions } from '@/components/home/QuickActions';
+import { FeaturedShowcaseCarousel } from '@/components/home/FeaturedShowcaseCarousel';
 import { EventsInspirationSection } from '@/components/home/EventsInspirationSection';
+import { CockpitDisclaimer } from '@/components/home/CockpitDisclaimer';
 import { LocationPrompt } from '@/components/home/LocationPrompt';
-import { LockViewport } from '@/components/home/LockViewport';
 import { HomeFeedFilterHydrator as PlayerFeedFilterHydrator } from '@/components/home/HomeFeedFilterButton';
 import { TrackPageView } from '@/components/telemetry/TrackPageView';
 import { parseHomeFeedFilters, activeHomeFeedFilterCount } from '@/lib/home-feed-filters';
@@ -46,7 +52,7 @@ function isNextNavigationError(error: unknown): boolean {
 
 function HomeFallback({ message }: { message?: string }) {
   return (
-    <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center space-y-4">
+    <main className="mx-auto max-w-lg space-y-4 px-container-margin-mobile pt-24 text-center">
       <h2 className="font-headline-md text-headline-md text-on-surface">SportSync</h2>
       <p className="font-body-md text-body-md text-tertiary-container">
         {message ?? t('home.loadError')}
@@ -70,7 +76,6 @@ async function queryAllActiveEvents(
   try {
     const supabase = await createClient();
 
-    // Prefer venue names; if the embed fails under RLS, retry bare select.
     let { data, error } = await supabase
       .from('events')
       .select('*, venues(name)')
@@ -90,7 +95,6 @@ async function queryAllActiveEvents(
         .limit(400));
     }
 
-    // Date floor emptied the feed — load all open/live regardless of starts_at.
     if (!error && (!data || data.length === 0)) {
       console.error('Homepage Supabase: 0 rows with date floor — retrying without starts_at filter');
       ({ data, error } = await supabase
@@ -143,23 +147,38 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const feedLat = profile.latitude ?? 48.1486;
   const feedLng = profile.longitude ?? 17.1077;
   const feedFilters = parseHomeFeedFilters(searchParams);
+
   let inspiration: HomepageEventInspiration | null = null;
+  let promoted: PromotedBannerItem[] = [];
+  let venues: HomeFilterVenue[] = [];
 
   try {
-    // 1) Try location-aware inspiration when GPS exists (no HTTP — data layer uses createClient).
-    if (hasGps) {
-      try {
-        inspiration = await getHomepageEventInspiration(profile, feedFilters);
-      } catch (locationError) {
-        console.error('Homepage location feed error:', locationError);
-        inspiration = null;
-      }
-    }
+    const [inspirationResult, promotedResult, filterVenues] = await Promise.all([
+      (async () => {
+        let next: HomepageEventInspiration | null = null;
+        if (hasGps) {
+          try {
+            next = await getHomepageEventInspiration(profile, feedFilters);
+          } catch (locationError) {
+            console.error('Homepage location feed error:', locationError);
+            next = null;
+          }
+        }
+        if (!homepageInspirationHasEvents(next)) {
+          next = await queryAllActiveEvents(feedLat, feedLng);
+        }
+        return next;
+      })(),
+      getActivePromotedBanners().catch((err) => {
+        console.error('Homepage promoted banners error:', err);
+        return [] as PromotedBannerItem[];
+      }),
+      getVenuesForHomeFilter(city).catch(() => [] as HomeFilterVenue[]),
+    ]);
 
-    // 2) No GPS, or 20km / city filter returned nothing → all active events via createClient().
-    if (!homepageInspirationHasEvents(inspiration)) {
-      inspiration = await queryAllActiveEvents(feedLat, feedLng);
-    }
+    inspiration = inspirationResult;
+    promoted = promotedResult;
+    venues = filterVenues;
   } catch (error) {
     console.error('Homepage data fetch error:', error);
     inspiration = await queryAllActiveEvents(feedLat, feedLng);
@@ -169,7 +188,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   return (
     <>
-      <LockViewport />
       <TrackPageView
         page="home"
         extra={{
@@ -180,57 +198,36 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           startingSoonCount: String(inspiration?.startingSoon.length ?? 0),
           lastSpotsCount: String(inspiration?.lastSpots.length ?? 0),
           feedFilters: String(activeHomeFeedFilterCount(feedFilters)),
+          promotedCount: String(promoted.length),
         }}
       />
       <Suspense fallback={null}>
         <PlayerFeedFilterHydrator />
       </Suspense>
-      <div className="ambient-glow-layer pointer-events-none fixed inset-0 z-0" aria-hidden>
-        <div className="ambient-glow bg-primary-container/10 w-[500px] h-[500px] top-0 left-[-200px]" />
-        <div className="ambient-glow bg-secondary-container/5 w-[600px] h-[600px] bottom-[20%] right-[-100px]" />
+
+      <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
+        <div className="absolute left-[-180px] top-0 h-[420px] w-[420px] rounded-full bg-[#FF5722]/[0.07] blur-3xl" />
+        <div className="absolute bottom-[15%] right-[-120px] h-[380px] w-[380px] rounded-full bg-[#FF5722]/[0.04] blur-3xl" />
       </div>
 
       <TopAppBar avatarUrl={profile.avatarUrl} name={displayName} />
 
-      <main className="h-dvh max-h-dvh overflow-hidden overscroll-none pt-24 px-container-margin-mobile md:px-container-margin-desktop max-w-7xl mx-auto space-y-8 md:space-y-section-gap relative z-10 w-full min-w-0 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]">
-        <section className="space-y-5 md:space-y-6">
-          <header className="space-y-2 border-b border-white/5 pb-4">
-            <div className="min-w-0 space-y-2">
-              <p className="font-label-caps text-label-caps text-tertiary uppercase tracking-widest">
-                {t('home.welcomeBack')}
-              </p>
-              <h2 className="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-on-surface break-words">
-                {displayName}
-              </h2>
-            </div>
-          </header>
+      <main className="relative z-10 mx-auto w-full min-w-0 max-w-7xl space-y-7 bg-[#121212] px-container-margin-mobile pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] pt-24 md:space-y-9 md:px-container-margin-desktop">
+        <CockpitHeader displayName={displayName} city={city} venues={venues} />
+
+        <FeaturedShowcaseCarousel items={promoted} />
+
+        <section className="space-y-3">
+          <h2 className="font-label-caps text-[10px] uppercase tracking-[0.16em] text-on-surface-variant">
+            {t('home.quickHub')}
+          </h2>
           <QuickActions />
-          <Link
-            href="/demo"
-            className="glass-panel rounded-xl p-3.5 sm:p-4 flex items-center justify-between gap-3 border border-secondary/20 hover:border-secondary/40 transition-colors group min-w-0"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="material-symbols-outlined text-secondary text-2xl shrink-0">preview</span>
-              <div className="min-w-0">
-                <p className="font-headline-md text-[16px] sm:text-[18px] text-on-surface truncate">
-                  {t('home.demoTitle')}
-                </p>
-                <p className="font-body-md text-xs sm:text-sm text-on-surface-variant line-clamp-2">
-                  {t('home.demoSub')}
-                </p>
-              </div>
-            </div>
-            <span className="material-symbols-outlined text-primary group-hover:translate-x-1 transition-transform shrink-0">arrow_forward</span>
-          </Link>
         </section>
 
-        {inspiration ? (
-          <EventsInspirationSection data={inspiration} />
-        ) : (
-          <LocationPrompt />
-        )}
-      </main>
+        {inspiration ? <EventsInspirationSection data={inspiration} /> : <LocationPrompt />}
 
+        <CockpitDisclaimer />
+      </main>
     </>
   );
 }

@@ -7,7 +7,6 @@ import { classifyListingAudience } from '@/lib/events/audience';
 import { boroughSlugForEvent, tagScrapedEventLocation } from '@/lib/scrape/tag-location';
 import { resolveVenueDistrictSlug } from '@/lib/scrape/bratislava-location';
 import {
-  DEFAULT_COVERS,
   VENUE_SEEDS,
   type NormalizedScrapedEvent,
 } from '@/lib/scrape/types';
@@ -81,7 +80,8 @@ async function coverForEvent(
       title: event.title,
     });
   } catch {
-    return DEFAULT_COVERS[event.sport] ?? DEFAULT_COVERS.OTHER ?? DEFAULT_COVERS.FITNESS!;
+    // No stock Unsplash / facility plates — keep cover null until rights clear.
+    return null;
   }
 }
 

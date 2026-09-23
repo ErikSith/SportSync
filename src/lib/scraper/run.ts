@@ -25,6 +25,7 @@ import {
   shouldForceForKidsFromScrapePage,
   shouldSkipEventExtractForKind,
 } from '@/lib/scrape/scrape-page-kind';
+import { programKindFromScrapePage } from '@/lib/programs/classify';
 import {
   recordUrlResult,
   shouldSkipUrl,
@@ -38,6 +39,8 @@ export interface VenueScrapeTarget {
   longitude?: number | null;
   forceGroupClass?: boolean;
   forceForKids?: boolean;
+  forceProgramKind?: import('@/lib/programs/classify').ProgramBucket | null;
+  scrapePageKind?: string | null;
   /** Per-URL CSS selector from venue_scrape_pages.content_selector. */
   contentSelector?: string | null;
   /** null = Gemini; 'reenio' = force Reenio adapter. */
@@ -155,6 +158,7 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
     forceForKids = false,
     bookingProvider?: string | null,
     bookingSubject?: string | null,
+    scrapePageKind?: string | null,
   ) => {
     const trimmed = url?.trim();
     if (!trimmed || !isHttpUrl(trimmed)) return;
@@ -165,6 +169,10 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
       }
       if (forceGroupClass) existing.forceGroupClass = true;
       if (forceForKids) existing.forceForKids = true;
+      if (scrapePageKind && !existing.scrapePageKind) {
+        existing.scrapePageKind = scrapePageKind;
+        existing.forceProgramKind = programKindFromScrapePage(scrapePageKind);
+      }
       if (bookingProvider && !existing.bookingProvider) {
         existing.bookingProvider = bookingProvider;
       }
@@ -186,6 +194,8 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
       longitude: venue?.longitude ?? null,
       forceGroupClass,
       forceForKids,
+      forceProgramKind: programKindFromScrapePage(scrapePageKind),
+      scrapePageKind: scrapePageKind ?? null,
       contentSelector: contentSelector?.trim() || null,
       bookingProvider: bookingProvider?.trim() || null,
       bookingSubject: bookingSubject?.trim() || null,
@@ -215,6 +225,7 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
       forceForKids,
       page.booking_provider,
       page.booking_subject,
+      kind,
     );
   }
 
@@ -340,6 +351,8 @@ export async function runGeminiScraper(
               longitude: target.longitude,
               forceGroupClass: target.forceGroupClass,
               forceForKids: target.forceForKids,
+              forceProgramKind: target.forceProgramKind,
+              scrapePageKind: target.scrapePageKind,
               scrapePageUrl: target.url,
             };
             const writeStats = target.venueId
