@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Calendar, MapPin } from 'lucide-react';
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
 import { getPromotedBannerPreviews } from '@/lib/data/promoted-previews';
 import { sportIcon } from '@/lib/utils/sport-icons';
@@ -12,8 +11,7 @@ import { ListingCover } from '@/components/shared/ListingCover';
 import { useT } from '@/components/i18n/LocaleProvider';
 
 const AUTOPLAY_MS = 4800;
-const GAP_PX = 14;
-/** Home / Apex coral — not per-sport rainbow. */
+const GAP_PX = 12;
 const CORAL = '#FF5722';
 
 function formatWhen(date: Date): string {
@@ -29,29 +27,27 @@ function formatWhen(date: Date): string {
   });
   if (isToday) return `Dnes · ${time}`;
   if (isTomorrow) return `Zajtra · ${time}`;
-  return `${date.toLocaleDateString('sk-SK', { day: 'numeric', month: 'short' })} · ${time}`;
+  return `${date.toLocaleDateString('sk-SK', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })}, ${time}`;
 }
 
-function countdownLabel(startsAt: Date): string | null {
-  const ms = startsAt.getTime() - Date.now();
-  if (ms <= 0) return null;
-  const hours = Math.floor(ms / 3_600_000);
-  if (hours < 48) {
-    const mins = Math.floor((ms % 3_600_000) / 60_000);
-    if (hours < 1) return `${mins} min`;
-    return `${hours}h ${mins}m`;
-  }
-  const days = Math.ceil(ms / 86_400_000);
-  return `${days} d`;
+function metaLine(item: PromotedBannerItem): string {
+  const when = formatWhen(item.startsAt);
+  const place = [item.venueName, item.city].filter(Boolean).join(', ');
+  return place ? `${when}, ${place}` : when;
 }
 
+/** Integer slots; mobile uses a peek gutter instead of a fraction. */
 function useVisibleCount(): number {
-  const [visible, setVisible] = useState(3);
+  const [visible, setVisible] = useState(1);
 
   useEffect(() => {
     const update = () => {
-      if (window.matchMedia('(min-width: 720px)').matches) setVisible(3);
-      else if (window.matchMedia('(min-width: 480px)').matches) setVisible(2);
+      if (window.matchMedia('(min-width: 900px)').matches) setVisible(3);
+      else if (window.matchMedia('(min-width: 640px)').matches) setVisible(2);
       else setVisible(1);
     };
     update();
@@ -62,111 +58,96 @@ function useVisibleCount(): number {
   return visible;
 }
 
+/**
+ * Poster-style premium card — full-bleed plane, soft badge, title + meta at bottom.
+ * Inspired by ticket / “odporúčania” hero cards.
+ */
 function ShowcaseCard({
   item,
   onOpen,
-  compact,
-  lead,
 }: {
   item: PromotedBannerItem;
   onOpen: () => void;
-  compact?: boolean;
-  lead?: boolean;
 }) {
   const t = useT();
-  const venue = item.venueName
-    ? item.city
-      ? `${item.venueName} · ${item.city}`
-      : item.venueName
-    : item.city || 'Venue TBA';
-  const cta =
-    item.kind === 'tournament' ? t('home.showcase.register') : t('home.showcase.detail');
   const badge =
     item.kind === 'tournament'
       ? t('home.showcase.premiumTournament')
       : t('home.showcase.featured');
-  const countdown = countdownLabel(item.startsAt);
+  const cta =
+    item.kind === 'tournament' ? t('home.showcase.register') : t('home.showcase.detail');
 
   return (
-    <article
-      className={`relative flex h-full w-full flex-col overflow-hidden rounded-[22px] ${
-        compact ? 'min-h-[280px] sm:min-h-[300px]' : 'min-h-[300px] sm:min-h-[328px]'
-      }`}
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group relative flex h-full min-h-[320px] w-full flex-col overflow-hidden rounded-[28px] text-left outline-none transition-[transform,box-shadow] active:scale-[0.985] sm:min-h-[340px] focus-visible:ring-2 focus-visible:ring-[#FF5722]/70"
       style={{
-        border: lead ? '1px solid rgba(255,87,34,0.55)' : '1px solid rgba(255,87,34,0.18)',
-        boxShadow: lead
-          ? '0 16px 40px rgba(0,0,0,0.45), 0 0 28px rgba(255,87,34,0.22)'
-          : '0 12px 28px rgba(0,0,0,0.35)',
+        boxShadow: '0 18px 42px rgba(0,0,0,0.45)',
       }}
     >
       <ListingCover
         src={item.coverUrl}
         alt=""
-        className="absolute inset-0 h-full w-full object-cover"
+        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e0e] via-[#121212]/88 to-[#121212]/35" />
+      {/* Atmosphere when no photo — soft coral wash on brand gradient */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse 80% 50% at 8% 0%, rgba(255,87,34,0.28), transparent 58%)',
+            'radial-gradient(ellipse 70% 55% at 70% 15%, rgba(255,87,34,0.35), transparent 55%), radial-gradient(ellipse 50% 40% at 10% 80%, rgba(255,87,34,0.12), transparent 50%)',
+        }}
+        aria-hidden
+      />
+      {/* Bottom-heavy read like ticket posters */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(to top, rgba(8,8,8,0.96) 0%, rgba(8,8,8,0.72) 28%, rgba(8,8,8,0.2) 58%, transparent 78%)',
         }}
         aria-hidden
       />
 
-      <div className="relative z-10 flex flex-1 flex-col p-3.5 sm:p-4">
-        <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center rounded-full bg-[#FF5722] px-2 py-0.5 font-label-caps text-[9px] uppercase tracking-[0.14em] text-white">
-            {badge}
-          </span>
-          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#FF5722]/25 bg-black/45 backdrop-blur-md">
+      <div className="relative z-10 flex flex-1 flex-col p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/55 bg-black/35 px-2.5 py-1 font-label-caps text-[10px] uppercase tracking-[0.12em] text-white backdrop-blur-md">
             <span
-              className="material-symbols-outlined text-[14px] leading-none text-[#FF5722]"
-              style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}
+              className="material-symbols-outlined text-[13px] leading-none text-[#FF5722]"
+              style={{ fontVariationSettings: "'FILL' 1" }}
               aria-hidden
             >
               {sportIcon(item.sport, item.title)}
             </span>
+            {badge}
           </span>
+          {item.isPreview ? (
+            <span className="rounded-full border border-white/25 bg-black/40 px-2 py-1 font-label-caps text-[8px] uppercase tracking-[0.14em] text-white/75 backdrop-blur-md">
+              {t('home.showcase.preview')}
+            </span>
+          ) : null}
         </div>
-        {item.isPreview ? (
-          <span className="mt-1.5 w-fit rounded-full border border-white/12 bg-black/40 px-1.5 py-0.5 font-label-caps text-[8px] uppercase tracking-[0.14em] text-white/70">
-            {t('home.showcase.preview')}
-          </span>
-        ) : null}
 
-        <div className="mt-auto space-y-3 pt-8">
-          <h3 className="line-clamp-2 font-headline-md text-[16px] leading-snug text-white sm:text-[18px]">
+        <div className="mt-auto space-y-3 pt-16">
+          <h3 className="line-clamp-2 font-headline-md text-[22px] leading-[1.15] tracking-tight text-white sm:text-[26px]">
             {item.title}
           </h3>
-
-          <div className="rounded-xl border border-white/[0.08] bg-black/30 px-2.5 py-2 font-body-md text-[11px] text-white/85 backdrop-blur-sm">
-            <span className="flex min-w-0 items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5 shrink-0 text-[#FF5722]" strokeWidth={2.25} />
-              <span className="truncate">{formatWhen(item.startsAt)}</span>
-              {countdown ? (
-                <span className="ml-auto shrink-0 rounded-md bg-[#FF5722]/20 px-1.5 py-0.5 font-label-caps text-[9px] uppercase tracking-wide text-[#FF5722]">
-                  {countdown}
-                </span>
-              ) : null}
-            </span>
-            <span className="mt-1 flex min-w-0 items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-[#FF5722]" strokeWidth={2.25} />
-              <span className="truncate">{venue}</span>
-            </span>
-          </div>
-
-          <motion.button
-            type="button"
-            onClick={onOpen}
-            className="flex w-full items-center justify-center rounded-xl bg-[#FF5722] px-4 py-2.5 font-label-caps text-[11px] uppercase tracking-[0.14em] text-white active:scale-[0.98]"
-            whileTap={{ scale: 0.98 }}
-          >
+          <p className="line-clamp-2 font-body-md text-[13px] leading-snug text-white/80 sm:text-[14px]">
+            {metaLine(item)}
+          </p>
+          <span className="inline-flex items-center gap-1.5 font-label-caps text-[11px] uppercase tracking-[0.16em] text-[#FF5722]">
             {cta}
-          </motion.button>
+            <span
+              className="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            >
+              arrow_forward
+            </span>
+          </span>
         </div>
       </div>
-    </article>
+    </button>
   );
 }
 
@@ -227,24 +208,21 @@ export function FeaturedShowcaseCarousel({ items }: { items: PromotedBannerItem[
 
   if (count === 0) return null;
 
-  const slideWidth = `calc((100% - ${(visible - 1) * GAP_PX}px) / ${visible})`;
-  const x = `calc(-${index} * (100% + ${GAP_PX}px) / ${visible})`;
+  const peek = visible === 1 && count > 1;
+  const peekGutter = 22;
+  const slideWidth = peek
+    ? `calc(100% - ${peekGutter}px)`
+    : `calc((100% - ${(visible - 1) * GAP_PX}px) / ${visible})`;
+  const x = peek
+    ? `calc(-${index} * (100% - ${peekGutter}px + ${GAP_PX}px))`
+    : `calc(-${index} * (100% + ${GAP_PX}px) / ${visible})`;
   const active = index % count;
 
   return (
-    <section
-      aria-label={t('home.showcase.title')}
-      className="overflow-hidden rounded-[28px] border border-white/[0.07] bg-surface-container-low"
-    >
-      <div className="flex items-end justify-between gap-3 px-4 pb-1 pt-4 sm:px-5">
+    <section aria-label={t('home.showcase.title')} className="space-y-3">
+      <div className="flex items-end justify-between gap-3 px-0.5">
         <div className="min-w-0">
-          <h3 className="flex items-center gap-2 font-headline-md text-[15px] text-on-surface md:text-[18px]">
-            <span
-              className="material-symbols-outlined text-[#FF5722]"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              workspace_premium
-            </span>
+          <h3 className="font-headline-md text-[18px] text-on-surface md:text-[22px]">
             {previewMode ? t('home.showcase.titlePreview') : t('home.showcase.title')}
           </h3>
           <p className="mt-0.5 font-body-md text-sm text-on-surface-variant">
@@ -253,7 +231,7 @@ export function FeaturedShowcaseCarousel({ items }: { items: PromotedBannerItem[
         </div>
         {count > 1 ? (
           <div
-            className="flex shrink-0 items-center gap-1.5"
+            className="flex shrink-0 items-center gap-1.5 pb-1"
             role="tablist"
             aria-label={t('home.showcase.tabs')}
           >
@@ -272,7 +250,7 @@ export function FeaturedShowcaseCarousel({ items }: { items: PromotedBannerItem[
                   }}
                   className="h-1.5 rounded-full transition-all"
                   style={{
-                    width: selected ? 22 : 8,
+                    width: selected ? 20 : 7,
                     backgroundColor: selected ? CORAL : 'rgba(255,255,255,0.22)',
                   }}
                 />
@@ -283,7 +261,7 @@ export function FeaturedShowcaseCarousel({ items }: { items: PromotedBannerItem[
       </div>
 
       <div
-        className="relative overflow-hidden touch-pan-y px-4 pb-4 pt-3 sm:px-5"
+        className="relative overflow-hidden touch-pan-y"
         onPointerEnter={() => setPaused(true)}
         onPointerLeave={() => setPaused(false)}
         onTouchStart={(e) => {
@@ -318,19 +296,13 @@ export function FeaturedShowcaseCarousel({ items }: { items: PromotedBannerItem[
           {loopSlides.map((item) => {
             const baseId = item.id.replace(/::loop$/, '');
             const source = slides.find((s) => s.id === baseId) ?? item;
-            const lead = source.id === slides[active]?.id;
             return (
               <div
                 key={item.id}
                 className="shrink-0"
                 style={{ width: slideWidth, minWidth: slideWidth }}
               >
-                <ShowcaseCard
-                  item={source}
-                  compact={visible > 1}
-                  lead={lead}
-                  onOpen={() => setPreview(source)}
-                />
+                <ShowcaseCard item={source} onOpen={() => setPreview(source)} />
               </div>
             );
           })}
