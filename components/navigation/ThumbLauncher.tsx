@@ -79,7 +79,7 @@ export function ThumbLauncher() {
   const pathname = usePathname();
   const t = useT();
   const menuId = useId();
-  const rollupRef = useRef<HTMLNavElement>(null);
+  const rollupRef = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const hidden =
