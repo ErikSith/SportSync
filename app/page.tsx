@@ -280,7 +280,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
       <TopAppBar avatarUrl={profile.avatarUrl} name={displayName} />
 
-      <main className="relative z-10 mx-auto w-full min-w-0 max-w-7xl space-y-7 bg-[#121212] px-container-margin-mobile pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] pt-24 md:space-y-9 md:px-container-margin-desktop">
+      <main className="relative z-10 mx-auto w-full min-w-0 max-w-7xl space-y-5 bg-[#121212] px-container-margin-mobile pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] pt-20 md:space-y-7 md:px-container-margin-desktop">
         <CockpitHeader displayName={displayName} city={city} venues={venues} />
 
         <FeaturedShowcaseCarousel items={promoted} />

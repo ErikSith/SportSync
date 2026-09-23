@@ -19,18 +19,18 @@ export function CockpitHeader({ displayName, city, venues = [] }: CockpitHeaderP
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: 'easeOut' }}
-      className="flex items-start justify-between gap-3 border-b border-white/[0.06] pb-4"
+      className="flex items-center justify-between gap-3 border-b border-white/[0.06] pb-2.5"
     >
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <p className="font-label-caps text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <p className="font-label-caps text-[9px] uppercase tracking-[0.16em] text-on-surface-variant">
           {t('home.welcomeBack')}
         </p>
-        <h1 className="truncate font-display-lg-mobile text-display-lg-mobile text-on-surface md:font-display-lg md:text-[40px] md:leading-tight">
+        <h1 className="truncate font-headline-md text-[22px] leading-tight tracking-wide text-on-surface md:text-[26px]">
           {displayName}
         </h1>
       </div>
 
-      <div className="pt-1">
+      <div className="shrink-0">
         <HomeFeedPreferencesAside venues={venues} city={city} />
       </div>
     </motion.header>
