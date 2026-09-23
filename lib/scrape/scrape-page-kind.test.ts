@@ -86,6 +86,12 @@ describe('scrape-page-kind', () => {
     assert.deepEqual(parseScrapePageKinds('workshopy'), ['workshops']);
   });
 
+  it('drops redundant other when a real kind is present', () => {
+    assert.deepEqual(parseScrapePageKinds('workshops,other'), ['workshops']);
+    assert.deepEqual(parseScrapePageKinds('other'), ['other']);
+    assert.equal(serializeScrapePageKinds(['workshops', 'other']), 'workshops');
+  });
+
   it('scrapePageHasKind matches members of multi-kind', () => {
     assert.equal(scrapePageHasKind('schedule,events', 'schedule'), true);
     assert.equal(scrapePageHasKind('schedule,events', 'events'), true);

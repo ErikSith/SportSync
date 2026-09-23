@@ -3,6 +3,9 @@
  * Values match `events.sport` / `tournaments.sport` strings in the DB (and scrapers).
  *
  * Yoga classes store YOGA (not FITNESS). Pilates stores PILATES. Martial arts store COMBAT.
+ * Jumping (mini-trampoline) stores JUMPING (not FITNESS).
+ * CrossFit stores CROSSFIT (not FITNESS).
+ * Curling stores CURLING.
  */
 export const EVENT_SPORTS = [
   'TENNIS',
@@ -17,6 +20,9 @@ export const EVENT_SPORTS = [
   'CYCLING',
   'GOLF',
   'FITNESS',
+  'JUMPING',
+  'CROSSFIT',
+  'CURLING',
   'YOGA',
   'PILATES',
   'COMBAT',
@@ -46,6 +52,9 @@ export const LOBBY_SPORTS = [
   'CYCLING',
   'GOLF',
   'FITNESS',
+  'JUMPING',
+  'CROSSFIT',
+  'CURLING',
   'YOGA',
   'PILATES',
   'COMBAT',
@@ -79,6 +88,9 @@ export const EVENT_SPORT_LABELS: Record<EventSport, string> = {
   CYCLING: 'Cyklistika',
   GOLF: 'Golf',
   FITNESS: 'Fitness',
+  JUMPING: 'Jumping',
+  CROSSFIT: 'CrossFit',
+  CURLING: 'Curling',
   YOGA: 'Joga',
   PILATES: 'Pilates',
   COMBAT: 'Bojové umenia',
@@ -131,7 +143,6 @@ export const EVENT_SPORT_KEYWORDS: Record<EventSport, string[]> = {
     'open air',
     'piatkovica',
     'hiit',
-    'jumping',
     'tabata',
     'deepwork',
     'bungee',
@@ -150,6 +161,16 @@ export const EVENT_SPORT_KEYWORDS: Record<EventSport, string[]> = {
     'silovy',
     'kb5',
   ],
+  JUMPING: [
+    'jumping',
+    'jumpin',
+    'mini trampolín',
+    'mini trampolin',
+    'minitrampolín',
+    'minitrampolin',
+  ],
+  CROSSFIT: ['crossfit', 'cross fit', 'cross-fit'],
+  CURLING: ['curling', 'curlingu', 'curler'],
   YOGA: ['yoga', 'joga'],
   PILATES: ['pilates'],
   COMBAT: [
@@ -296,15 +317,17 @@ export const SPORT_PLAY_GROUPS: readonly SportPlayGroup[] = [
   {
     id: 'sticks',
     label: 'Hokejkami',
-    hint: 'Hokej, golf…',
-    sports: ['HOCKEY', 'FLOORBALL', 'GOLF'],
+    hint: 'Hokej, curling, golf…',
+    sports: ['HOCKEY', 'FLOORBALL', 'GOLF', 'CURLING'],
   },
   {
     id: 'body',
     label: 'Telom',
-    hint: 'Fitness, joga, pilates…',
+    hint: 'Fitness, crossfit, jumping…',
     sports: [
       'FITNESS',
+      'JUMPING',
+      'CROSSFIT',
       'YOGA',
       'PILATES',
       'COMBAT',
@@ -337,6 +360,9 @@ export function detectEventSport(
     'BADMINTON',
     'SURFING',
     'TABLE_TENNIS',
+    'JUMPING',
+    'CROSSFIT',
+    'CURLING',
     'PILATES',
     'YOGA',
     'CLIMBING',

@@ -114,7 +114,6 @@ const PAGE_KINDS = [
   'kids_clubs',
   'kids_camps',
   'workshops',
-  'other',
 ] as const satisfies readonly ScrapePageKind[];
 
 /** Roles you typically combine on one mixed content page. */
@@ -136,7 +135,6 @@ const KIND_LABELS: Record<string, string> = {
   kids_clubs: 'kids_clubs — detské krúžky',
   kids_camps: 'kids_camps — detské tábory (viacdňové)',
   workshops: 'workshops — jednorazové workshopy / masterclass',
-  other: 'other',
 };
 
 function toggleKindInDraft(draft: string, kind: string, on: boolean): string {
@@ -155,12 +153,12 @@ function KindMultiSelect({
   value: string;
   onChange: (next: string) => void;
   options?: readonly ScrapePageKind[];
-  /** Offer website / availability / other as single-purpose extras. */
+  /** Offer website / availability as single-purpose extras. */
   alsoSolo?: boolean;
 }) {
   const selected = new Set(parseScrapePageKinds(value));
   const soloExtras = alsoSolo
-    ? (['availability', 'website', 'other'] as const)
+    ? (['availability', 'website'] as const)
     : [];
 
   return (

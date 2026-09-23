@@ -17,6 +17,12 @@ const FACILITY_BY_SPORT: Record<string, string> = {
     'https://images.unsplash.com/photo-1515704075292-ae9452303047?w=900&q=80', // ice rink empty
   FITNESS:
     'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=900&q=80', // empty gym floor
+  JUMPING:
+    'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=900&q=80',
+  CROSSFIT:
+    'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=900&q=80',
+  CURLING:
+    'https://images.unsplash.com/photo-1515704075292-ae9452303047?w=900&q=80',
   YOGA:
     'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=900&q=80',
   PILATES:

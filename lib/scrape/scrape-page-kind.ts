@@ -75,6 +75,10 @@ export function parseScrapePageKinds(kind: string | null | undefined): ScrapePag
   }
 
   out.sort((a, b) => KIND_ORDER.indexOf(a) - KIND_ORDER.indexOf(b));
+  // `other` is only a fallback when no real role is set — drop it as redundant.
+  if (out.length > 1 && out.includes('other')) {
+    return out.filter((k) => k !== 'other');
+  }
   return out;
 }
 

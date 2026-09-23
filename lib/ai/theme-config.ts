@@ -101,7 +101,7 @@ export function resolveSportType(sport: string): SportTypeKey {
     s === 'CLIMBING'
   )
     return 'ATLETIKA';
-  // FITNESS, YOGA, PILATES, HOCKEY, HANDBALL, COMBAT, VOLLEYBALL, BOWLING, DARTS, OTHER → brand coral
+  // FITNESS, JUMPING, CROSSFIT, YOGA, PILATES, HOCKEY, HANDBALL, COMBAT, VOLLEYBALL, BOWLING, DARTS, OTHER → brand coral
   return 'OTHER';
 }
 

@@ -127,9 +127,19 @@ async function main() {
       );
 
       for (const e of scraped.events.slice(0, 12)) {
+        const tags: string[] = [];
+        if (e.isTournament) tags.push('turnaj');
+        else if (e.isCamp) tags.push('kemp');
+        else if (e.isWorkshop) tags.push('workshop');
+        else if (e.isCourse) tags.push('kurz');
+        else if (e.isGroupClass || shouldForceGroupClassFromScrapePage(kind, url))
+          tags.push('lekcia');
+        else tags.push('event');
+        if (e.isForKids || shouldForceForKidsFromScrapePage(kind)) tags.push('deti');
+        if (e.isForWomenOnly) tags.push('zeny');
         console.log(
           `    • ${e.startTime} | ${e.sportType ?? '?'} | ${e.title}` +
-            (e.isTournament ? ' [T]' : e.isGroupClass ? ' [lesson]' : ''),
+            (tags.length ? ` [${tags.join(',')}]` : ''),
         );
       }
       if (scraped.events.length > 12) {
