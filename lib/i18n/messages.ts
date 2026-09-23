@@ -13,6 +13,8 @@ export const sk = {
   'nav.notifications': 'Notifikácie',
   'nav.openProfile': 'Otvoriť profil',
   'nav.backHome': 'Späť domov',
+  'nav.programs': 'Tábory',
+  'nav.menuTitle': 'Menu',
 
   // Common
   'common.free': 'Zadarmo',
@@ -315,6 +317,8 @@ export const en: Record<MessageKey, string> = {
   'nav.notifications': 'Notifications',
   'nav.openProfile': 'Open profile',
   'nav.backHome': 'Back home',
+  'nav.programs': 'Camps',
+  'nav.menuTitle': 'Menu',
 
   'common.free': 'Free',
   'common.open': 'Open',

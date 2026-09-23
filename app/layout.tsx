@@ -5,7 +5,7 @@ import {
   parseLocale,
 } from '@/lib/i18n/config';
 import { LocaleProvider } from '@/components/i18n/LocaleProvider';
-import { ThumbButton } from '@/components/navigation/ThumbButton';
+import { ThumbLauncher } from '@/components/navigation/ThumbLauncher';
 import { THUMB_BUTTON_ENABLED } from '@/components/navigation/thumb-button-flags';
 import { ServiceWorkerRegister } from '@/components/pwa/ServiceWorkerRegister';
 import type { Metadata, Viewport } from 'next';
@@ -71,7 +71,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       >
         <LocaleProvider initialLocale={locale}>
           {children}
-          <ThumbButton />
+          <ThumbLauncher />
           <ServiceWorkerRegister />
         </LocaleProvider>
       </body>
