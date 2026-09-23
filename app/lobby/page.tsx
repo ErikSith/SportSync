@@ -2,10 +2,8 @@ import { Suspense } from 'react';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { getVenuesForLobbyPicker } from '@/lib/data/homepage';
 import {
-  getCityLobbyFeed,
+  getLobbyPageFeed,
   getMyLobbyCards,
-  getNearbyLobbyFeed,
-  mergeLobbyFeeds,
   type LobbyCardData,
 } from '@/lib/data/lobbies';
 import { getMyGroups } from '@/lib/data/sport-groups';
@@ -111,15 +109,13 @@ export default async function LobbyPage() {
   let dbLobbies: LobbyCardData[] = [];
   let myLobbyRows: LobbyCardData[] = [];
   try {
-    const nearbyOrCity = hasGps && origin
-      ? (await getNearbyLobbyFeed({
-          lat: origin.lat,
-          lng: origin.lng,
-          profileId: profile.id,
-        })).lobbies
-      : await getCityLobbyFeed(city, profile.id);
+    dbLobbies = await getLobbyPageFeed({
+      profileId: profile.id,
+      city,
+      lat: profile.latitude,
+      lng: profile.longitude,
+    });
     myLobbyRows = await getMyLobbyCards(profile.id, origin);
-    dbLobbies = mergeLobbyFeeds(myLobbyRows, nearbyOrCity);
   } catch (err) {
     if (process.env.NODE_ENV !== 'production') {
       console.error('[lobby.page] feed failed', err);

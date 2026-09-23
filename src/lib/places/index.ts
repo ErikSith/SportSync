@@ -11,7 +11,9 @@ export {
   BOROUGH_SEARCH_CIRCLES,
   queriesForBorough,
 } from './types';
-export { searchPlacesText } from './client';
+export { searchPlacesText, getGoogleMapsApiKey } from './client';
+export { searchMeetingPoints, fetchMeetingPointStaticMap, reverseGeocodeMeetingPoint } from './meeting-point';
+export type { MeetingPointPlace, ReverseGeocodeResult } from './meeting-point';
 export { discoverBratislavaVenues } from './discover';
 export {
   upsertDiscoveredVenues,

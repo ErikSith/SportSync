@@ -18,6 +18,8 @@ const createLobbySchema = z.object({
   spotsTotal: z.number().int().min(2).max(10),
   mercenaryMode: z.boolean().default(false),
   venueId: z.string().uuid().optional(),
+  latitude: z.number().finite().optional(),
+  longitude: z.number().finite().optional(),
   skillLevel: z.number().int().min(0).max(3000).optional(),
   lobbyType: z.enum(['NEED_PLAYER', 'TEAM_CHALLENGE', 'RECURRING']).optional(),
   title: z.string().trim().min(1).max(120).optional(),
@@ -70,6 +72,14 @@ export async function POST(request: Request) {
       latitude = venue.latitude;
       longitude = venue.longitude;
     }
+  } else if (
+    typeof input.latitude === 'number' &&
+    typeof input.longitude === 'number' &&
+    Number.isFinite(input.latitude) &&
+    Number.isFinite(input.longitude)
+  ) {
+    latitude = input.latitude;
+    longitude = input.longitude;
   }
 
   const title = input.title?.trim() || null;
@@ -140,8 +150,8 @@ export async function POST(request: Request) {
       sport: input.sport,
       title: input.title ?? `${input.format} in ${city.name}`,
       city: city.name,
-      latitude: city.latitude,
-      longitude: city.longitude,
+      latitude,
+      longitude,
       excludeIds: [user.id],
       prioritizeMercenaries: input.mercenaryMode,
     });

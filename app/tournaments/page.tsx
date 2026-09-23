@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { t } from '@/lib/i18n/server';
 import { SetupNotice } from '@/components/i18n/SetupNotice';
-import Link from 'next/link';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { type TournamentCardData } from '@/lib/data/tournaments';
 import {
@@ -10,7 +9,6 @@ import {
 } from '@/lib/tournament-participation';
 import type { ParticipationMode } from '@/lib/data/events';
 import { getEventsForArea, getTournamentsForArea } from '@/lib/data/area-feed';
-import { canCreateTournament } from '@/lib/auth/tournament-access';
 import type { TournamentStatusFilter } from '@/components/tournaments/TournamentFilterChips';
 import { TournamentsFeed } from '@/components/tournaments/TournamentsFeed';
 import { PageTitleRow } from '@/components/shared/PageTitleRow';
@@ -113,7 +111,6 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
   const dayKeys = [...eventDayKeys(rawTournaments.map((t) => t.startsAt))];
   const dateFilterActive = Boolean(dateRange.from);
   const audienceFilterActive = audience !== 'all';
-  const canCreate = canCreateTournament(profile.role);
 
   const emptyTitle = dateFilterActive
     ? 'V tieto dni žiadne cups.'
@@ -159,22 +156,6 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
             <p className="mt-1 max-w-md font-body-md text-sm text-on-surface-variant md:text-body-md">
               {t('tournaments.subtitle')}
             </p>
-          }
-          actions={
-            canCreate ? (
-              <Link
-                href="/tournaments/create"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-secondary/40 bg-secondary/15 px-3 py-2 font-label-caps text-[10px] uppercase tracking-[0.12em] text-secondary transition-colors hover:bg-secondary/25 active:scale-[0.98]"
-              >
-                <span
-                  className="material-symbols-outlined text-[16px]"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  emoji_events
-                </span>
-                {t('tournaments.create')}
-              </Link>
-            ) : undefined
           }
         />
 

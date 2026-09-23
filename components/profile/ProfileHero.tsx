@@ -5,6 +5,7 @@ import type { Profile, ProfileHeroStats } from '@/lib/data/profile-shared';
 import { profileIsVerified } from '@/lib/utils/profile-tier';
 import { initialsFromName } from '@/lib/utils/initials';
 import { ProfileEditSheet } from '@/components/profile/ProfileEditSheet';
+import { ProfileHeroVenueSwitch } from '@/components/profile/ProfileHeroVenueSwitch';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { useT } from '@/components/i18n/LocaleProvider';
 
@@ -176,6 +177,7 @@ export function ProfileHero({
               {t('profile.addBio')}
             </button>
           ) : null}
+          {editable ? <ProfileHeroVenueSwitch role={profile.role} /> : null}
           {shareHint ? (
             <p className="pt-1 font-label-caps text-[10px] uppercase tracking-widest text-secondary">
               {shareHint}

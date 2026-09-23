@@ -1,7 +1,6 @@
 /**
- * Demo accounts available for one-tap switching on /profile.
- * Only accounts with `password` can be signed into directly;
- * others are restored via a saved session snapshot.
+ * Demo accounts available for one-tap switching on /profile + /manage.
+ * Accounts with `password` sign in directly; others restore a saved session.
  */
 export interface SwitchableAccount {
   id: string;
@@ -28,4 +27,8 @@ export const SWITCHABLE_ACCOUNTS: SwitchableAccount[] = [
   },
 ];
 
-export const SAVED_SESSION_KEY = 'sportsync_saved_auth_session';
+/** localStorage map of email → { access_token, refresh_token }. */
+export const SAVED_SESSIONS_KEY = 'sportsync_saved_auth_sessions';
+
+/** While testing: never show a password form — restore session or fail quietly. */
+export const DEMO_SWITCH_SKIP_PASSWORD_PROMPT = true;

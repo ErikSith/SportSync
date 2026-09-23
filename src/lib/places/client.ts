@@ -109,6 +109,11 @@ function getPlacesApiKey(): string {
   return key;
 }
 
+/** Shared by Places Text Search and Static Maps proxy. */
+export function getGoogleMapsApiKey(): string {
+  return getPlacesApiKey();
+}
+
 function padTime(hour: number, minute: number): string {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }

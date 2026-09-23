@@ -1,29 +1,36 @@
 'use client';
 
 import type { HomepageEventInspiration } from '@/lib/data/homepage';
+import type { LobbyCardData } from '@/lib/data/lobbies';
 import { isProgramEvent } from '@/lib/programs/classify';
 import { StartingSoonSection } from '@/components/home/StartingSoonSection';
-import { NearYouList } from '@/components/home/NearYouList';
+import { OpenLobbiesList } from '@/components/home/OpenLobbiesList';
 import { GroupedProgramsSection } from '@/components/home/GroupedProgramsSection';
 import { EventInspirationRow } from '@/components/home/EventInspirationRow';
 import { useT } from '@/components/i18n/LocaleProvider';
 
 interface EventsInspirationSectionProps {
   data: HomepageEventInspiration;
+  openLobbies?: LobbyCardData[];
 }
 
-export function EventsInspirationSection({ data }: EventsInspirationSectionProps) {
+export function EventsInspirationSection({
+  data,
+  openLobbies = [],
+}: EventsInspirationSectionProps) {
   const t = useT();
-  const { startingSoon, nearby, lastSpots, usedAllEventsFallback } = data;
+  const { startingSoon, nearby, lastSpots, usedAllEventsFallback, showFavoritesCta, favoritesCtaNeedsLogin } =
+    data;
 
   const programPool = [...startingSoon, ...nearby, ...lastSpots];
   const startingSoonEvents = startingSoon.filter((event) => !isProgramEvent(event));
-  const nearbyEvents = nearby.filter((event) => !isProgramEvent(event));
   const lastSpotsEvents = lastSpots.filter((event) => !isProgramEvent(event));
   const hasAny =
+    showFavoritesCta ||
+    data.followedVenueCount > 0 ||
     startingSoonEvents.length > 0 ||
-    nearbyEvents.length > 0 ||
     lastSpotsEvents.length > 0 ||
+    openLobbies.length > 0 ||
     programPool.some((event) => isProgramEvent(event));
 
   if (!hasAny) return null;
@@ -44,9 +51,15 @@ export function EventsInspirationSection({ data }: EventsInspirationSectionProps
         events={startingSoonEvents}
         title={t('home.nextForYou')}
         subtitle={t('home.nextForYouSub')}
+        showFollowCta={showFavoritesCta}
+        ctaNeedsLogin={favoritesCtaNeedsLogin}
+        followedButEmpty={
+          !showFavoritesCta && startingSoonEvents.length === 0 && data.followedVenueCount > 0
+        }
       />
 
-      <NearYouList events={nearbyEvents} />
+      {/* NearYou slot → active lobbies from /lobby feed */}
+      <OpenLobbiesList lobbies={openLobbies} />
 
       <GroupedProgramsSection events={programPool} />
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Home,
+  MapPin,
   Search,
   Swords,
   UserRound,
@@ -30,6 +31,7 @@ import {
 import { isVenueUuid, mapSportLabelToLobbySport } from '@/lib/lobby-create';
 import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { MeetingPointMapClient } from '@/components/lobby/MeetingPointMapClient';
 import {
   EVENT_SPORT_KEYWORDS,
   LOBBY_SPORTS,
@@ -38,6 +40,12 @@ import {
 import { foldDiacritics } from '@/lib/text/fold-diacritics';
 
 const SPORTS = LOBBY_SPORTS.map((sport) => sportDisplayLabel(sport));
+const BRATISLAVA_MAP_BOUNDS = {
+  minLat: 47.9,
+  maxLat: 48.4,
+  minLng: 16.8,
+  maxLng: 17.4,
+} as const;
 const FALLBACK_VENUES: HomeFilterVenue[] = [
   { id: 'fallback-park-21', name: 'Park 21', city: 'Bratislava', sports: [] },
   { id: 'fallback-aurial', name: 'Aurial Padel Bratislava', city: 'Bratislava', sports: ['PADEL'] },
@@ -155,6 +163,15 @@ function venuePresetPriority(venue: HomeFilterVenue, selectedSport: string): num
 }
 
 type DetailPhase = 'sport' | 'schedule' | 'venue' | 'players';
+type VenuePickerTab = 'venues' | 'map';
+
+interface MeetingPointTip {
+  id: string;
+  name: string;
+  address: string | null;
+  lat: number;
+  lng: number;
+}
 
 interface CreateLobbyModalProps {
   open: boolean;
@@ -267,6 +284,15 @@ export function CreateLobbyModal({
   const [draft, setDraft] = useState<CreateLobbyDraft>(EMPTY_CREATE_DRAFT);
   const [venueQuery, setVenueQuery] = useState('');
   const [venueHighlight, setVenueHighlight] = useState(0);
+  const [venuePickerTab, setVenuePickerTab] = useState<VenuePickerTab>('venues');
+  const [mapTips, setMapTips] = useState<MeetingPointTip[]>([]);
+  const [mapTipsLoading, setMapTipsLoading] = useState(false);
+  const [mapTipsError, setMapTipsError] = useState<string | null>(null);
+  const [mapHighlight, setMapHighlight] = useState(0);
+  const [mapFlyNonce, setMapFlyNonce] = useState(0);
+  const [mapResolving, setMapResolving] = useState(false);
+  const [mapAddress, setMapAddress] = useState<string | null>(null);
+  const mapReverseSeq = useRef(0);
   const [fetchedVenues, setFetchedVenues] = useState<HomeFilterVenue[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -281,6 +307,14 @@ export function CreateLobbyModal({
     setDetailPhase(null);
     setVenueQuery('');
     setVenueHighlight(0);
+    setVenuePickerTab('venues');
+    setMapTips([]);
+    setMapTipsLoading(false);
+    setMapTipsError(null);
+    setMapHighlight(0);
+    setMapFlyNonce(0);
+    setMapResolving(false);
+    setMapAddress(null);
     setSubmitting(false);
     setSubmitError(null);
     setDraft({
@@ -290,6 +324,8 @@ export function CreateLobbyModal({
       venue: '',
       venueId: null,
       websiteUrl: null,
+      latitude: null,
+      longitude: null,
     });
   }, [open, initialSport]);
 
@@ -362,6 +398,56 @@ export function CreateLobbyModal({
     setVenueHighlight(0);
   }, [venueQueryLower, detailPhase]);
 
+  useEffect(() => {
+    setMapHighlight(0);
+  }, [venueQueryLower, venuePickerTab]);
+
+  useEffect(() => {
+    if (!open || detailPhase !== 'venue' || venuePickerTab !== 'map') {
+      return;
+    }
+    const q = venueQuery.trim();
+    if (q.length < 2) {
+      setMapTips([]);
+      setMapTipsLoading(false);
+      setMapTipsError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setMapTipsLoading(true);
+    setMapTipsError(null);
+    const timer = window.setTimeout(() => {
+      void fetch(`/api/places/meeting-point?q=${encodeURIComponent(q)}`)
+        .then(async (res) => {
+          const payload = (await res.json().catch(() => null)) as {
+            places?: MeetingPointTip[];
+            error?: string;
+          } | null;
+          if (cancelled) return;
+          if (!res.ok) {
+            setMapTips([]);
+            setMapTipsError(payload?.error || 'Vyhľadávanie miesta zlyhalo.');
+            return;
+          }
+          setMapTips(Array.isArray(payload?.places) ? payload.places : []);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setMapTips([]);
+          setMapTipsError('Vyhľadávanie miesta zlyhalo.');
+        })
+        .finally(() => {
+          if (!cancelled) setMapTipsLoading(false);
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, detailPhase, venuePickerTab, venueQuery]);
+
   function selectVenue(name: string, venueId: string | null = null) {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -382,11 +468,121 @@ export function CreateLobbyModal({
       }
     }
 
-    patch({ venue: trimmed, venueId: resolvedId, websiteUrl });
+    patch({
+      venue: trimmed,
+      venueId: resolvedId,
+      websiteUrl,
+      latitude: null,
+      longitude: null,
+    });
     setVenueQuery('');
     setVenueHighlight(0);
     setDetailPhase('players');
   }
+
+  function selectMapPlace(place: {
+    name: string;
+    lat: number;
+    lng: number;
+    address?: string | null;
+  }) {
+    const trimmed = place.name.trim();
+    if (!trimmed) return;
+    if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) return;
+
+    const clamped = clampBratislava(place.lat, place.lng);
+    if (!clamped) {
+      setMapTipsError('Pin musí byť v oblasti Bratislavy.');
+      return;
+    }
+
+    setMapTipsError(null);
+    mapReverseSeq.current += 1;
+    setMapResolving(false);
+    patch({
+      venue: trimmed,
+      venueId: null,
+      websiteUrl: null,
+      latitude: clamped.lat,
+      longitude: clamped.lng,
+    });
+    setMapAddress(place.address?.trim() || null);
+    setVenueQuery(trimmed);
+    setMapFlyNonce((n) => n + 1);
+  }
+
+  function clampBratislava(lat: number, lng: number): { lat: number; lng: number } | null {
+    if (
+      lat < BRATISLAVA_MAP_BOUNDS.minLat ||
+      lat > BRATISLAVA_MAP_BOUNDS.maxLat ||
+      lng < BRATISLAVA_MAP_BOUNDS.minLng ||
+      lng > BRATISLAVA_MAP_BOUNDS.maxLng
+    ) {
+      return null;
+    }
+    return { lat, lng };
+  }
+
+  async function placeMapPin(lat: number, lng: number) {
+    const clamped = clampBratislava(lat, lng);
+    if (!clamped) {
+      setMapTipsError('Pin musí byť v oblasti Bratislavy.');
+      return;
+    }
+
+    const seq = ++mapReverseSeq.current;
+    setMapTipsError(null);
+    patch({
+      venue: 'Miesto na mape',
+      venueId: null,
+      websiteUrl: null,
+      latitude: clamped.lat,
+      longitude: clamped.lng,
+    });
+
+    setMapResolving(true);
+    try {
+      const res = await fetch(
+        `/api/places/meeting-point/reverse?lat=${encodeURIComponent(String(clamped.lat))}&lng=${encodeURIComponent(String(clamped.lng))}`,
+      );
+      if (seq !== mapReverseSeq.current) return;
+      const payload = (await res.json().catch(() => null)) as {
+        name?: string;
+        address?: string | null;
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        setMapTipsError(payload?.error || 'Nepodarilo sa načítať adresu pinu.');
+        return;
+      }
+      const name = payload?.name?.trim() || 'Miesto na mape';
+      patch({
+        venue: name,
+        venueId: null,
+        websiteUrl: null,
+        latitude: clamped.lat,
+        longitude: clamped.lng,
+      });
+      setMapAddress(payload?.address?.trim() || null);
+      setVenueQuery(name);
+    } catch {
+      if (seq !== mapReverseSeq.current) return;
+      setMapTipsError('Nepodarilo sa načítať adresu pinu.');
+    } finally {
+      if (seq === mapReverseSeq.current) setMapResolving(false);
+    }
+  }
+
+  const mapPreviewLat = draft.latitude;
+  const mapPreviewLng = draft.longitude;
+  const showMapConfirm =
+    venuePickerTab === 'map' &&
+    detailPhase === 'venue' &&
+    typeof mapPreviewLat === 'number' &&
+    typeof mapPreviewLng === 'number' &&
+    Number.isFinite(mapPreviewLat) &&
+    Number.isFinite(mapPreviewLng) &&
+    Boolean(draft.venue.trim());
 
   useEffect(() => {
     if (step !== 1) return;
@@ -607,6 +803,53 @@ export function CreateLobbyModal({
                     {detailPhase === 'venue' ? (
                       <motion.div key="venue" className="space-y-3" {...panelMotion}>
                         <p className={sectionLabel}>Kde sa stretnete?</p>
+                        <div
+                          className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/[0.02] p-1"
+                          role="tablist"
+                          aria-label="Typ miesta stretnutia"
+                        >
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={venuePickerTab === 'venues'}
+                            onClick={() => {
+                              setVenuePickerTab('venues');
+                              setVenueQuery('');
+                              setMapTips([]);
+                              setMapTipsError(null);
+                            }}
+                            className={[
+                              'rounded-lg px-2 py-2 font-label-caps text-[9px] uppercase tracking-[0.1em] transition-colors',
+                              venuePickerTab === 'venues'
+                                ? 'bg-white/[0.07] text-white'
+                                : 'text-zinc-500 hover:text-zinc-300',
+                            ].join(' ')}
+                          >
+                            Športoviská
+                          </button>
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={venuePickerTab === 'map'}
+                            onClick={() => {
+                              setVenuePickerTab('map');
+                              setVenueQuery('');
+                              setVenueHighlight(0);
+                              setMapFlyNonce((n) => n + 1);
+                            }}
+                            className={[
+                              'inline-flex items-center justify-center gap-1 rounded-lg px-2 py-2 font-label-caps text-[9px] uppercase tracking-[0.1em] transition-colors',
+                              venuePickerTab === 'map'
+                                ? 'bg-white/[0.07] text-white'
+                                : 'text-zinc-500 hover:text-zinc-300',
+                            ].join(' ')}
+                          >
+                            <MapPin className="h-3 w-3" strokeWidth={2} />
+                            Na mape
+                          </button>
+                        </div>
+
+                        {venuePickerTab === 'venues' ? (
                         <div className="space-y-2">
                           <label htmlFor={venueSearchId} className="relative block">
                             <Search
@@ -742,6 +985,142 @@ export function CreateLobbyModal({
                             </p>
                           )}
                         </div>
+                        ) : (
+                        <div className="space-y-2">
+                          <p className="px-1 text-[11px] text-zinc-600">
+                            Ťukni na mapu alebo ťahaj pin — most, park, landmark. Adresu doplníme
+                            automaticky.
+                          </p>
+
+                          <MeetingPointMapClient
+                            latitude={
+                              typeof draft.latitude === 'number' ? draft.latitude : null
+                            }
+                            longitude={
+                              typeof draft.longitude === 'number' ? draft.longitude : null
+                            }
+                            flyNonce={mapFlyNonce}
+                            onPinChange={(lat, lng) => {
+                              void placeMapPin(lat, lng);
+                            }}
+                          />
+
+                          {mapResolving ? (
+                            <p className="px-1 text-[11px] text-zinc-600">Hľadám adresu pinu…</p>
+                          ) : null}
+                          {mapAddress && draft.venue ? (
+                            <p className="px-1 text-[11px] text-zinc-500">
+                              <span className="text-zinc-300">{draft.venue}</span>
+                              {mapAddress !== draft.venue ? ` · ${mapAddress}` : null}
+                            </p>
+                          ) : draft.venue && draft.latitude != null ? (
+                            <p className="px-1 text-[11px] text-zinc-300">{draft.venue}</p>
+                          ) : null}
+
+                          <label htmlFor={`${venueSearchId}-map`} className="relative block">
+                            <MapPin
+                              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+                              strokeWidth={1.75}
+                            />
+                            <input
+                              id={`${venueSearchId}-map`}
+                              type="search"
+                              role="combobox"
+                              aria-expanded={mapTips.length > 0}
+                              aria-controls={`${venueSearchId}-map-list`}
+                              aria-autocomplete="list"
+                              value={venueQuery}
+                              autoComplete="off"
+                              placeholder="Alebo vyhľadaj: Most SNP, Apollo…"
+                              onChange={(e) => setVenueQuery(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (mapTips.length === 0) return;
+                                if (e.key === 'ArrowDown') {
+                                  e.preventDefault();
+                                  setMapHighlight((i) => Math.min(i + 1, mapTips.length - 1));
+                                  return;
+                                }
+                                if (e.key === 'ArrowUp') {
+                                  e.preventDefault();
+                                  setMapHighlight((i) => Math.max(i - 1, 0));
+                                  return;
+                                }
+                                if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  setVenueQuery('');
+                                  return;
+                                }
+                                if (e.key !== 'Enter') return;
+                                e.preventDefault();
+                                const highlighted = mapTips[mapHighlight];
+                                if (highlighted) selectMapPlace(highlighted);
+                              }}
+                              className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-2.5 pl-10 pr-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-[#FF5722]/45 focus:bg-white/[0.04]"
+                            />
+                          </label>
+
+                          {mapTipsLoading ? (
+                            <p className="px-1 text-[11px] text-zinc-600">Hľadám tipy…</p>
+                          ) : null}
+                          {mapTipsError ? (
+                            <p className="px-1 text-[11px] text-error">{mapTipsError}</p>
+                          ) : null}
+
+                          {mapTips.length > 0 ? (
+                            <div
+                              id={`${venueSearchId}-map-list`}
+                              role="listbox"
+                              aria-label="Miesta na mape"
+                              className="flex max-h-36 flex-col gap-1 overflow-y-auto"
+                            >
+                              {mapTips.map((place, index) => {
+                                const active = index === mapHighlight;
+                                const selected =
+                                  draft.latitude === place.lat &&
+                                  draft.longitude === place.lng &&
+                                  draft.venue === place.name;
+                                return (
+                                  <button
+                                    key={place.id}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={active || selected}
+                                    onMouseEnter={() => setMapHighlight(index)}
+                                    onClick={() => selectMapPlace(place)}
+                                    className={[
+                                      'w-full rounded-lg px-3 py-2 text-left transition-colors',
+                                      selected || active
+                                        ? 'bg-white/[0.07] text-white'
+                                        : 'text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200',
+                                    ].join(' ')}
+                                  >
+                                    <span className="block truncate text-sm">{place.name}</span>
+                                    {place.address ? (
+                                      <span className="mt-0.5 block truncate text-[10px] text-zinc-500">
+                                        {place.address}
+                                      </span>
+                                    ) : null}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+
+                          {showMapConfirm ? (
+                            <button
+                              type="button"
+                              disabled={mapResolving}
+                              onClick={() => {
+                                setVenueQuery('');
+                                setDetailPhase('players');
+                              }}
+                              className="w-full rounded-xl border border-primary-container/35 bg-primary-container/10 py-2.5 font-label-caps text-[10px] uppercase tracking-[0.12em] text-white transition-colors hover:bg-primary-container/15 disabled:opacity-40"
+                            >
+                              Použiť {draft.venue}
+                            </button>
+                          ) : null}
+                        </div>
+                        )}
                       </motion.div>
                     ) : null}
 
@@ -810,6 +1189,8 @@ export function CreateLobbyModal({
                             : 'Športovisko v databáze · link doplníme, ak ho máme'
                         }
                       />
+                    ) : draft.latitude != null && draft.longitude != null ? (
+                      <SummaryRow label="Pin" value="Miesto na mape Bratislavy" />
                     ) : null}
                     <SummaryRow
                       label="Miesta"

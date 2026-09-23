@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { getProfileDashboard } from '@/lib/data/profile-dashboard';
@@ -15,6 +16,12 @@ export default async function ProfilePage() {
   }
 
   const { profile } = viewer;
+
+  // Venue owner workspace lives on /manage — player/admin keep the normal profile.
+  if (profile.role === 'VENUE_OWNER') {
+    redirect('/manage');
+  }
+
   const displayName = profile.fullName ?? profile.username;
   const showManage = canAccessManageHub(profile.role);
   const dashboard = await getProfileDashboard(profile, {

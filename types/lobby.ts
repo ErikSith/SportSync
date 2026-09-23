@@ -135,6 +135,9 @@ export interface CreateLobbyDraft {
   venueId: string | null;
   /** Official venue homepage copied from the catalog for the lobby CTA. */
   websiteUrl: string | null;
+  /** Custom meeting-point coords (Places landmark). Null when using venueId or city fallback. */
+  latitude?: number | null;
+  longitude?: number | null;
   spotsNeeded: number;
   skillLevel: SkillLevel;
   aiPrompt: string;
@@ -162,6 +165,8 @@ export const EMPTY_CREATE_DRAFT: CreateLobbyDraft = {
   venue: 'Park 21',
   venueId: null,
   websiteUrl: null,
+  latitude: null,
+  longitude: null,
   spotsNeeded: 1,
   skillLevel: 'INTERMEDIATE',
   aiPrompt: '',

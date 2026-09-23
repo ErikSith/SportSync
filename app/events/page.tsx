@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { Suspense } from 'react';
 import { getPageViewer } from '@/lib/auth/viewer';
 import type { EventFeedResult, ParticipationMode } from '@/lib/data/events';
@@ -6,7 +5,6 @@ import { t } from '@/lib/i18n/server';
 import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { getAllActiveEventsFeedSafe } from '@/lib/data/fetch-active-events';
 import { getEventsForArea } from '@/lib/data/area-feed';
-import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import type { EventType } from '@/lib/constants/events';
 import { LocationPrompt } from '@/components/home/LocationPrompt';
 import { TrackPageView } from '@/components/telemetry/TrackPageView';
@@ -73,22 +71,6 @@ function emptyStateMessage(
     title: t('events.empty.all.title'),
     subtitle: t('events.empty.all.sub'),
   };
-}
-
-function CreateEventActions({ isOrganizer }: { isOrganizer: boolean }) {
-  if (!isOrganizer) return null;
-
-  return (
-    <Link
-      href="/manage/events/create"
-      className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-zinc-900/40 px-3 py-2 font-label-caps text-[10px] uppercase tracking-[0.12em] text-zinc-400 transition-colors hover:border-white/15 hover:bg-zinc-900/60 hover:text-zinc-200 active:scale-[0.98]"
-    >
-      <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-        verified
-      </span>
-      {t('events.createOfficial')}
-    </Link>
-  );
 }
 
 function parseMode(raw: string | undefined): ParticipationMode {
@@ -254,7 +236,6 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
             subtitle: 'Skús iný šport alebo zruš filter.',
           }
         : emptyStateMessage(typeFilter, mode);
-  const isOrganizer = canAccessManageHub(profile.role);
 
   return (
     <>
@@ -286,7 +267,6 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
               {t('events.subtitle')}
             </p>
           }
-          actions={<CreateEventActions isOrganizer={isOrganizer} />}
         />
 
         {needsGpsPrompt ? (

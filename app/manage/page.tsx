@@ -1,15 +1,19 @@
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { canAccessManageHub, organizerRoleLabel } from '@/lib/auth/tournament-access';
 import { getVenuesForOrganizer } from '@/lib/data/organizer-venues';
 import { getOrganizerUpcomingContent } from '@/lib/data/organizer-dashboard';
+import { TopAppBar } from '@/components/home/TopAppBar';
+import { ManageCreateTabs } from '@/components/manage/ManageCreateTabs';
+import { ManageNavList, ManageSection, type ManageNavItem } from '@/components/manage/ManageNavList';
+import { t } from '@/lib/i18n/server';
 
 export const runtime = 'edge';
 
 function formatDateTime(date: Date): string {
-  return date.toLocaleString('en-GB', {
+  return date.toLocaleString('sk-SK', {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
@@ -25,10 +29,8 @@ export default async function ManagePage() {
 
   if (viewer.isGuest) {
     return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
-        <p className="font-body-md text-body-md text-tertiary-container">
-          Prihlásenie bude čoskoro — vytváranie zatiaľ nie je dostupné.
-        </p>
+      <main className="mx-auto max-w-lg px-container-margin-mobile pt-24 text-center">
+        <p className="font-body-md text-body-md text-on-surface-variant">{t('manage.guestBlocked')}</p>
       </main>
     );
   }
@@ -44,156 +46,64 @@ export default async function ManagePage() {
     getOrganizerUpcomingContent(profile.id),
   ]);
 
+  const displayName = profile.fullName ?? profile.username;
   const roleLabel = organizerRoleLabel(profile.role);
+  const soon = t('common.comingSoon');
+
+  const upcomingItems: ManageNavItem[] =
+    upcoming.length === 0
+      ? [
+          {
+            key: 'upcoming-empty',
+            icon: 'upcoming',
+            label: t('manage.upcomingEmpty'),
+            hint: t('manage.upcomingEmptyHint'),
+            accent: 'primary',
+          },
+        ]
+      : upcoming.map((item) => ({
+          key: `${item.kind}-${item.id}`,
+          href: item.href,
+          icon: item.kind === 'tournament' ? 'emoji_events' : 'event',
+          label: item.title,
+          hint: `${item.kind} · ${item.sport} · ${formatDateTime(item.startsAt)}`,
+          accent: (item.kind === 'tournament' ? 'secondary' : 'primary') as const,
+        }));
 
   return (
     <>
-      <header className="bg-background/80 backdrop-blur-xl fixed top-0 w-full z-50 border-b border-white/10 shadow-2xl shadow-black/40">
-        <div className="flex justify-between items-center px-container-margin-mobile md:px-container-margin-desktop h-16 w-full max-w-screen-xl mx-auto">
-          <Link href="/profile" className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-2">
-            <span className="material-symbols-outlined">arrow_back</span>
-            <span className="font-label-caps text-label-caps hidden md:inline">Profile</span>
+      <TopAppBar avatarUrl={profile.avatarUrl} name={displayName} />
+
+      <main className="relative z-10 mx-auto flex max-w-lg flex-col gap-6 px-container-margin-mobile pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-[calc(4.25rem+env(safe-area-inset-top,0px))] md:max-w-xl md:gap-7 md:pt-28">
+        <div className="space-y-3">
+          <Link
+            href="/profile/settings"
+            className="inline-flex items-center gap-1 text-on-surface-variant transition-colors hover:text-primary-container"
+          >
+            <span className="material-symbols-outlined text-lg">settings</span>
+            <span className="font-label-caps text-[10px] uppercase">{t('profile.settings')}</span>
           </Link>
-          <h1 className="font-headline-md text-headline-md text-on-surface font-bold">Manage</h1>
-          <div className="w-10" />
+
+          <div className="space-y-1.5 px-0.5">
+            <p className="font-label-caps text-[10px] uppercase tracking-widest text-secondary">
+              {roleLabel}
+            </p>
+            <h1 className="font-headline-md text-[1.45rem] leading-tight tracking-wide text-on-surface md:text-[1.75rem]">
+              {t('manage.title')}
+            </h1>
+            <p className="font-body-md text-sm text-on-surface-variant">{displayName}</p>
+            <p className="pt-0.5 font-body-md text-sm leading-relaxed text-on-surface-variant">
+              {t('manage.subtitle')}
+            </p>
+          </div>
         </div>
-      </header>
 
-      <main className="pt-24 pb-28 px-container-margin-mobile md:px-container-margin-desktop max-w-screen-xl mx-auto flex flex-col gap-gutter">
-        <section className="glass-panel rounded-xl p-6 border border-secondary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <p className="font-label-caps text-label-caps text-secondary uppercase">{roleLabel}</p>
-            <h2 className="font-headline-md text-headline-md text-on-surface mt-1">
-              {profile.fullName ?? profile.username}
-            </h2>
-            <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-              Create official events and tournaments at your venues. AI handles promotion and registration follow-up.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {profile.role === 'ADMIN' && (
-              <Link
-                href="/dev/scrape-pages"
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/40 font-label-caps text-label-caps text-primary uppercase hover:bg-primary/20 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[16px]">rate_review</span>
-                Admin Reviewer
-              </Link>
-            )}
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary/10 border border-secondary/30 font-label-caps text-label-caps text-secondary uppercase">
-              <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                verified
-              </span>
-              Organizer
-            </span>
-          </div>
-        </section>
+        <ManageCreateTabs venues={venues} />
 
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Link
-            href="/manage/events/create"
-            className="glass-panel rounded-xl p-6 border border-secondary/25 hover:border-secondary/50 transition-all flex flex-col gap-4 group"
-          >
-            <div className="w-12 h-12 rounded-full bg-secondary/10 border border-secondary/30 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <span className="material-symbols-outlined text-secondary">event</span>
-            </div>
-            <div>
-              <h3 className="font-headline-md text-headline-md text-on-surface">Create official event</h3>
-              <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-                Describe your event — AI drafts the page, sets capacity, and opens registration.
-              </p>
-            </div>
-            <span className="font-label-caps text-label-caps text-secondary uppercase flex items-center gap-1">
-              Start
-              <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-            </span>
-          </Link>
-
-          <Link
-            href="/tournaments/create"
-            className="glass-panel rounded-xl p-6 border border-secondary/25 hover:border-secondary/50 transition-all flex flex-col gap-4 group"
-          >
-            <div className="w-12 h-12 rounded-full bg-secondary/10 border border-secondary/30 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <span className="material-symbols-outlined text-secondary">emoji_events</span>
-            </div>
-            <div>
-              <h3 className="font-headline-md text-headline-md text-on-surface">Create tournament</h3>
-              <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-                Set format, skill level, and entry fee — AI builds brackets and fill campaigns.
-              </p>
-            </div>
-            <span className="font-label-caps text-label-caps text-secondary uppercase flex items-center gap-1">
-              Start
-              <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-            </span>
-          </Link>
-        </section>
-
-        <section className="glass-panel rounded-xl p-6 border border-white/10">
-          <h3 className="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-secondary">stadium</span>
-            {profile.role === 'ADMIN' ? 'All venues' : 'My venues'}
-          </h3>
-          {venues.length === 0 ? (
-            <p className="font-body-md text-body-md text-on-surface-variant">
-              No venues linked yet. Contact support to register a venue before creating events.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {venues.map((venue) => (
-                <Link
-                  key={venue.id}
-                  href={`/venues/${venue.id}`}
-                  className="glass-card rounded-lg p-4 flex items-center justify-between gap-4 hover:border-secondary/30 transition-colors"
-                >
-                  <div>
-                    <p className="font-headline-md text-[18px] text-on-surface">{venue.name}</p>
-                    <p className="font-body-md text-sm text-on-surface-variant">{venue.city}</p>
-                  </div>
-                  <span className="material-symbols-outlined text-secondary">chevron_right</span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="glass-panel rounded-xl p-6 border border-white/10">
-          <h3 className="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">upcoming</span>
-            Upcoming content
-          </h3>
-          {upcoming.length === 0 ? (
-            <p className="font-body-md text-body-md text-on-surface-variant">
-              No upcoming events or tournaments yet. Create your first one above.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {upcoming.map((item) => (
-                <Link
-                  key={`${item.kind}-${item.id}`}
-                  href={item.href}
-                  className="glass-card rounded-lg p-4 flex items-center justify-between gap-4 hover:border-primary/30 transition-colors"
-                >
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-label-caps text-[10px] uppercase px-2 py-0.5 rounded-full border border-white/10 text-on-surface-variant">
-                        {item.kind}
-                      </span>
-                      <span className="font-label-caps text-[10px] uppercase text-tertiary">{item.status}</span>
-                    </div>
-                    <p className="font-headline-md text-[18px] text-on-surface">{item.title}</p>
-                    <p className="font-body-md text-sm text-on-surface-variant mt-1">
-                      {item.sport} • {formatDateTime(item.startsAt)}
-                    </p>
-                  </div>
-                  <span className="material-symbols-outlined text-primary">chevron_right</span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
+        <ManageSection title={t('manage.section.upcoming')}>
+          <ManageNavList items={upcomingItems} comingSoonLabel={soon} />
+        </ManageSection>
       </main>
-
     </>
   );
 }

@@ -286,7 +286,7 @@ export function GroupedVenueScheduleCard({
   const lessonCount = group.lessons.length;
   const countMark = `${lessonCount}×`;
   const metaLine = [
-    'Skupinové lekcie',
+    'Skupinové cvičenia',
     location,
     distance,
     peak ? `od ${peak}` : null,

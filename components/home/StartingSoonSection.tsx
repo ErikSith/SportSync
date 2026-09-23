@@ -1,6 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import type { EventCardData } from '@/lib/data/events';
+import { partitionFeedForHybridHub } from '@/lib/feed/aggregate-routine-lessons';
+import { EventAtmosphereTab } from '@/components/events/EventAtmosphereTab';
+import { GroupedVenueScheduleCard } from '@/components/events/GroupedVenueScheduleCard';
 import {
   useCallback,
   useEffect,
@@ -10,10 +14,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { EventCardData } from '@/lib/data/events';
-import { partitionFeedForHybridHub } from '@/lib/feed/aggregate-routine-lessons';
-import { EventAtmosphereTab } from '@/components/events/EventAtmosphereTab';
-import { GroupedVenueScheduleCard } from '@/components/events/GroupedVenueScheduleCard';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 const DECK_LIMIT = 12;
 
@@ -21,13 +22,23 @@ interface StartingSoonSectionProps {
   events: EventCardData[];
   title?: string;
   subtitle?: string;
+  /** No follows yet — show CTA instead of carousel. */
+  showFollowCta?: boolean;
+  /** Guest must sign in before following. */
+  ctaNeedsLogin?: boolean;
+  /** User follows venues but nothing is upcoming in the window. */
+  followedButEmpty?: boolean;
 }
 
 export function StartingSoonSection({
   events,
   title = 'Coming up',
   subtitle = 'Čo ide čoskoro — scrollni termíny',
+  showFollowCta = false,
+  ctaNeedsLogin = false,
+  followedButEmpty = false,
 }: StartingSoonSectionProps) {
+  const t = useT();
   const deck = useMemo(
     () => partitionFeedForHybridHub(events).chronological.slice(0, DECK_LIMIT),
     [events],
@@ -75,7 +86,6 @@ export function StartingSoonSection({
     if (e.pointerType !== 'mouse' || e.button !== 0) return;
     const el = scrollerRef.current;
     if (!el) return;
-    // Defer capture until drag threshold — otherwise child Links never receive click.
     dragRef.current = {
       pointerId: e.pointerId,
       startX: e.clientX,
@@ -118,6 +128,41 @@ export function StartingSoonSection({
     updateEdges();
   };
 
+  if (showFollowCta || followedButEmpty) {
+    return (
+      <section className="space-y-3">
+        <div className="min-w-0">
+          <div className="mb-0.5 flex items-center gap-2">
+            <span className="h-1 w-5 rounded-full bg-[#FF5722]" />
+            <h3 className="font-headline-md text-[15px] tracking-wide text-on-background md:text-headline-md">
+              {title}
+            </h3>
+          </div>
+          <p className="pl-7 font-body-md text-sm text-on-surface-variant">{subtitle}</p>
+        </div>
+        <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.03] px-4 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-body-md text-sm text-on-surface font-medium">
+              {followedButEmpty ? t('home.favoritesNoUpcoming') : t('home.favoritesEmpty')}
+            </p>
+            <p className="mt-0.5 font-body-md text-sm text-on-surface-variant">
+              {followedButEmpty
+                ? t('home.favoritesNoUpcomingSub')
+                : t('home.favoritesEmptySub')}
+            </p>
+          </div>
+          <Link
+            href={ctaNeedsLogin ? '/login' : '/venues'}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 font-label-caps text-[10px] uppercase tracking-[0.12em] text-primary transition-colors hover:bg-primary/20"
+          >
+            <span className="material-symbols-outlined text-[16px]">favorite</span>
+            {ctaNeedsLogin ? t('home.favoritesLoginCta') : t('home.favoritesEmptyCta')}
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
   if (deck.length === 0) return null;
 
   const showArrows = deck.length > 1;
@@ -158,10 +203,10 @@ export function StartingSoonSection({
             </div>
           )}
           <Link
-            href="/events"
+            href="/venues"
             className="group inline-flex items-center gap-0.5 font-label-caps text-[10px] uppercase tracking-[0.12em] text-primary-container transition-colors hover:text-primary"
           >
-            All
+            {t('venues.title')}
             <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>
@@ -170,7 +215,7 @@ export function StartingSoonSection({
       <div
         ref={scrollerRef}
         role="list"
-        aria-label="Coming up events"
+        aria-label="Favorite venue events"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}

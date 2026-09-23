@@ -2,52 +2,15 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import {
-  SAVED_SESSION_KEY,
+  DEMO_SWITCH_SKIP_PASSWORD_PROMPT,
   SWITCHABLE_ACCOUNTS,
   type SwitchableAccount,
 } from '@/lib/demo/switchable-accounts';
-import type { Session } from '@supabase/supabase-js';
+import { switchToAccount } from '@/lib/demo/switch-account';
 
 interface ProfileAccountSwitcherProps {
   currentEmail: string;
-}
-
-function saveSession(session: Session | null) {
-  if (!session?.access_token || !session.refresh_token) return;
-  try {
-    sessionStorage.setItem(
-      SAVED_SESSION_KEY,
-      JSON.stringify({
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-        email: session.user?.email ?? null,
-      }),
-    );
-  } catch {
-    // sessionStorage unavailable (private mode) — switch-back may need password
-  }
-}
-
-function readSavedSession(): { access_token: string; refresh_token: string; email: string | null } | null {
-  try {
-    const raw = sessionStorage.getItem(SAVED_SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as {
-      access_token?: string;
-      refresh_token?: string;
-      email?: string | null;
-    };
-    if (!parsed.access_token || !parsed.refresh_token) return null;
-    return {
-      access_token: parsed.access_token,
-      refresh_token: parsed.refresh_token,
-      email: parsed.email ?? null,
-    };
-  } catch {
-    return null;
-  }
 }
 
 export function ProfileAccountSwitcher({ currentEmail }: ProfileAccountSwitcherProps) {
@@ -58,7 +21,6 @@ export function ProfileAccountSwitcher({ currentEmail }: ProfileAccountSwitcherP
   const [password, setPassword] = useState('');
 
   const normalizedCurrent = currentEmail.trim().toLowerCase();
-
   const accounts = useMemo(() => SWITCHABLE_ACCOUNTS, []);
 
   async function switchTo(account: SwitchableAccount, passwordOverride?: string) {
@@ -67,51 +29,22 @@ export function ProfileAccountSwitcher({ currentEmail }: ProfileAccountSwitcherP
     setError(null);
     setBusyId(account.id);
 
-    const supabase = createClient();
-    const { data: current } = await supabase.auth.getSession();
-
-    // Keep the outgoing session so we can restore it without needing its password.
-    if (current.session?.user?.email?.toLowerCase() !== account.email.toLowerCase()) {
-      saveSession(current.session);
-    }
-
-    const passwordToUse = passwordOverride ?? account.password;
-    if (passwordToUse) {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: account.email,
-        password: passwordToUse,
-      });
-      if (signInError) {
-        setBusyId(null);
-        setError(signInError.message);
+    const result = await switchToAccount(account, currentEmail, passwordOverride);
+    if (!result.ok) {
+      setBusyId(null);
+      if (result.needPassword && !DEMO_SWITCH_SKIP_PASSWORD_PROMPT) {
+        setPasswordPrompt(result.account);
+        if (result.message) setError(result.message);
         return;
       }
-      setPasswordPrompt(null);
-      setPassword('');
-      router.refresh();
-      setBusyId(null);
+      setError(result.message);
       return;
     }
 
-    const saved = readSavedSession();
-    if (saved && saved.email?.toLowerCase() === account.email.toLowerCase()) {
-      const { error: setErrorResult } = await supabase.auth.setSession({
-        access_token: saved.access_token,
-        refresh_token: saved.refresh_token,
-      });
-      if (setErrorResult) {
-        setBusyId(null);
-        setPasswordPrompt(account);
-        setError('Session expired — enter password to switch back.');
-        return;
-      }
-      router.refresh();
-      setBusyId(null);
-      return;
-    }
-
+    setPasswordPrompt(null);
+    setPassword('');
+    router.refresh();
     setBusyId(null);
-    setPasswordPrompt(account);
   }
 
   async function submitPassword(e: React.FormEvent) {
@@ -141,7 +74,7 @@ export function ProfileAccountSwitcher({ currentEmail }: ProfileAccountSwitcherP
               key={account.id}
               type="button"
               disabled={active || busyId !== null}
-              onClick={() => switchTo(account)}
+              onClick={() => void switchTo(account)}
               className={`flex items-center justify-between rounded-lg px-3 py-3 text-left transition-colors border ${
                 active
                   ? 'border-secondary/50 bg-secondary/10'

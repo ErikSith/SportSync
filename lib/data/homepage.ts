@@ -16,6 +16,11 @@ import {
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
 import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
+import { getFollowedVenueIds } from '@/lib/data/venue-follows';
+import {
+  getUpcomingTournamentsAtVenues,
+  type TournamentCardData,
+} from '@/lib/data/tournaments';
 import { listingParticipationMode } from '@/lib/participation/fixture-match';
 import { FEED_ACTIVE_GRACE_HOURS, activeFeedSinceIso } from '@/lib/retention/feed-window';
 import { lobbyActiveSinceIso } from '@/lib/retention/lobbies';
@@ -190,6 +195,7 @@ export interface HomepageEventInspiration {
   /** Official shortlist (legacy Featured row). */
   featured: FeaturedEventsResult;
   nearby: EventCardData[];
+  /** Followed-venue events / lessons / tournaments (was "starting soon"). */
   startingSoon: EventCardData[];
   lastSpots: EventCardData[];
   anchor: { lat: number; lng: number; source: 'gps' | 'city' };
@@ -199,6 +205,12 @@ export interface HomepageEventInspiration {
   /** True when nearby radius/city scope returned nothing and we widened to all events. */
   usedAllEventsFallback?: boolean;
   fallbackMessage?: string;
+  /** How many venues the viewer follows (0 for guests). */
+  followedVenueCount: number;
+  /** Show follow CTA instead of the favorites carousel. */
+  showFavoritesCta: boolean;
+  /** Guest needs login before follow works. */
+  favoritesCtaNeedsLogin: boolean;
 }
 
 function normalizeEventType(type: string): EventType {
@@ -290,6 +302,78 @@ function flattenAggregatedFeedItems(items: AggregatedFeedItem[]): EventCardData[
     else out.push(...item.lessons);
   }
   return out;
+}
+
+function tournamentToEventCard(
+  tournament: TournamentCardData,
+  lat: number,
+  lng: number,
+): EventCardData {
+  const dist =
+    tournament.venueLatitude != null && tournament.venueLongitude != null
+      ? distanceKm(lat, lng, tournament.venueLatitude, tournament.venueLongitude)
+      : 0;
+  return {
+    id: tournament.id,
+    title: tournament.name,
+    description: tournament.description,
+    sport: tournament.sport,
+    sportType: 'OTHER',
+    type: 'official',
+    city: tournament.venueCity ?? 'Bratislava',
+    startsAt: tournament.startsAt,
+    endsAt: tournament.endsAt,
+    timeKnown: true,
+    price: tournament.entryFee,
+    priceCents: Math.round(tournament.entryFee * 100),
+    currency: 'EUR',
+    coverUrl: tournament.coverUrl,
+    status: tournament.status,
+    capacity: tournament.maxParticipants,
+    maxParticipants: tournament.maxParticipants,
+    registeredCount: tournament.currentParticipants,
+    distanceKm: dist,
+    latitude: tournament.venueLatitude,
+    longitude: tournament.venueLongitude,
+    venueId: tournament.venueId,
+    venueName: tournament.venueName,
+    themeConfig: { listingKind: 'tournament' },
+    participationMode: listingParticipationMode(tournament.name, 'participate'),
+    ticketUrl: tournament.ticketUrl,
+    sourceUrl: tournament.sourceUrl,
+    sourceName: null,
+    source: tournament.source,
+    externalId: null,
+    isAggregated: tournament.isAggregated,
+    forKids: tournament.forKids,
+    forWomen: tournament.forWomen,
+    sourceExcerpt: null,
+    sourceEvidence: null,
+  };
+}
+
+function buildFavoritesDeck(
+  candidates: EventCardData[],
+  followedVenueIds: string[],
+  tournamentCards: EventCardData[],
+): EventCardData[] {
+  if (followedVenueIds.length === 0) return [];
+  const followed = new Set(followedVenueIds);
+  const now = new Date();
+  const fromVenues = candidates.filter(
+    (event) =>
+      event.venueId != null &&
+      followed.has(event.venueId) &&
+      isStartingSoon(event.startsAt, now),
+  );
+  const merged = [...fromVenues, ...tournamentCards.filter((t) => isStartingSoon(t.startsAt, now))];
+  merged.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  return flattenAggregatedFeedItems(
+    aggregateEventsForFeed(merged.slice(0, STARTING_SOON_POOL_LIMIT)).slice(
+      0,
+      STARTING_SOON_ROW_LIMIT,
+    ),
+  );
 }
 
 function isLastSpots(event: EventCardData): boolean {
@@ -563,11 +647,13 @@ export function mapRawEventRowsToCards(
 
 export function homepageInspirationHasEvents(data: HomepageEventInspiration | null): boolean {
   if (!data) return false;
+  // Favorites CTA still counts as a renderable home row.
+  if (data.showFavoritesCta) return true;
   // Featured is not rendered on the homepage — only count visible rows.
   return data.nearby.length > 0 || data.startingSoon.length > 0 || data.lastSpots.length > 0;
 }
 
-/** Bucket candidate cards into Featured / Coming up / Last Spots / Near You rows. */
+/** Bucket candidate cards into Featured / Favorites / Last Spots / Near You rows. */
 export function buildHomepageInspirationFromCards(
   candidates: EventCardData[],
   opts: {
@@ -578,22 +664,25 @@ export function buildHomepageInspirationFromCards(
     primaryRadiusKm?: number;
     usedAllEventsFallback?: boolean;
     featured?: FeaturedEventsResult;
+    followedVenueIds?: string[];
+    favoritesTournaments?: EventCardData[];
+    isGuest?: boolean;
   },
 ): HomepageEventInspiration {
   const primaryRadius = opts.primaryRadiusKm ?? DEFAULT_RADIUS_KM;
   const usedAllEventsFallback = Boolean(opts.usedAllEventsFallback);
   const area = opts.area ?? 'bratislava';
+  const followedVenueIds = opts.followedVenueIds ?? [];
+  const favoritesTournaments = opts.favoritesTournaments ?? [];
+  const showFavoritesCta = followedVenueIds.length === 0;
+  const favoritesCtaNeedsLogin = Boolean(opts.isGuest);
 
   // Fallback / all-events view: put cards into visible rows (featured is not rendered).
   if (usedAllEventsFallback) {
     const now = new Date();
-    const startingSoonPool = candidates
-      .filter((event) => isStartingSoon(event.startsAt, now))
-      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
-      .slice(0, STARTING_SOON_POOL_LIMIT);
-    const startingSoon = flattenAggregatedFeedItems(
-      aggregateEventsForFeed(startingSoonPool).slice(0, STARTING_SOON_ROW_LIMIT),
-    );
+    const startingSoon = showFavoritesCta
+      ? []
+      : buildFavoritesDeck(candidates, followedVenueIds, favoritesTournaments);
     const usedIds = new Set(startingSoon.map((e) => e.id));
     const lastSpots = candidates
       .filter((event) => !usedIds.has(event.id) && isLastSpots(event))
@@ -625,6 +714,9 @@ export function buildHomepageInspirationFromCards(
         lng: opts.lng,
         source: area === 'near_me' ? 'gps' : 'city',
       },
+      followedVenueCount: followedVenueIds.length,
+      showFavoritesCta,
+      favoritesCtaNeedsLogin,
     };
   }
 
@@ -637,15 +729,9 @@ export function buildHomepageInspirationFromCards(
   const usedIds = new Set<string>();
   featured.events.forEach((event) => usedIds.add(event.id));
 
-  const now = new Date();
-
-  const startingSoonPool = candidates
-    .filter((event) => !usedIds.has(event.id) && isStartingSoon(event.startsAt, now))
-    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
-    .slice(0, STARTING_SOON_POOL_LIMIT);
-  const startingSoon = flattenAggregatedFeedItems(
-    aggregateEventsForFeed(startingSoonPool).slice(0, STARTING_SOON_ROW_LIMIT),
-  );
+  const startingSoon = showFavoritesCta
+    ? []
+    : buildFavoritesDeck(candidates, followedVenueIds, favoritesTournaments);
   startingSoon.forEach((event) => usedIds.add(event.id));
 
   const lastSpots = candidates
@@ -674,14 +760,32 @@ export function buildHomepageInspirationFromCards(
       lng: opts.lng,
       source: area === 'near_me' ? 'gps' : 'city',
     },
+    followedVenueCount: followedVenueIds.length,
+    showFavoritesCta,
+    favoritesCtaNeedsLogin,
   };
 }
 
-/** Homepage event inspiration: featured + Near You / Starting Soon / Last Spots rows. */
+/** Homepage event inspiration: featured + Favorites / Last Spots / Near You rows. */
 export async function getHomepageEventInspiration(
   profile: Profile,
   filters?: HomeFeedFilters,
+  opts?: { isGuest?: boolean },
 ): Promise<HomepageEventInspiration | null> {
+  const isGuest = Boolean(opts?.isGuest);
+  const followedVenueIds = isGuest ? [] : await getFollowedVenueIds(profile.id);
+  const favoritesTournamentsRaw =
+    followedVenueIds.length > 0
+      ? await getUpcomingTournamentsAtVenues(followedVenueIds, STARTING_SOON_ROW_LIMIT)
+      : [];
+  const favoritesContext = {
+    followedVenueIds,
+    favoritesTournaments: favoritesTournamentsRaw.map((t) =>
+      tournamentToEventCard(t, profile.latitude ?? 48.1486, profile.longitude ?? 17.1077),
+    ),
+    isGuest,
+  };
+
   const hasGps = profile.latitude !== null && profile.longitude !== null;
   const location = resolveFeedLocation({
     areaRaw: filters?.area,
@@ -711,6 +815,10 @@ export async function getHomepageEventInspiration(
       areaLabel: location.label,
       primaryRadiusKm: primaryRadius,
       usedAllEventsFallback: true,
+      ...favoritesContext,
+      favoritesTournaments: favoritesTournamentsRaw.map((t) =>
+        tournamentToEventCard(t, location.lat, location.lng),
+      ),
     });
   }
 
@@ -773,6 +881,10 @@ export async function getHomepageEventInspiration(
     primaryRadiusKm: primaryRadius,
     usedAllEventsFallback,
     featured,
+    ...favoritesContext,
+    favoritesTournaments: favoritesTournamentsRaw.map((t) =>
+      tournamentToEventCard(t, location.lat, location.lng),
+    ),
   });
 }
 

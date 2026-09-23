@@ -161,8 +161,24 @@ model Profile {
   eventResults           EventResult[]
   eventReports           EventReport[]
   matchSuggestions       MatchSuggestion[]
+  venueFollows           VenueFollow[]
 
   @@map("profiles")
+}
+
+/// User → venue follow for homepage "Tvoje obľúbené" feed.
+model VenueFollow {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  venueId   String   @map("venue_id") @db.Uuid
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@unique([userId, venueId])
+  @@index([userId])
+  @@index([venueId])
+  @@map("venue_follows")
 }
 
 /// Mirrors `public.venues`.
@@ -195,6 +211,7 @@ model Venue {
   trainingLessons  TrainingLesson[]
   groupActivities  SportGroupActivity[]
   scrapePages      VenueScrapePage[]
+  follows          VenueFollow[]
 
   @@index([city])
   @@index([district])

@@ -69,9 +69,16 @@ export interface CreateLobbyApiPayload {
   spotsTotal: number;
   mercenaryMode: boolean;
   venueId?: string;
+  /** Meeting-point pin when no venueId (landmark / free place on map). */
+  latitude?: number;
+  longitude?: number;
   skillLevel?: number;
   lobbyType?: 'NEED_PLAYER' | 'TEAM_CHALLENGE' | 'RECURRING';
   title?: string;
+}
+
+function isFiniteCoord(n: unknown): n is number {
+  return typeof n === 'number' && Number.isFinite(n);
 }
 
 export function buildCreateLobbyPayload(
@@ -115,6 +122,9 @@ export function buildCreateLobbyPayload(
 
   if (isVenueUuid(draft.venueId)) {
     payload.venueId = draft.venueId;
+  } else if (isFiniteCoord(draft.latitude) && isFiniteCoord(draft.longitude)) {
+    payload.latitude = draft.latitude;
+    payload.longitude = draft.longitude;
   }
 
   return { ok: true, payload };

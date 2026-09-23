@@ -196,6 +196,45 @@ export function mergeLobbyFeeds(
   return out;
 }
 
+/**
+ * Same discover feed as `/lobby` — my lobbies + nearby (GPS) or city.
+ * Use for home chips/counts so they stay in sync with the lobby page.
+ */
+export async function getLobbyPageFeed(input: {
+  profileId: string;
+  city: string;
+  lat: number | null;
+  lng: number | null;
+}): Promise<LobbyCardData[]> {
+  const hasGps = input.lat !== null && input.lng !== null;
+  const origin = hasGps
+    ? { lat: input.lat as number, lng: input.lng as number }
+    : undefined;
+
+  const nearbyOrCity =
+    hasGps && origin
+      ? (
+          await getNearbyLobbyFeed({
+            lat: origin.lat,
+            lng: origin.lng,
+            profileId: input.profileId,
+          })
+        ).lobbies
+      : await getCityLobbyFeed(input.city, input.profileId);
+
+  const myLobbyRows = await getMyLobbyCards(input.profileId, origin);
+  return mergeLobbyFeeds(myLobbyRows, nearbyOrCity);
+}
+
+/** Open / live lobbies that still have a free spot (joinable). */
+export function joinableOpenLobbies(lobbies: LobbyCardData[]): LobbyCardData[] {
+  return lobbies.filter(
+    (lobby) =>
+      lobby.spotsFilled < lobby.spotsTotal &&
+      (lobby.status === 'open' || lobby.status === 'live'),
+  );
+}
+
 /** Hosted or joined community matches — always shown regardless of distance/filters. */
 export async function getMyLobbyCards(
   profileId: string,

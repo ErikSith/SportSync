@@ -3,9 +3,11 @@ import { notFound } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { getVenueById } from '@/lib/data/venues';
+import { isFollowingVenue } from '@/lib/data/venue-follows';
 import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { resolveVenueCover, resolveVenueLogo } from '@/lib/venues/venue-media';
 import { sportDisplayLabel } from '@/lib/constants/sports';
+import { VenueFollowButton } from '@/components/venues/VenueFollowButton';
 
 export const runtime = 'edge';
 
@@ -28,10 +30,15 @@ export default async function VenueDetailPage({ params }: VenueDetailPageProps) 
     return <SetupNotice />;
   }
 
-  const { profile } = viewer;
+  const { profile, isGuest } = viewer;
 
   const venue = await getVenueById(params.id);
   if (!venue) notFound();
+
+  const following =
+    !isGuest && profile.id
+      ? await isFollowingVenue(profile.id, venue.id)
+      : false;
 
   const canManageVenue =
     canAccessManageHub(profile.role) &&
@@ -120,6 +127,14 @@ export default async function VenueDetailPage({ params }: VenueDetailPageProps) 
                 {venue.address}
               </p>
             )}
+
+            <div className="mt-4">
+              <VenueFollowButton
+                venueId={venue.id}
+                initialFollowing={following}
+                isGuest={isGuest}
+              />
+            </div>
           </div>
         </section>
 
