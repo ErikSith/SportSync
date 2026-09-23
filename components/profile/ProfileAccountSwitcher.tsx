@@ -37,7 +37,7 @@ export function ProfileAccountSwitcher({ currentEmail }: ProfileAccountSwitcherP
         if (result.message) setError(result.message);
         return;
       }
-      setError(result.message);
+      setError(result.message || null);
       return;
     }
 
