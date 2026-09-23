@@ -67,7 +67,7 @@ export default async function ManagePage() {
           icon: item.kind === 'tournament' ? 'emoji_events' : 'event',
           label: item.title,
           hint: `${item.kind} · ${item.sport} · ${formatDateTime(item.startsAt)}`,
-          accent: (item.kind === 'tournament' ? 'secondary' : 'primary') as const,
+          accent: item.kind === 'tournament' ? ('secondary' as const) : ('primary' as const),
         }));
 
   return (
