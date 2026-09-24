@@ -170,7 +170,11 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
       })
     : dateScoped;
   const audience = parseEventAudience(searchParams.audience);
-  const audienceScoped = applyEventAudienceFilter(queryScoped, audience, (event) => event);
+  // Programs "Všetci" includes kids krúžky / camps — Events feed still uses open-mixed `all`.
+  const audienceScoped =
+    audience === 'all'
+      ? queryScoped
+      : applyEventAudienceFilter(queryScoped, audience, (event) => event);
   const chipScoped = applyPlayerFeedFilters(audienceScoped, feedFilters, {
     sport: (e) => e.sport,
     venueId: (e) => e.venueId,

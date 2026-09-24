@@ -1,13 +1,29 @@
-export { ScrapedEventSchema, ScrapedEventListSchema, GEMINI_SCRAPER_SOURCE } from './types';
+export { ScrapedEventSchema, ScrapedEventListSchema, EventCategoryEnum, GEMINI_SCRAPER_SOURCE } from './types';
 export type {
   ScrapedEvent,
   ScrapedEventList,
+  EventCategory,
   ScraperRunReport,
   ScraperUpsertStats,
   ScraperUrlResult,
   MidnightPurgeStats,
   MidnightSyncReport,
 } from './types';
+
+export {
+  flagsFromCategory,
+  categoryFromFlags,
+  syncCategoryAndFlags,
+  parseEventCategory,
+} from './category';
+
+export {
+  crawlListingDetails,
+  discoverDetailLinksFromHtml,
+  formatCrawledDetailsForExtract,
+  MAX_BROWSER_DETAILS,
+} from './browser';
+export type { BrowserDetailPage, CrawlListingOptions, DiscoveredListingLink } from './browser';
 
 export {
   fetchCleanText,
@@ -81,3 +97,5 @@ export type {
   RegistrationTarget,
   ExternalRegistrationResponse,
 } from './registration-router';
+export { scrapeVenuePage } from './scrape-venue-page';
+export type { ScrapeVenuePageInput, ScrapeVenuePageResult } from './scrape-venue-page';

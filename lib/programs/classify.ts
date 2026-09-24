@@ -1,6 +1,9 @@
 import type { EventCardData } from '@/lib/data/events';
 import { looksLikeGroupClassListing } from '@/lib/feed/group-class';
-import { scrapePageHasKind } from '@/lib/scrape/scrape-page-kind';
+import {
+  isMixedScrapePageKind,
+  scrapePageHasKind,
+} from '@/lib/scrape/scrape-page-kind';
 import { foldDiacritics } from '@/lib/text/fold-diacritics';
 
 export type ProgramBucket = 'workshops' | 'camps' | 'courses';
@@ -32,6 +35,23 @@ const WORKSHOP_TITLE_RE =
 
 const COURSE_TITLE_RE =
   /\b(kurz|kurzy|clinic|course|courses|skolenie)\b/i;
+
+/** Seasonal kids clubs (RŠK krúžky) — Programs → Krúžky, not Events → Skupinové. */
+const KIDS_CLUB_TITLE_RE = /\b(kruzok|kruzky)\b/i;
+
+/**
+ * One-day / social / special venue events — stay in Events feed, never Programs → Krúžky
+ * even when scraped from a mixed page that also lists kids_clubs.
+ */
+const ONE_OFF_SPECIAL_EVENT_RE =
+  /\b(podujatie|party|parties|singles?|nezadan|vecer\s+pre|sportovy\s+vecer|open\s*day|otvorene\s+dvere|festival|koncert|galaviec|galavečer|networking|speed\s*dating)\b/i;
+
+export function looksLikeOneOffSpecialEvent(
+  title: string | null | undefined,
+  description?: string | null,
+): boolean {
+  return ONE_OFF_SPECIAL_EVENT_RE.test(haystack([title, description]));
+}
 
 function haystack(parts: Array<string | null | undefined>): string {
   return foldDiacritics(parts.filter(Boolean).join(' '));
@@ -73,28 +93,39 @@ function normalizeStoredKind(raw: string | null | undefined): ProgramBucket | nu
   return null;
 }
 
-/** Scrape-page kind → persist hint. Mixed schedule+camps does not force. */
+/**
+ * Scrape-page kind → persist hint for dedicated pages.
+ * Mixed multi-role URLs (schedule+events, kids_clubs+kids_camps, …) stay null —
+ * per-item flags / title heuristics decide camps vs courses vs events.
+ */
 export function programKindFromScrapePage(
   kind: string | null | undefined,
 ): ProgramBucket | null {
   if (!kind) return null;
-  const mixedSchedule =
-    scrapePageHasKind(kind, 'schedule') || scrapePageHasKind(kind, 'kids_clubs');
-  if (scrapePageHasKind(kind, 'kids_camps') && !mixedSchedule) return 'camps';
-  if (scrapePageHasKind(kind, 'workshops') && !mixedSchedule) return 'workshops';
+  if (isMixedScrapePageKind(kind)) return null;
+  if (scrapePageHasKind(kind, 'kids_camps')) return 'camps';
+  if (scrapePageHasKind(kind, 'workshops')) return 'workshops';
+  if (scrapePageHasKind(kind, 'kids_clubs')) return 'courses';
   return null;
 }
 
 export function classifyProgramSignals(
   signals: ProgramClassifySignals,
 ): ProgramBucket | null {
+  const titleHay = haystack([signals.title]);
+  const bodyHay = haystack([signals.title, signals.description]);
+  const urlHay = pathHaystack(signals.sourceUrl ?? signals.ticketUrl);
+
+  // One-day parties / podujatia stay in Events — never Programs, even if
+  // theme_config.programKind or isCourse was wrongly set on a mixed kids page.
+  if (looksLikeOneOffSpecialEvent(signals.title, signals.description)) {
+    return null;
+  }
+
   const stored = normalizeStoredKind(signals.themeProgramKind);
   if (stored) return stored;
 
   const fromPage = programKindFromScrapePage(signals.scrapePageKind);
-  const titleHay = haystack([signals.title]);
-  const bodyHay = haystack([signals.title, signals.description]);
-  const urlHay = pathHaystack(signals.sourceUrl ?? signals.ticketUrl);
 
   if (signals.isCamp === true || fromPage === 'camps' || CAMP_TITLE_RE.test(titleHay)) {
     return 'camps';
@@ -110,13 +141,33 @@ export function classifyProgramSignals(
     if (!looksLikeWeeklyLesson(signals)) return 'workshops';
   }
 
+  // Seasonal kids clubs / structured courses → Programs → Krúžky.
+  // Do this BEFORE weekly-lesson short-circuit so "Curling krúžok" is not a gym slot.
+  if (KIDS_CLUB_TITLE_RE.test(titleHay)) {
+    return 'courses';
+  }
+  if (signals.isCourse === true && (COURSE_TITLE_RE.test(titleHay) || KIDS_CLUB_TITLE_RE.test(titleHay))) {
+    return 'courses';
+  }
+  // kids_clubs page role: only when title/url actually looks like a club/course —
+  // never blanket every news/event card on a mixed venue page.
+  if (
+    scrapePageHasKind(signals.scrapePageKind, 'kids_clubs') &&
+    (COURSE_TITLE_RE.test(titleHay) ||
+      KIDS_CLUB_TITLE_RE.test(titleHay) ||
+      /\/(kruzky|kurzy)\b/i.test(urlHay) ||
+      (fromPage === 'courses' && !looksLikeWeeklyLesson(signals)))
+  ) {
+    return 'courses';
+  }
+
+  // Weekly studio slots (class-* rozvrh) stay out of Programs.
   if (looksLikeWeeklyLesson(signals)) return null;
 
-  if (signals.isCourse === true) return 'courses';
   if (COURSE_TITLE_RE.test(titleHay)) {
     return 'courses';
   }
-  if (/\/(kurzy|courses?)\b/i.test(urlHay) && COURSE_TITLE_RE.test(titleHay)) {
+  if (/\/(kurzy|courses?|kruzky)\b/i.test(urlHay) && COURSE_TITLE_RE.test(titleHay)) {
     return 'courses';
   }
 

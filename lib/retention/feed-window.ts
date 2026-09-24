@@ -19,6 +19,16 @@ export function activeFeedSinceIso(now = new Date()): string {
 }
 
 /**
+ * PostgREST `.or(...)` clause: upcoming starts OR multi-day still running (end_time).
+ * Matches tournament feed behaviour so seasonal camps/courses stay visible.
+ */
+export function activeListingsOrFilter(now = new Date()): string {
+  const graceIso = activeFeedSinceIso(now);
+  const nowIso = now.toISOString();
+  return `starts_at.gte."${graceIso}",end_time.gte."${nowIso}"`;
+}
+
+/**
  * Floor for feed `starts_at` filters.
  * When a date window is active, never go earlier than the feed floor
  * (keeps today's lessons visible while browsing / after returning from a page).

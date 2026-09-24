@@ -340,6 +340,15 @@ export const EVENT_SIGNAL_KEYWORDS = [
   'dievčat',
   'ladies',
   'juniors',
+  // Kids clubs / camps / courses (RŠK krúžky, tábory, …)
+  'krúžok',
+  'krúžky',
+  'kurz',
+  'kurzy',
+  'tábor',
+  'tábory',
+  'workshop',
+  'prázdniny',
 ] as const;
 
 function foldForKeywordMatch(value: string): string {

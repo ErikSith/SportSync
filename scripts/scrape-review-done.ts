@@ -4,20 +4,28 @@
  *
  * Usage: npx tsx scripts/scrape-review-done.ts
  * Options: --dry-run (list only), --limit=N (max pages)
+ *
+ * Writes data/scrape-reports/review-done-<timestamp>.json for post-run summary.
  */
 import { config } from 'dotenv';
 config({ path: '.env' });
 config({ path: '.env.local', override: true });
 
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createAdminClient } from '../lib/supabase/admin';
 import { shouldForceGroupClassFromScrapePage } from '../lib/feed/group-class';
 import {
   shouldForceForKidsFromScrapePage,
   shouldSkipEventExtractForKind,
 } from '../lib/scrape/scrape-page-kind';
-import { programKindFromScrapePage } from '../lib/programs/classify';
+import {
+  classifyProgramSignals,
+  programKindFromScrapePage,
+} from '../lib/programs/classify';
 import { saveEventsForVenue } from '../src/lib/scraper/db-service';
 import { scrapeVenuePage } from '../src/lib/scraper/scrape-venue-page';
+import type { ScrapedEvent } from '../src/lib/scraper/types';
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -25,6 +33,69 @@ function sleep(ms: number) {
 
 function delayMs() {
   return 1500 + Math.floor(Math.random() * 2000);
+}
+
+type AppPlacement =
+  | 'programs/courses'
+  | 'programs/camps'
+  | 'programs/workshops'
+  | 'events/group-classes'
+  | 'events/open'
+  | 'tournaments'
+  | 'skipped';
+
+type ItemReport = {
+  title: string;
+  startTime: string;
+  endTime: string | null;
+  sport: string | null;
+  placement: AppPlacement;
+  forKids: boolean;
+  forWomen: boolean;
+  sourceUrl: string | null;
+};
+
+type PageReport = {
+  venue: string;
+  venueId: string;
+  sourceUrl: string;
+  kind: string;
+  path: string;
+  status: string;
+  error?: string;
+  created: number;
+  updated: number;
+  items: ItemReport[];
+};
+
+function placementFor(
+  event: ScrapedEvent,
+  kind: string,
+  scrapePageUrl: string,
+): AppPlacement {
+  if (event.isTournament) return 'tournaments';
+  const program = classifyProgramSignals({
+    title: event.title,
+    description: event.description,
+    sourceUrl: scrapePageUrl,
+    ticketUrl: event.originalUrl,
+    isGroupClass: event.isGroupClass,
+    isCamp: event.isCamp,
+    isWorkshop: event.isWorkshop,
+    isCourse: event.isCourse,
+    scrapePageKind: kind,
+    themeProgramKind: programKindFromScrapePage(kind),
+  });
+  if (program === 'courses') return 'programs/courses';
+  if (program === 'camps') return 'programs/camps';
+  if (program === 'workshops') return 'programs/workshops';
+  if (
+    event.isGroupClass ||
+    shouldForceGroupClassFromScrapePage(kind, scrapePageUrl)
+  ) {
+    return 'events/group-classes';
+  }
+  return 'events/open';
 }
 
 async function main() {
@@ -73,12 +144,14 @@ async function main() {
     return !shouldSkipEventExtractForKind(kind);
   });
 
-  const skippedAvailability = pages.length - runnable.length;
+  const skippedNonEvent = pages.length - runnable.length;
   const work = limit > 0 ? runnable.slice(0, limit) : runnable;
 
   console.log(
     `[review-done] scrape pages: ${pages.length} enabled, ${runnable.length} runnable` +
-      (skippedAvailability ? ` (skip ${skippedAvailability} availability-only)` : '') +
+      (skippedNonEvent
+        ? ` (skip ${skippedNonEvent} without events/tournaments/kids/workshops)`
+        : '') +
       (limit > 0 ? `, limited to ${work.length}` : ''),
   );
 
@@ -99,6 +172,8 @@ async function main() {
   let totalEvents = 0;
   let totalCreated = 0;
   let totalUpdated = 0;
+  const reportPages: PageReport[] = [];
+  const startedAt = new Date().toISOString();
 
   for (let i = 0; i < work.length; i++) {
     const page = work[i]!;
@@ -107,9 +182,10 @@ async function main() {
     const url = page.url as string;
     const kind = String(page.kind ?? '');
     const selector = (page.content_selector as string | null) ?? null;
+    const venueName = (venue?.name as string | null) ?? venueId;
 
     console.log(
-      `\n[${i + 1}/${work.length}] ${venue?.name ?? venueId}\n  ${url} (${kind})`,
+      `\n[${i + 1}/${work.length}] ${venueName}\n  ${url} (${kind})`,
     );
 
     try {
@@ -119,6 +195,7 @@ async function main() {
         bookingProvider: (page.booking_provider as string | null) ?? null,
         bookingSubject: (page.booking_subject as string | null) ?? null,
         venueName: (venue?.name as string | null) ?? null,
+        scrapePageKind: kind,
       });
 
       console.log(
@@ -126,24 +203,28 @@ async function main() {
           (scraped.message ? ` — ${scraped.message}` : ''),
       );
 
-      for (const e of scraped.events.slice(0, 12)) {
-        const tags: string[] = [];
-        if (e.isTournament) tags.push('turnaj');
-        else if (e.isCamp) tags.push('kemp');
-        else if (e.isWorkshop) tags.push('workshop');
-        else if (e.isCourse) tags.push('kurz');
-        else if (e.isGroupClass || shouldForceGroupClassFromScrapePage(kind, url))
-          tags.push('lekcia');
-        else tags.push('event');
-        if (e.isForKids || shouldForceForKidsFromScrapePage(kind)) tags.push('deti');
-        if (e.isForWomenOnly) tags.push('zeny');
+      const items: ItemReport[] = scraped.events.map((e) => ({
+        title: e.title,
+        startTime: e.startTime,
+        endTime: e.endTime ?? null,
+        sport: e.sportType ?? null,
+        placement: placementFor(e, kind, url),
+        forKids: Boolean(e.isForKids || shouldForceForKidsFromScrapePage(kind)),
+        forWomen: Boolean(e.isForWomenOnly),
+        sourceUrl: e.originalUrl ?? url,
+      }));
+
+      for (const item of items.slice(0, 12)) {
+        const tags: string[] = [item.placement];
+        if (item.forKids) tags.push('deti');
+        if (item.forWomen) tags.push('zeny');
         console.log(
-          `    • ${e.startTime} | ${e.sportType ?? '?'} | ${e.title}` +
-            (tags.length ? ` [${tags.join(',')}]` : ''),
+          `    • ${item.startTime} | ${item.sport ?? '?'} | ${item.title}` +
+            ` [${tags.join(',')}]`,
         );
       }
-      if (scraped.events.length > 12) {
-        console.log(`    … +${scraped.events.length - 12} more`);
+      if (items.length > 12) {
+        console.log(`    … +${items.length - 12} more`);
       }
 
       const upsert =
@@ -184,6 +265,18 @@ async function main() {
       totalEvents += scraped.events.length;
       totalCreated += upsert?.created ?? 0;
       totalUpdated += upsert?.updated ?? 0;
+
+      reportPages.push({
+        venue: venueName,
+        venueId,
+        sourceUrl: url,
+        kind,
+        path: scraped.path,
+        status,
+        created: upsert?.created ?? 0,
+        updated: upsert?.updated ?? 0,
+        items,
+      });
     } catch (err) {
       failed += 1;
       const msg = err instanceof Error ? err.message : String(err);
@@ -196,6 +289,19 @@ async function main() {
           updated_at: new Date().toISOString(),
         })
         .eq('id', page.id as string);
+
+      reportPages.push({
+        venue: venueName,
+        venueId,
+        sourceUrl: url,
+        kind,
+        path: 'error',
+        status: `error:${msg.slice(0, 180)}`,
+        error: msg,
+        created: 0,
+        updated: 0,
+        items: [],
+      });
     }
 
     if (i < work.length - 1) {
@@ -205,9 +311,60 @@ async function main() {
     }
   }
 
+  const byPlacement: Record<string, number> = {};
+  for (const page of reportPages) {
+    for (const item of page.items) {
+      byPlacement[item.placement] = (byPlacement[item.placement] ?? 0) + 1;
+    }
+  }
+
+  const summary = {
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    venuesHotove: doneVenues.length,
+    pages: work.length,
+    ok,
+    failed,
+    events: totalEvents,
+    created: totalCreated,
+    updated: totalUpdated,
+    byPlacement,
+    pagesWithItems: reportPages.filter((p) => p.items.length > 0),
+    pagesEmpty: reportPages
+      .filter((p) => p.items.length === 0 && !p.error)
+      .map((p) => ({
+        venue: p.venue,
+        sourceUrl: p.sourceUrl,
+        kind: p.kind,
+        path: p.path,
+        status: p.status,
+      })),
+    pagesFailed: reportPages
+      .filter((p) => p.error)
+      .map((p) => ({
+        venue: p.venue,
+        sourceUrl: p.sourceUrl,
+        kind: p.kind,
+        error: p.error,
+      })),
+  };
+
+  const outDir = join(process.cwd(), 'data', 'scrape-reports');
+  mkdirSync(outDir, { recursive: true });
+  const stamp = startedAt.replace(/[:.]/g, '-');
+  const outPath = join(outDir, `review-done-${stamp}.json`);
+  writeFileSync(outPath, JSON.stringify(summary, null, 2), 'utf8');
+  writeFileSync(
+    join(outDir, 'review-done-latest.json'),
+    JSON.stringify(summary, null, 2),
+    'utf8',
+  );
+
   console.log(
     `\n[review-done] done ok=${ok} failed=${failed} events=${totalEvents} created=${totalCreated} updated=${totalUpdated}`,
   );
+  console.log(`[review-done] by placement`, byPlacement);
+  console.log(`[review-done] report ${outPath}`);
 }
 
 main().catch((err) => {

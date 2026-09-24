@@ -1,28 +1,40 @@
 /**
- * City-wide Bratislava listing scrape: events / group classes / tournaments.
- * Filters by mestská časť (venues.district + venue_scrape_pages.borough).
+ * City-wide Bratislava listing scrape: events / group classes / tournaments /
+ * kids clubs / camps / workshops — same pipeline as admin + scrape:gemini
+ * (Gemini → card→detail → page images → Reenio).
  *
  * Usage:
  *   npx tsx scripts/scrape-bratislava.ts --boroughs ruzinov,petrzalka,dubravka
  *   npx tsx scripts/scrape-bratislava.ts --all --limit 200
  *   npx tsx scripts/scrape-bratislava.ts --boroughs petrzalka --dry-run --limit 20
+ *   npx tsx scripts/scrape-bratislava.ts --kinds kids_clubs,kids_camps,workshops
  */
 import { config } from 'dotenv';
 config({ path: '.env' });
 config({ path: '.env.local', override: true });
 
 import { listEnabledScrapePages } from '../src/lib/places/store';
-import { extractEventsFromText } from '../src/lib/scraper/extractor';
-import { fetchCleanText, sleep } from '../src/lib/scraper/fetcher';
+import { scrapeVenuePage } from '../src/lib/scraper/scrape-venue-page';
 import { upsertScrapedEvents } from '../src/lib/scraper/db-service';
+import { sleep } from '../src/lib/scraper/fetcher';
 import type { ScraperUpsertStats } from '../src/lib/scraper/types';
 import {
   looksLikeGroupClassListing,
+  shouldForceGroupClassFromScrapePage,
   shouldForceGroupClassFromUrl,
 } from '../lib/feed/group-class';
+import { programKindFromScrapePage } from '../lib/programs/classify';
+import { shouldForceForKidsFromScrapePage } from '../lib/scrape/scrape-page-kind';
 import { createAdminClient } from '../lib/supabase/admin';
 
-const LISTING_KINDS = ['tournaments', 'events', 'schedule'] as const;
+const LISTING_KINDS = [
+  'tournaments',
+  'events',
+  'schedule',
+  'kids_clubs',
+  'kids_camps',
+  'workshops',
+] as const;
 const DEFAULT_BOROUGHS = ['ruzinov', 'petrzalka', 'dubravka'] as const;
 /** Gemini Flash ~15 RPM — keep a gap between page extracts. */
 const PAGE_GAP_MS = { min: 2500, max: 4000 } as const;
@@ -72,8 +84,26 @@ function skipShopNoise(url: string): boolean {
   return false;
 }
 
-function classify(title: string, description: string | null | undefined, url: string, isTournament?: boolean) {
-  if (isTournament || /\b(turnaj|tournament|\bcup\b|championship|trophy)\b/i.test(`${title} ${description ?? ''}`)) {
+function classify(
+  title: string,
+  description: string | null | undefined,
+  url: string,
+  flags?: {
+    isTournament?: boolean;
+    isCamp?: boolean;
+    isWorkshop?: boolean;
+    isCourse?: boolean;
+    isGroupClass?: boolean;
+    scrapePageKind?: string | null;
+  },
+) {
+  if (flags?.isCamp) return 'camp' as const;
+  if (flags?.isWorkshop) return 'workshop' as const;
+  if (flags?.isCourse) return 'course' as const;
+  if (
+    flags?.isTournament ||
+    /\b(turnaj|tournament|\bcup\b|championship|trophy)\b/i.test(`${title} ${description ?? ''}`)
+  ) {
     return 'tournament' as const;
   }
   if (
@@ -81,7 +111,10 @@ function classify(title: string, description: string | null | undefined, url: st
       title,
       description,
       sourceUrl: url,
-    })
+      isGroupClass: flags?.isGroupClass,
+    }) ||
+    shouldForceGroupClassFromScrapePage(flags?.scrapePageKind, url) ||
+    shouldForceGroupClassFromUrl(url)
   ) {
     return 'group_class' as const;
   }
@@ -89,7 +122,14 @@ function classify(title: string, description: string | null | undefined, url: st
 }
 
 function emptyClassCounts() {
-  return { event: 0, group_class: 0, tournament: 0 };
+  return {
+    event: 0,
+    group_class: 0,
+    tournament: 0,
+    camp: 0,
+    workshop: 0,
+    course: 0,
+  };
 }
 
 async function markPage(
@@ -153,45 +193,62 @@ async function main() {
     const target = targets[i]!;
     const label = target.venueName ?? target.url;
     const borough = target.borough ?? '(none)';
+    const kind = target.kind ?? null;
     try {
       console.log(
-        `[ba-scrape] (${i + 1}/${targets.length}) [${borough}/${target.kind}] ${label} → ${target.url}`,
+        `[ba-scrape] (${i + 1}/${targets.length}) [${borough}/${kind}] ${label} → ${target.url}`,
       );
-      const text = await fetchCleanText(target.url, target.contentSelector);
-      const events = await extractEventsFromText(target.url, text);
+      const scraped = await scrapeVenuePage({
+        url: target.url,
+        contentSelector: target.contentSelector,
+        venueName: target.venueName,
+        scrapePageKind: kind,
+      });
       consecutiveGeminiFails = 0;
+      const events = scraped.events;
       extracted += events.length;
 
       if (!extractedByBorough[borough]) extractedByBorough[borough] = emptyClassCounts();
       for (const event of events) {
-        const bucket = classify(
-          event.title,
-          event.description,
-          target.url,
-          event.isTournament,
-        );
+        const bucket = classify(event.title, event.description, target.url, {
+          isTournament: event.isTournament,
+          isCamp: event.isCamp,
+          isWorkshop: event.isWorkshop,
+          isCourse: event.isCourse,
+          isGroupClass: event.isGroupClass,
+          scrapePageKind: kind,
+        });
         extractedClass[bucket] += 1;
         extractedByBorough[borough]![bucket] += 1;
       }
 
       console.log(
-        `[ba-scrape] → ${events.length} listing(s)`,
+        `[ba-scrape] → ${events.length} listing(s) [${scraped.path}]`,
         events.slice(0, 3).map(
           (e) =>
-            `${e.title} [${classify(e.title, e.description, target.url, e.isTournament)}]`,
+            `${e.title} [${classify(e.title, e.description, target.url, {
+              isTournament: e.isTournament,
+              isCamp: e.isCamp,
+              isWorkshop: e.isWorkshop,
+              isCourse: e.isCourse,
+              isGroupClass: e.isGroupClass,
+              scrapePageKind: kind,
+            })}]`,
         ),
       );
 
       if (args.dryRun) {
-        await markPage(target.id, true, `ok:${events.length}`);
+        await markPage(target.id, true, `ok:${scraped.path}:${events.length}`);
       } else if (events.length > 0) {
         const stats = await upsertScrapedEvents(events, {
           venueId: target.venueId ?? undefined,
           latitude: target.latitude,
           longitude: target.longitude,
           scrapePageUrl: target.url,
-          forceGroupClass:
-            target.kind === 'schedule' || shouldForceGroupClassFromUrl(target.url),
+          forceGroupClass: shouldForceGroupClassFromScrapePage(kind, target.url),
+          forceForKids: shouldForceForKidsFromScrapePage(kind),
+          forceProgramKind: programKindFromScrapePage(kind),
+          scrapePageKind: kind,
         });
         upsert.created += stats.created;
         upsert.updated += stats.updated;
@@ -201,7 +258,13 @@ async function main() {
         upsert.tournamentsUpdated += stats.tournamentsUpdated;
       }
 
-      await markPage(target.id, args.dryRun, `ok:${events.length}`);
+      await markPage(
+        target.id,
+        args.dryRun,
+        scraped.events.length === 0 && scraped.skippedGemini
+          ? `ok:no-event-signal:${scraped.path}`
+          : `ok:${scraped.path}:${events.length}`,
+      );
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       errors.push({ venue: label, url: target.url, borough: target.borough, error: error.slice(0, 300) });

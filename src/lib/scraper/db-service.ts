@@ -412,7 +412,7 @@ async function upsertEvent(
     venue_id: venueId,
     latitude,
     longitude,
-    for_kids: forKids || Boolean(opts.forceForKids),
+    for_kids: forKids,
     for_women: forWomen,
     source_excerpt: event.sourceExcerpt?.slice(0, 500) ?? null,
     source_evidence: event.sourceEvidence ?? null,
@@ -546,7 +546,7 @@ async function upsertTournament(
     venue_id: venueId,
     latitude,
     longitude,
-    for_kids: forKids || Boolean(opts.forceForKids),
+    for_kids: forKids,
     for_women: forWomen,
   };
 

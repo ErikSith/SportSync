@@ -19,6 +19,7 @@ import {
   buildSourceEvidence,
   type SourceEvidence,
 } from '@/src/lib/scraper/source-evidence';
+import { groundScrapedEventDates } from '@/src/lib/scraper/ground-dates';
 import type { ScrapedEvent } from '@/src/lib/scraper/types';
 import { htmlToCleanText, sleep, HOST_DELAY_MS } from '@/src/lib/scraper/fetcher';
 
@@ -26,7 +27,11 @@ import { htmlToCleanText, sleep, HOST_DELAY_MS } from '@/src/lib/scraper/fetcher
 export const MAX_DETAILS_PER_LISTING = 15;
 
 const DETAIL_PATH =
-  /\/(?:e-\d+|event|events|podujati|podujatia|announcements?|aktualit|aktualita|turnaj|tournament|listky|vstupenk)/i;
+  /\/(?:e-\d+|event|events|podujati|podujatia|announcements?|aktualit|aktualita|turnaj|tournament|listky|vstupenk|kruzky|kr[uú][zž]ky|kurzy?|tabory|t[aá]bory|camps?|clubs?|workshop)/i;
+
+/** Nav / footer / cart — never treat as event detail cards. */
+const DETAIL_NOISE_PATH =
+  /\/(?:cart|kosik|kontakty?|contact|o-nas|about|oou|gdpr|vpm|zverejovanie|login|prihlasenie|eshop|shop|produkt)(?:\/|$)/i;
 
 const TIME_RE = /(\d{1,2})\s*[.:]\s*(\d{2})/;
 
@@ -40,6 +45,7 @@ export type DetailPageEnrichment = {
   cleanText: string;
   title: string | null;
   startsAt: Date | null;
+  endsAt: Date | null;
   timeKnown: boolean;
   locationName: string | null;
   description: string | null;
@@ -103,18 +109,70 @@ export function discoverDetailUrls(html: string, baseUrl: string): DiscoveredDet
       return;
     }
     if (path === '/' || path.length < 2) return;
-    if (!DETAIL_PATH.test(path) && !DETAIL_PATH.test(href)) {
+    if (DETAIL_NOISE_PATH.test(path)) return;
+    const listingPath = (() => {
+      try {
+        return new URL(baseUrl).pathname.replace(/\/+$/, '') || '/';
+      } catch {
+        return '/';
+      }
+    })();
+    const isChildOfListing =
+      listingPath.length > 1 &&
+      path.startsWith(`${listingPath}/`) &&
+      path.length > listingPath.length + 2;
+    if (!DETAIL_PATH.test(path) && !DETAIL_PATH.test(href) && !isChildOfListing) {
       // Soft: long slug paths that look like event pages
       if (!/\/[a-z0-9-]{12,}/i.test(path)) return;
     }
     const key = abs.split('#')[0]!.replace(/\/$/, '');
     if (seen.has(key)) return;
     seen.add(key);
-    const anchorText = $(el).text().replace(/\s+/g, ' ').trim().slice(0, 160);
+    let anchorText = $(el).text().replace(/\s+/g, ' ').trim().slice(0, 160);
+    if (!anchorText) {
+      const alt = $(el).find('img[alt]').first().attr('alt')?.trim()
+        || $(el).attr('aria-label')?.trim()
+        || $(el).attr('title')?.trim()
+        || '';
+      anchorText = alt.slice(0, 160);
+    }
+    if (!anchorText) {
+      const slug = key.split('/').pop()?.replace(/[-_]+/g, ' ') ?? '';
+      anchorText = slug.slice(0, 160);
+    }
     out.push({ url: key, anchorText });
   });
 
   return out;
+}
+
+/**
+ * Card-grid links that are children of the listing path (or classic detail slugs).
+ * Used when the listing only shows teasers and real data lives on detail pages.
+ */
+export function discoverCardDetailLinks(
+  html: string,
+  listingUrl: string,
+): DiscoveredDetailLink[] {
+  const listingPath = (() => {
+    try {
+      return new URL(listingUrl).pathname.replace(/\/+$/, '') || '/';
+    } catch {
+      return '/';
+    }
+  })();
+
+  return discoverDetailUrls(html, listingUrl).filter((link) => {
+    try {
+      const path = new URL(link.url).pathname.replace(/\/+$/, '');
+      if (DETAIL_NOISE_PATH.test(path)) return false;
+      if (path === listingPath) return false;
+      if (listingPath.length > 1 && path.startsWith(`${listingPath}/`)) return true;
+      return DETAIL_PATH.test(path);
+    } catch {
+      return false;
+    }
+  });
 }
 
 /**
@@ -201,18 +259,30 @@ export async function enrichFromDetailPage(url: string): Promise<DetailPageEnric
   const ogDesc = $('meta[property="og:description"]').attr('content')?.trim() || null;
 
   let startsAt: Date | null = null;
+  let endsAt: Date | null = null;
+  // Prefer explicit season/term ranges over registration / occupancy timestamps.
+  const odDo = cleanText.match(
+    /(?:term[ií]n\s*)?od\s+(\d{1,2}\.\s*[a-záäčďéíľĺňóôŕšťúýž]+\s*\d{4}|\d{1,2}\.\s*\d{1,2}\.\s*\d{4})\s+do\s+(\d{1,2}\.\s*[a-záäčďéíľĺňóôŕšťúýž]+\s*\d{4}|\d{1,2}\.\s*\d{1,2}\.\s*\d{4})/i,
+  );
+  const termínLine = cleanText.match(
+    /term[ií]n[^\d]{0,40}(\d{1,2}\.\s*(?:[a-záäčďéíľĺňóôŕšťúýž]+\s*\d{4}|\d{1,2}\.\s*\d{4}))/i,
+  );
   const dateMatch =
-    cleanText.match(
-      /(\d{1,2}\.\s*\d{1,2}\.\s*\d{4})/,
-    ) ||
-    cleanText.match(
-      /(\d{1,2}\.\s*(?:janu[aá]ra|febru[aá]ra|marca|apr[ií]la|m[aá]ja|j[uú]na|j[uú]la|augusta|septembra|okt[oó]bra|novembra|decembra)\s*\d{4})/i,
-    ) ||
-    cleanText.match(
-      /((?:pondelok|utorok|streda|štvrtok|piatok|sobota|nedeľa)[^\d]{0,20}\d{1,2}\.\s*[a-záäčďéíľĺňóôŕšťúýž]+\s*\d{4})/i,
-    );
+    odDo
+      ? [odDo[0], odDo[1]] as RegExpMatchArray
+      : termínLine ||
+        cleanText.match(/(\d{1,2}\.\s*\d{1,2}\.\s*\d{4})/) ||
+        cleanText.match(
+          /(\d{1,2}\.\s*(?:janu[aá]ra|febru[aá]ra|marca|apr[ií]la|m[aá]ja|j[uú]na|j[uú]la|augusta|septembra|okt[oó]bra|novembra|decembra)\s*\d{4})/i,
+        ) ||
+        cleanText.match(
+          /((?:pondelok|utorok|streda|štvrtok|piatok|sobota|nedeľa)[^\d]{0,20}\d{1,2}\.\s*[a-záäčďéíľĺňóôŕšťúýž]+\s*\d{4})/i,
+        );
   if (dateMatch?.[1]) {
     startsAt = parseSlovakDate(dateMatch[1]);
+  }
+  if (odDo?.[2]) {
+    endsAt = parseSlovakDate(odDo[2]);
   }
 
   let timeKnown = false;
@@ -262,6 +332,7 @@ export async function enrichFromDetailPage(url: string): Promise<DetailPageEnric
     cleanText,
     title,
     startsAt,
+    endsAt,
     timeKnown,
     locationName,
     description: ogDesc,
@@ -372,13 +443,23 @@ export async function enrichScrapedEventsWithDetails(
       }
     }
 
-    const grounded = applySourceEvidence(evidenceText, [next], evidenceUrl);
+    const grounded = groundScrapedEventDates(
+      evidenceText,
+      applySourceEvidence(evidenceText, [next], evidenceUrl),
+    );
     if (grounded[0]) {
       out.push(grounded[0]);
     } else {
       // Keep event even if evidence filter would drop — attach soft evidence
       const soft = buildSourceEvidence(evidenceText, next, { sourceUrl: evidenceUrl });
-      out.push({
+      const softGrounded = groundScrapedEventDates(evidenceText, [
+        {
+          ...next,
+          sourceExcerpt: soft.excerpt || null,
+          sourceEvidence: soft,
+        },
+      ]);
+      out.push(softGrounded[0] ?? {
         ...next,
         sourceExcerpt: soft.excerpt || null,
         sourceEvidence: soft,
@@ -397,12 +478,18 @@ function applyDetailToScraped(
     detail.startsAt && !Number.isNaN(detail.startsAt.getTime())
       ? detail.startsAt.toISOString()
       : event.startTime;
+  const endTime =
+    detail.endsAt && !Number.isNaN(detail.endsAt.getTime())
+      ? dateOnlySortInstant(detail.endsAt.toISOString()).toISOString()
+      : event.endTime;
   const timeKnown = detail.startsAt ? detail.timeKnown : event.timeKnown !== false;
   return {
     ...event,
     // Keep listing/schedule URL as identity; detail is only for richer copy.
+    // Card seeds already point originalUrl at the detail page — keep that.
     originalUrl: event.originalUrl,
     startTime,
+    endTime: endTime ?? null,
     timeKnown,
     locationName: detail.locationName?.trim() || event.locationName,
     description: detail.description || event.description,

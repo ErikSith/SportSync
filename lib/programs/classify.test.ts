@@ -114,14 +114,54 @@ describe('classifyProgramSignals', () => {
       'courses',
     );
   });
+
+  it('classifies seasonal kids clubs as courses (Programs → Krúžky)', () => {
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Curling krúžok',
+        sourceUrl: 'https://www.rskruzinov.sk/kruzky-a-kurzy/curling-kruzok',
+        isCourse: true,
+        isGroupClass: false,
+        scrapePageKind: 'events,tournaments,kids_clubs,kids_camps',
+      }),
+      'courses',
+    );
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Kurz korčuľovania',
+        sourceUrl: 'https://www.rskruzinov.sk/kruzky-a-kurzy/kurz-korculovania',
+        scrapePageKind: 'kids_clubs',
+      }),
+      'courses',
+    );
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Tenisový krúžok',
+        sourceUrl: 'https://www.rskruzinov.sk/kruzky-a-kurzy/tenisovy-kruzok',
+      }),
+      'courses',
+    );
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Podujatie · 23. septembra 2026 Športový večer pre nezadaných',
+        description: 'Singles party v Sportcentre Pionierska',
+        scrapePageKind: 'schedule,events,tournaments,kids_clubs,kids_camps,workshops',
+        isCourse: true,
+        themeProgramKind: 'courses',
+      }),
+      null,
+    );
+  });
 });
 
 describe('programKindFromScrapePage', () => {
-  it('forces camps only on dedicated kids_camps pages', () => {
+  it('forces camps/courses/workshops only on dedicated pages', () => {
     assert.equal(programKindFromScrapePage('kids_camps'), 'camps');
-    assert.equal(programKindFromScrapePage('schedule,kids_camps'), null);
+    assert.equal(programKindFromScrapePage('kids_clubs'), 'courses');
     assert.equal(programKindFromScrapePage('workshops'), 'workshops');
     assert.equal(programKindFromScrapePage('schedule'), null);
+    assert.equal(programKindFromScrapePage('schedule,kids_camps'), null);
+    assert.equal(programKindFromScrapePage('events,tournaments,kids_clubs,kids_camps'), null);
   });
 });
 

@@ -1,16 +1,13 @@
 'use client';
 
-import { Suspense, useCallback, useTransition } from 'react';
+import { Suspense, useCallback, useMemo, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { EventCardData, ParticipationMode } from '@/lib/data/events';
 import type { EventType } from '@/lib/constants/events';
-import {
-  classifyProgram,
-  type ProgramBucket,
-  type ProgramsFeedTab,
-} from '@/lib/programs/classify';
-import { EventListItem } from '@/components/events/EventListItem';
+import type { ProgramsFeedTab } from '@/lib/programs/classify';
+import { groupProgramsByVenue } from '@/lib/programs/group-by-venue';
 import { EventFiltersBar } from '@/components/events/EventFiltersBar';
+import { GroupedVenueProgramsCard } from '@/components/programs/GroupedVenueProgramsCard';
 import { useT } from '@/components/i18n/LocaleProvider';
 
 const TEAL = '#2DD4BF';
@@ -81,24 +78,6 @@ function ProgramsTabs({ active }: { active: ProgramsFeedTab }) {
   );
 }
 
-function BucketBadge({ bucket }: { bucket: ProgramBucket }) {
-  const t = useT();
-  const label =
-    bucket === 'camps'
-      ? t('home.programs.campBadge')
-      : bucket === 'workshops'
-        ? t('home.programs.workshopBadge')
-        : t('home.programs.courseBadge');
-  return (
-    <span
-      className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 font-label-caps text-[9px] uppercase tracking-wide text-[#0b1f1c]"
-      style={{ backgroundColor: TEAL }}
-    >
-      {label}
-    </span>
-  );
-}
-
 interface ProgramsFeedProps {
   events: EventCardData[];
   tab: ProgramsFeedTab;
@@ -121,6 +100,8 @@ export function ProgramsFeed({
   emptySubtitle,
 }: ProgramsFeedProps) {
   const t = useT();
+  const venueGroups = useMemo(() => groupProgramsByVenue(events), [events]);
+  const expandFirst = venueGroups.length === 1;
 
   return (
     <div className="flex flex-col gap-5">
@@ -165,26 +146,25 @@ export function ProgramsFeed({
               </p>
             </div>
             <span className="shrink-0 rounded-full border border-teal-400/25 bg-teal-400/10 px-2.5 py-1 font-label-caps text-[10px] uppercase tracking-wider text-teal-300">
-              {events.length}
+              {venueGroups.length}
             </span>
           </div>
 
-          <div role="list" aria-label={t('programs.listTitle')} className="flex flex-col gap-2">
-            {events.map((event) => {
-              const bucket = classifyProgram(event);
-              return (
-                <div key={event.id} role="listitem" className="relative min-w-0">
-                  {bucket ? (
-                    <div className="pointer-events-none absolute right-3 top-3 z-10">
-                      <BucketBadge bucket={bucket} />
-                    </div>
-                  ) : null}
-                  <div className="[&_[data-event-list-item]]:hover:border-teal-400/30">
-                    <EventListItem event={event} />
-                  </div>
-                </div>
-              );
-            })}
+          <div
+            role="list"
+            aria-label={t('programs.listTitle')}
+            className="flex flex-col gap-2"
+          >
+            {venueGroups.map((group, index) => (
+              <div key={group.key} role="listitem" className="min-w-0">
+                <GroupedVenueProgramsCard
+                  group={group}
+                  tab={tab}
+                  index={index}
+                  defaultExpanded={expandFirst}
+                />
+              </div>
+            ))}
           </div>
         </section>
       )}

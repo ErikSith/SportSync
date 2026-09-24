@@ -8,6 +8,7 @@ import {
   toAppDateKey,
 } from '@/lib/datetime/bratislava';
 import type { ScrapedEvent } from '../types';
+import { syncCategoryAndFlags } from '../category';
 import {
   detectBookingEmbed,
   resolveReenioSubjectFromWidgetCode,
@@ -220,7 +221,7 @@ function mapEvent(
 
   const sport = detectEventSport(`${title} joga`);
 
-  return {
+  return syncCategoryAndFlags({
     title,
     sportType: sport === 'OTHER' ? 'Joga' : sport,
     isTournament: false,
@@ -243,7 +244,8 @@ function mapEvent(
     priceText: price,
     description: desc || null,
     originalUrl: opts.hostUrl,
-  };
+    detailUrl: opts.hostUrl,
+  });
 }
 
 /**

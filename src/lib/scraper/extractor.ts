@@ -21,6 +21,11 @@ import {
   splitAnnouncementCalendar,
   type AnnouncementActivity,
 } from './announcement-calendar';
+import {
+  categoryFromFlags,
+  parseEventCategory,
+  syncCategoryAndFlags,
+} from './category';
 import { groundScrapedEventDates } from './ground-dates';
 import { applySourceEvidence } from './source-evidence';
 
@@ -59,11 +64,18 @@ const RESPONSE_SCHEMA: ResponseSchema = {
         properties: {
           title: { type: SchemaType.STRING },
           sportType: { type: SchemaType.STRING },
-          isTournament: { type: SchemaType.BOOLEAN },
-          isGroupClass: { type: SchemaType.BOOLEAN },
-          isCamp: { type: SchemaType.BOOLEAN },
-          isWorkshop: { type: SchemaType.BOOLEAN },
-          isCourse: { type: SchemaType.BOOLEAN },
+          category: {
+            type: SchemaType.STRING,
+            format: 'enum',
+            enum: [
+              'PODUJATIE',
+              'SKUPINOVE_CVICENIE',
+              'TURNAJ',
+              'WORKSHOP',
+              'DETSKY_TABOR',
+              'DETSKY_KRUZOK',
+            ],
+          },
           startTime: { type: SchemaType.STRING },
           timeKnown: { type: SchemaType.BOOLEAN },
           endTime: { type: SchemaType.STRING },
@@ -71,6 +83,7 @@ const RESPONSE_SCHEMA: ResponseSchema = {
           city: { type: SchemaType.STRING },
           priceText: { type: SchemaType.STRING },
           description: { type: SchemaType.STRING },
+          detailUrl: { type: SchemaType.STRING },
           originalUrl: { type: SchemaType.STRING },
           isForWomenOnly: { type: SchemaType.BOOLEAN },
           isForKids: { type: SchemaType.BOOLEAN },
@@ -79,8 +92,7 @@ const RESPONSE_SCHEMA: ResponseSchema = {
         required: [
           'title',
           'sportType',
-          'isTournament',
-          'isGroupClass',
+          'category',
           'isForWomenOnly',
           'isForKids',
           'startTime',
@@ -146,20 +158,21 @@ Pravidlá:
   ani časové pásma cien (Pondelok–Piatok 07:00–14:00 = cenník, nie event).
 - Ak stránka obsahuje TÝŽDENNÝ ROZVRH (Pondelok/Utorok/... alebo Po/Ut/... + čas + názov AKTIVITY),
   vygeneruj konkrétne lekcie na najbližších 7 dní od kotevného dátumu vyššie. Každý slot = 1 záznam so startTime v ISO 8601.
-  Tieto sloty sú SKUPINOVÉ LEKCIE (isGroupClass = true, isTournament = false) — nie unikátne eventy.
+  Tieto sloty = category SKUPINOVE_CVICENIE — nie unikátne eventy.
 - Ak je na TEJ ISTEJ stránke aj rozvrh aj jednorazové akcie/turnaje/tábory, ROZDEĽ ich po položkách.
   Nikdy neoznač celú stránku jedným typom.
-- KLASIFIKÁCIA (práve jedna primárna role):
-  • isTournament = true: turnaj s otvorenou prihláškou (cup, championship, open, trophy).
-    NIE ligový zápas „Tím A vs Tím B“ — to je divácky zápas (isTournament = false).
-  • isGroupClass = true: týždenný rozvrh / skupinové cvičenie (Pilates, HIIT, Box, Yoga, Fitbox,
-    stolný tenis, pole dance, akademia, nábor, footwork). Aj „Stronger kurz“ v rozvrhu = isGroupClass.
-  • isCamp = true: viacdňový tábor/kemp. startTime = prvý deň, endTime = posledný. isGroupClass = false.
-  • isWorkshop = true: jednorazový workshop / masterclass / seminár. isGroupClass = false.
-  • isCourse = true: viactýždňový kurz s prihláškou, NIE drop-in slot. isGroupClass = false.
-  • Inak (exhibícia, otvorenie, koncert, zápas A vs B): všetky flagy false.
-- Unikátny EVENT = otvorenie, exhibícia, koncert, zápas. Tábory/workshopy/kurzy nie sú bežné eventy.
-- Bežný názov lekcie (Pilates, HIIT, Box, Yoga, Kickbox, Fitbox, Pole Dance) = skupinová lekcia.
+- KATEGÓRIA (práve JEDNA z 6 — pole category):
+  • TURNAJ — súťaž s otvorenou prihláškou (cup, championship, open, trophy, liga s registráciou).
+    NIE ligový zápas „Tím A vs Tím B“ — to je PODUJATIE (divák / Sledovať).
+  • SKUPINOVE_CVICENIE — týždenný rozvrh / skupinové cvičenie (Pilates, HIIT, Box, Yoga, FitCamp,
+    stolný tenis, pole dance). Aj „Stronger kurz“ v rozvrhu = SKUPINOVE_CVICENIE (nie DETSKY_KRUZOK).
+  • WORKSHOP — krátkodobý intenzívny workshop / masterclass / seminár (2–4 h alebo niekoľko dní, prevažne dospelí).
+  • DETSKY_TABOR — viacdňový prázdninový/letný tábor/kemp pre deti s celodenným programom.
+    startTime = prvý deň, endTime = posledný. isForKids = true.
+  • DETSKY_KRUZOK — celoročný/pravidelný tréning po škole pre deti (plavecký krúžok, krúžok, juniorská akadémia).
+    isForKids = true. NIE drop-in fitnes lekcia pre dospelých.
+  • PODUJATIE — jednorazová komunitná akcia, exhibícia, otvorenie, koncert, zápas A vs B, iné bez špecifickej kategórie.
+- Bežný názov lekcie (Pilates, HIIT, Box, Yoga, Kickbox, Fitbox, Pole Dance) = SKUPINOVE_CVICENIE.
 - Ak sú uvedené konkrétne dátumy (deň.mesiac.rok / ISO), použi ich.
 - Viacdňové festivaly/turnaje (napr. „5 novembra – 9 novembra“, „24.–25. 10.“, „5-9“):
   startTime = prvý deň, endTime = posledný deň. Jeden záznam na celé obdobie (nie karty po dňoch).
@@ -172,10 +185,12 @@ Pravidlá:
   (Košice, Žilina, Prešov, Banská Bystrica, Nitra, Trnava, …), udalosť NEEXTRAHUJ — aj keď
   stránka patrí bratislavskému športovisku (pobočka len oznamuje cudzí event).
 - Past / „Udialo sa“ bez budúceho dátumu NEEXTRAHUJ.
-- originalUrl MUSÍ byť platná absolútna http(s) URL: použi priamy rezervačný/registračný odkaz
-  (rezervácia, booking, prihláška, lístky), ak je na stránke uvedený. Inak použi: ${pageUrl}
-- Nikdy nevymýšľaj URL. originalUrl musí patriť organizátorovi / rezervačnému systému.
-- description: 1–3 krátke vety s dôležitými faktami pre hráča (kategória, formát štvorhra/dvojhra, časové okno, prihláška). priceText len ak je cena uvedená.
+- originalUrl / detailUrl MUSIA byť platné absolútne http(s) URL.
+  Ak text obsahuje bloky „=== DETAIL N === / URL: …“, použi TÚ URL ako detailUrl aj originalUrl pre danú udalosť.
+  Inak použi priamy rezervačný/registračný odkaz (rezervácia, booking, prihláška, lístky).
+  Fallback: ${pageUrl}
+- Nikdy nevymýšľaj URL. detailUrl/originalUrl musí patriť organizátorovi / rezervačnému systému.
+- description: 1–3 krátke vety s dôležitými faktami pre hráča (formát, časové okno, prihláška). priceText len ak je cena uvedená.
 - OZNÁMENIA / KALENDÁRE DÁTUMOV (vysoká recall — žiadny turnaj nesmie uniknúť):
   • Ak text obsahuje riadky typu „26.9. … turnaj … 9:30–12:30 a … turnaj … 13:00–18:00“,
     vytvor SAMOSTATNÝ záznam pre KAŽDÚ aktivitu s vlastným časom (ženy ≠ mužská štvorhra).
@@ -191,11 +206,11 @@ Pravidlá:
   „pre ženy“, ladies only, W4W, dámsky, ženský turnaj, Ladies Cup.
   NIE mix „ženy a muži“, NIE open kategória kde hrajú obe pohlavia.
 - ageCategory: uveď len ak je vek explicitne na stránke (napr. „U12“, „6-10 rokov“, „Dospelí“); inak null.
-- isTournament = true LEN pre turnaje, do ktorých sa hráč prihlasuje (cup, open, championship, trophy, kvalifikácia).
+- category = TURNAJ LEN pre turnaje, do ktorých sa hráč prihlasuje (cup, open, championship, trophy, kvalifikácia).
   Tieto záznamy idú do tabuľky Tournament (nie Event).
-- Zápas v tvare „klub vs klub“ / „X proti Y“ (napr. FK Inter vs FC Petržalka) NIE JE turnaj s prihláškou:
-  isTournament = false, divák ide Sledovať, nie Pripojiť sa.
-- isTournament = false pre tréningy, lekcie, ligové zápasy A vs B a týždenný rozvrh.
+- Zápas v tvare „klub vs klub“ / „X proti Y“ (napr. FK Inter vs FC Petržalka) → category = PODUJATIE
+  (divák ide Sledovať, nie Pripojiť sa).
+- Tréningy/lekcie/týždenný rozvrh → SKUPINOVE_CVICENIE; ligové zápasy A vs B → PODUJATIE.
 - Ak na stránke naozaj nie sú žiadne časy ani dátumy aktivít, vráť prázdne pole events.`;
 }
 
@@ -386,9 +401,15 @@ function activityToScrapedEvent(
     forKids: activity.isForKids,
     forWomen: activity.isForWomenOnly,
   });
-  return {
+  const category = categoryFromFlags({
+    title: activity.title,
+    isTournament: activity.isTournament,
+    isForKids: audience.forKids,
+  });
+  return syncCategoryAndFlags({
     title: activity.title,
     sportType: activity.sportType,
+    category,
     isTournament: activity.isTournament,
     isGroupClass: false,
     isCamp: false,
@@ -404,7 +425,8 @@ function activityToScrapedEvent(
     priceText: null,
     description: activity.description,
     originalUrl: pageUrl,
-  };
+    detailUrl: pageUrl,
+  });
 }
 
 function eventKey(e: Pick<ScrapedEvent, 'title' | 'startTime'>): string {
@@ -450,18 +472,24 @@ function normalizeExtractedEvents(
   const now = Date.now() - 60 * 60 * 1000;
   const withAudience = events
     .map((e) => {
+      const detailOrOriginal = absoluteHttpUrl(
+        e.detailUrl || e.originalUrl,
+        pageUrl,
+      );
       const base = {
         ...e,
         title: e.title.trim(),
         sportType: e.sportType.trim(),
         locationName: e.locationName.trim(),
         city: e.city?.trim() || null,
-        originalUrl: absoluteHttpUrl(e.originalUrl, pageUrl),
+        detailUrl: detailOrOriginal,
+        originalUrl: detailOrOriginal,
         description: e.description?.trim() || null,
         priceText: e.priceText?.trim() || null,
         endTime: e.endTime?.trim() || null,
         ageCategory: e.ageCategory?.trim() || null,
         timeKnown: e.timeKnown !== false,
+        category: parseEventCategory(e.category) ?? undefined,
       };
       const audience = classifyListingAudience({
         title: base.title,
@@ -471,11 +499,11 @@ function normalizeExtractedEvents(
         forKids: base.isForKids,
         forWomen: base.isForWomenOnly,
       });
-      return {
+      return syncCategoryAndFlags({
         ...base,
         isForKids: audience.forKids,
         isForWomenOnly: audience.forWomen,
-      };
+      });
     })
     .filter((e) => {
       const t = Date.parse(e.startTime);
@@ -617,26 +645,55 @@ function coerceOriginalUrls(parsed: unknown, pageUrl: string): unknown {
     events: events.map((item) => {
       if (!item || typeof item !== 'object') return item;
       const row = item as Record<string, unknown>;
-      return {
-        ...row,
-        originalUrl: absoluteHttpUrl(
-          typeof row.originalUrl === 'string' ? row.originalUrl : null,
-          pageUrl,
-        ),
+      const detailUrl = absoluteHttpUrl(
+        typeof row.detailUrl === 'string'
+          ? row.detailUrl
+          : typeof row.originalUrl === 'string'
+            ? row.originalUrl
+            : null,
+        pageUrl,
+      );
+      const category =
+        parseEventCategory(row.category) ??
+        categoryFromFlags({
+          title: typeof row.title === 'string' ? row.title : '',
+          isTournament:
+            row.isTournament === true || row.isTournament === 'true',
+          isGroupClass:
+            row.isGroupClass === true || row.isGroupClass === 'true',
+          isCamp: row.isCamp === true || row.isCamp === 'true',
+          isWorkshop: row.isWorkshop === true || row.isWorkshop === 'true',
+          isCourse: row.isCourse === true || row.isCourse === 'true',
+          isForKids:
+            row.isForKids === true ||
+            row.isForKids === 'true' ||
+            row.forKids === true ||
+            row.forKids === 'true',
+        });
+      const synced = syncCategoryAndFlags({
+        title: typeof row.title === 'string' ? row.title : '',
+        category,
+        isTournament: row.isTournament === true || row.isTournament === 'true',
         isGroupClass: row.isGroupClass === true || row.isGroupClass === 'true',
         isCamp: row.isCamp === true || row.isCamp === 'true',
         isWorkshop: row.isWorkshop === true || row.isWorkshop === 'true',
         isCourse: row.isCourse === true || row.isCourse === 'true',
-        timeKnown:
-          row.timeKnown !== false &&
-          row.timeKnown !== 'false' &&
-          row.time_known !== false &&
-          row.time_known !== 'false',
         isForKids:
           row.isForKids === true ||
           row.isForKids === 'true' ||
           row.forKids === true ||
           row.forKids === 'true',
+      });
+      return {
+        ...row,
+        ...synced,
+        detailUrl,
+        originalUrl: detailUrl,
+        timeKnown:
+          row.timeKnown !== false &&
+          row.timeKnown !== 'false' &&
+          row.time_known !== false &&
+          row.time_known !== 'false',
         isForWomenOnly:
           row.isForWomenOnly === true ||
           row.isForWomenOnly === 'true' ||

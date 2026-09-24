@@ -4,6 +4,7 @@ import { requireDevAdmin } from '@/lib/auth/dev-admin';
 import { listingParticipationMode } from '@/lib/participation/fixture-match';
 import { tournamentParticipationMode } from '@/lib/tournament-participation';
 import { looksLikeGroupClassListing } from '@/lib/feed/group-class';
+import { classifyProgramSignals } from '@/lib/programs/classify';
 import {
   extractScheduleFromAmenities,
   jsDayToIsoWeekday,
@@ -63,7 +64,7 @@ export async function GET(_request: Request, context: RouteContext) {
     supabase
       .from('events')
       .select(
-        'id, title, description, sport, status, starts_at, end_time, participation_mode, for_kids, for_women, type, source, source_url, ticket_url, external_id',
+        'id, title, description, sport, status, starts_at, end_time, participation_mode, for_kids, for_women, type, source, source_url, ticket_url, external_id, theme_config',
       )
       .eq('venue_id', venueId)
       .or(`starts_at.gte."${feedFloorIso}",end_time.gte."${nowIso}"`)
@@ -142,6 +143,7 @@ export async function GET(_request: Request, context: RouteContext) {
     source: string | null;
     sourceUrl: string | null;
     isGroupClass: boolean;
+    programKind: 'workshops' | 'camps' | 'courses' | null;
     isUpcoming: boolean;
   };
 
@@ -151,6 +153,21 @@ export async function GET(_request: Request, context: RouteContext) {
     const sourceUrl = (e.source_url as string | null) ?? null;
     const ticketUrl = (e.ticket_url as string | null) ?? null;
     const source = (e.source as string | null) ?? null;
+    const externalId = (e.external_id as string | null) ?? null;
+    const themeConfig =
+      e.theme_config && typeof e.theme_config === 'object'
+        ? (e.theme_config as Record<string, unknown>)
+        : null;
+    const themeProgramKind =
+      typeof themeConfig?.programKind === 'string' ? themeConfig.programKind : null;
+    const programKind = classifyProgramSignals({
+      title,
+      description,
+      sourceUrl,
+      ticketUrl,
+      externalId,
+      themeProgramKind,
+    });
     const stored = (e.participation_mode as string) || 'participate';
     const effective = listingParticipationMode(title, stored, {
       description,
@@ -158,13 +175,15 @@ export async function GET(_request: Request, context: RouteContext) {
       ticketUrl,
       source,
     });
-    const isGroupClass = looksLikeGroupClassListing({
-      title,
-      description,
-      sourceUrl,
-      ticketUrl,
-      externalId: (e.external_id as string | null) ?? null,
-    });
+    const isGroupClass =
+      !programKind &&
+      looksLikeGroupClassListing({
+        title,
+        description,
+        sourceUrl,
+        ticketUrl,
+        externalId,
+      });
     const startsAt = e.starts_at as string;
     const endTime = (e.end_time as string | null) ?? null;
     return {
@@ -184,6 +203,7 @@ export async function GET(_request: Request, context: RouteContext) {
       source,
       sourceUrl,
       isGroupClass,
+      programKind,
       isUpcoming: isListingStillActive(startsAt, endTime, now),
     };
   });
@@ -226,7 +246,8 @@ export async function GET(_request: Request, context: RouteContext) {
   const activeTournaments = mappedTournaments.filter((t) => t.isUpcoming);
 
   const groupClasses = activeEvents.filter((e) => e.isGroupClass);
-  const plainEvents = activeEvents.filter((e) => !e.isGroupClass);
+  const programs = activeEvents.filter((e) => e.programKind != null);
+  const plainEvents = activeEvents.filter((e) => !e.isGroupClass && !e.programKind);
 
   const upcomingGroupClasses = groupClasses.length;
   const upcomingEvents = plainEvents.length;
@@ -254,8 +275,8 @@ export async function GET(_request: Request, context: RouteContext) {
     ),
     availability: checklistFrom(hasKind('availability'), false), // content parse later
     events: checklistFrom(
-      hasKind('events') || plainEvents.length > 0,
-      plainEvents.length > 0,
+      hasKind('events') || plainEvents.length > 0 || programs.length > 0,
+      plainEvents.length > 0 || programs.length > 0,
     ),
     tournaments: checklistFrom(
       hasKind('tournaments') || activeTournaments.length > 0,
@@ -318,6 +339,7 @@ export async function GET(_request: Request, context: RouteContext) {
       groupClasses: groupClasses.length,
       upcomingGroupClasses,
       scheduleSlots: scheduleSlotCount,
+      programs: programs.length,
       events: plainEvents.length,
       upcomingEvents,
       tournaments: activeTournaments.length,
@@ -329,6 +351,7 @@ export async function GET(_request: Request, context: RouteContext) {
     },
     listings: {
       groupClasses,
+      programs,
       events: plainEvents,
       tournaments: activeTournaments,
     },

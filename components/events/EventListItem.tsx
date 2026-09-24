@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { EventCardData } from '@/lib/data/events';
 import { eventMatchesKids, eventMatchesWomen } from '@/lib/event-audience-filter';
@@ -45,9 +45,11 @@ function locationLabel(event: EventCardData): string {
 
 interface EventListItemProps {
   event: EventCardData;
+  /** When nested under a venue accordion, omit redundant venue name. */
+  hideVenue?: boolean;
 }
 
-export function EventListItem({ event }: EventListItemProps) {
+export function EventListItem({ event, hideVenue = false }: EventListItemProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const timeKnown = event.timeKnown !== false;
   const startsAt = timeKnown
@@ -55,9 +57,27 @@ export function EventListItem({ event }: EventListItemProps) {
     : asDate(event.startsAt);
   const day = formatAppDayRangeLabel(startsAt, event.endsAt);
   const time = timeKnown ? formatStartTime(startsAt) : null;
-  const place = locationLabel(event);
+  const place = hideVenue ? null : locationLabel(event);
   const price = priceLabel(event);
   const icon = sportIcon(event.sport, event.title);
+
+  const metaBits: ReactNode[] = [];
+  if (place) metaBits.push(<span key="place">{place}</span>);
+  if (showForWomen(event)) {
+    metaBits.push(
+      <span key="women" className="text-primary-container/90">
+        Pre ženy
+      </span>,
+    );
+  }
+  if (showForKids(event)) {
+    metaBits.push(
+      <span key="kids" className="text-primary-container/90">
+        Pre deti
+      </span>,
+    );
+  }
+  metaBits.push(<span key="price">{price}</span>);
 
   return (
     <>
@@ -104,21 +124,14 @@ export function EventListItem({ event }: EventListItemProps) {
             {event.title}
           </span>
           <span className="mt-0.5 block truncate font-body-md text-[13px] text-on-surface-variant">
-            {place}
-            {showForWomen(event) ? (
-              <>
-                <span className="text-on-surface-variant/70"> • </span>
-                <span className="text-primary-container/90">Pre ženy</span>
-              </>
-            ) : null}
-            {showForKids(event) ? (
-              <>
-                <span className="text-on-surface-variant/70"> • </span>
-                <span className="text-primary-container/90">Pre deti</span>
-              </>
-            ) : null}
-            <span className="text-on-surface-variant/70"> • </span>
-            {price}
+            {metaBits.map((bit, i) => (
+              <span key={i}>
+                {i > 0 ? (
+                  <span className="text-on-surface-variant/70"> • </span>
+                ) : null}
+                {bit}
+              </span>
+            ))}
           </span>
         </span>
 

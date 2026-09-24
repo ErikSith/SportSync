@@ -9,11 +9,17 @@ export const GROUP_SPORT_ICONS: Record<string, string> = {
   PILATES: 'self_improvement',
   COMBAT: 'sports_mma',
   FITNESS: 'fitness_center',
+  JUMPING: 'fitness_center',
+  TRAMPOLINE: 'sports_gymnastics',
+  PARKOUR: 'directions_run',
+  GYMNASTICS: 'sports_gymnastics',
   SWIMMING: 'pool',
   CLIMBING: 'hiking',
   BOWLING: 'sports',
   DARTS: 'target',
   SKATING: 'ice_skating',
+  SKATEBOARD: 'skateboarding',
+  SCOOTER: 'electric_scooter',
 };
 
 export type SessionRsvpStatus = 'pending' | 'going' | 'maybe' | 'declined';

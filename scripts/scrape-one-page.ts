@@ -56,7 +56,9 @@ async function main() {
     bookingProvider: (page.booking_provider as string | null) ?? null,
     bookingSubject: (page.booking_subject as string | null) ?? null,
     venueName: (venue?.name as string | null) ?? null,
+    scrapePageKind: (page.kind as string | null) ?? null,
   });
+  console.log(`[scrape-one] kind=${page.kind ?? '—'}`);
 
   console.log(
     `[scrape-one] path=${scraped.path} text=${scraped.text.length} events=${scraped.events.length}` +

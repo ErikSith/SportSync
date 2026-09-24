@@ -1,10 +1,10 @@
-/**
- * Expectations for detail URL discovery / title match.
- * Run: npx tsx --test lib/scrape/detail-enrich.test.ts
- */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { discoverDetailUrls, matchDetailUrl } from './detail-enrich';
+import {
+  discoverCardDetailLinks,
+  discoverDetailUrls,
+  matchDetailUrl,
+} from './detail-enrich';
 
 describe('discoverDetailUrls', () => {
   it('finds gopass /e- event links', () => {
@@ -14,6 +14,27 @@ describe('discoverDetailUrls', () => {
     `;
     const links = discoverDetailUrls(html, 'https://gopassarena.sk/');
     assert.ok(links.some((l) => l.url.includes('/e-22427/')));
+    assert.ok(!links.some((l) => l.url.includes('/o-nas')));
+  });
+
+  it('finds kids club card children under listing path', () => {
+    const html = `
+      <main>
+        <a href="/kruzky-a-kurzy/curling-kruzok"><img alt="Curling krúžok" /></a>
+        <a href="/kruzky-a-kurzy/tenisovy-kruzok">Tenisový krúžok</a>
+        <a href="/kontakty">Kontakty</a>
+      </main>
+    `;
+    const links = discoverCardDetailLinks(
+      html,
+      'https://www.rskruzinov.sk/kruzky-a-kurzy',
+    );
+    assert.equal(links.length, 2);
+    assert.ok(links.some((l) => l.url.includes('curling-kruzok')));
+    assert.equal(
+      links.find((l) => l.url.includes('curling'))?.anchorText,
+      'Curling krúžok',
+    );
   });
 });
 

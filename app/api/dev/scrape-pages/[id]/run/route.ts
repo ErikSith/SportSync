@@ -81,6 +81,7 @@ export async function POST(request: Request, context: RouteContext) {
       bookingProvider: (page.booking_provider as string | null) ?? null,
       bookingSubject: (page.booking_subject as string | null) ?? null,
       venueName: (venue?.name as string | null) ?? null,
+      scrapePageKind: pageKind,
     });
 
     const events = scraped.events;

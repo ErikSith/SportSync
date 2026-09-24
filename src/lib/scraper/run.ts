@@ -115,8 +115,9 @@ type ScrapePageRow = {
 };
 
 /**
- * Load every venue with a valid websiteUrl, plus enabled VenueScrapePage URLs
- * for discovery (rozvrh / turnaje). Uses Supabase service-role (same as upserts)
+ * Load enabled VenueScrapePage URLs tagged as events / tournaments /
+ * kids_clubs / kids_camps / workshops. Bare venue websites and schedule-only
+ * / availability pages are skipped. Uses Supabase service-role (same as upserts)
  * so local Prisma DATABASE_URL auth issues do not block the runner.
  */
 export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
@@ -205,15 +206,11 @@ export async function loadVenueWebsiteTargets(): Promise<VenueScrapeTarget[]> {
     out.push(target);
   };
 
-  for (const venue of venues) {
-    push(venue.website_url, venue);
-  }
-
+  // Only admin-tagged scrape pages — never crawl bare venue homepage blindly.
   for (const page of scrapePages) {
     const venue = page.venue_id ? venueById.get(page.venue_id) : undefined;
     const kind = (page.kind ?? '').toLowerCase();
-    // Court booking calendars alone are for Lobby later — skip Gemini event extract.
-    // Mixed availability+schedule still scrapes events.
+    // events | tournaments | kids_clubs | kids_camps | workshops (alone or mixed)
     if (shouldSkipEventExtractForKind(kind)) continue;
     const forceGroupClass = shouldForceGroupClassFromScrapePage(kind, page.url);
     const forceForKids = shouldForceForKidsFromScrapePage(kind);
@@ -321,6 +318,8 @@ export async function runGeminiScraper(
             bookingProvider: target.bookingProvider,
             bookingSubject: target.bookingSubject,
             venueName: target.venueName,
+            // Kind drives force-extract, card→detail seeds, and kids_clubs → courses.
+            scrapePageKind: target.scrapePageKind,
           });
           if (scraped.path === 'empty' && scraped.events.length === 0) {
             if (scraped.skippedGemini) {

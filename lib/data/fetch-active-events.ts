@@ -6,7 +6,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAnonEnv } from '@/lib/supabase/env';
 import { distanceKm } from '@/lib/geo';
-import { activeFeedSinceIso } from '@/lib/retention/feed-window';
+import { activeListingsOrFilter } from '@/lib/retention/feed-window';
 import { parseDbInstant } from '@/lib/datetime/bratislava';
 import {
   ALL_EVENTS_FALLBACK_MESSAGE,
@@ -139,7 +139,7 @@ export async function fetchActiveEventsSafe(
 ): Promise<EventCardData[]> {
   const lat = options.lat != null && Number.isFinite(options.lat) ? options.lat : 48.1486;
   const lng = options.lng != null && Number.isFinite(options.lng) ? options.lng : 17.1077;
-  const limit = options.limit ?? 400;
+  const limit = options.limit ?? 800;
   const requireUpcoming = options.requireUpcoming !== false;
 
   try {
@@ -157,19 +157,18 @@ export async function fetchActiveEventsSafe(
       let request = supabase
         .from('events')
         .select(withVenues ? '*, venues(name)' : '*')
-        .in('status', ['open', 'live'])
-        .order('starts_at', { ascending: true })
-        .limit(limit);
+        .in('status', ['open', 'live']);
 
       if (withStartsAtFloor) {
-        request = request.gte('starts_at', activeFeedSinceIso());
+        // Multi-day camps/courses stay listed until end_time (same idea as tournaments).
+        request = request.or(activeListingsOrFilter());
       }
       if (options.type && options.type !== 'ALL') {
         request = request.eq('type', options.type);
       }
       // Mode applied after map — title heuristics override stale DB flags.
 
-      return request;
+      return request.order('starts_at', { ascending: true }).limit(limit);
     };
 
     // 1) Prefer join for venue names

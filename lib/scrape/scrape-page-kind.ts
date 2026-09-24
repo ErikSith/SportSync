@@ -35,6 +35,27 @@ export const COMBINABLE_CONTENT_KINDS = [
   'workshops',
 ] as const;
 
+/**
+ * Gemini / event scraper allowlist — only pages tagged with at least one of these.
+ * Skips bare website, schedule-only, availability, other.
+ */
+export const EVENT_SCRAPE_CONTENT_KINDS = [
+  'events',
+  'tournaments',
+  'kids_clubs',
+  'kids_camps',
+  'workshops',
+] as const;
+
+const EVENT_SCRAPE_KIND_SET = new Set<string>(EVENT_SCRAPE_CONTENT_KINDS);
+
+/** True when admin tagged the URL as event / turnaj / krúžok / tábor / workshop. */
+export function isEventScrapeTargetKind(
+  kind: string | null | undefined,
+): boolean {
+  return parseScrapePageKinds(kind).some((k) => EVENT_SCRAPE_KIND_SET.has(k));
+}
+
 export function parseScrapePageKinds(kind: string | null | undefined): ScrapePageKind[] {
   const raw = (kind ?? '')
     .toLowerCase()
@@ -119,16 +140,22 @@ export function isMixedScrapePageKind(kind: string | null | undefined): boolean 
   return content.length > 1;
 }
 
+/**
+ * Skip Gemini event extract unless the page is tagged with an event-content
+ * role (events / tournaments / kids_clubs / kids_camps / workshops).
+ * Schedule-only, availability, website, and other are out of scope.
+ */
 export function shouldSkipEventExtractForKind(
   kind: string | null | undefined,
 ): boolean {
-  const kinds = parseScrapePageKinds(kind);
-  return kinds.length === 1 && kinds[0] === 'availability';
+  return !isEventScrapeTargetKind(kind);
 }
 
 export function shouldForceForKidsFromScrapePage(
   kind: string | null | undefined,
 ): boolean {
+  // Mixed multi-role pages (events+kids_clubs+…) — per-item title heuristics only.
+  if (isMixedScrapePageKind(kind)) return false;
   return (
     scrapePageHasKind(kind, 'kids_camps') || scrapePageHasKind(kind, 'kids_clubs')
   );

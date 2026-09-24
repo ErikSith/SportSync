@@ -59,11 +59,18 @@ const EXPLICIT_KIDS =
 
 /** Explicit adult-only markers — override kids flag from Gemini / copy noise. */
 const EXPLICIT_ADULT =
-  /\bdospeli\b|\bdospelych\b|\badults?\b|\b18\s*\+|pre dosp/;
+  /\bdospeli\b|\bdospelych\b|\badults?\b|\b18\s*\+|pre dosp|nezadan|singles?\s*party|\bsingles\b|sportovy\s+vecer|vecer\s+pre\s+nezadan/;
 
 export function detectExplicitKidsAudience(input: KidsAudienceInput): boolean {
   const title = fold(input.title ?? '');
   if (titleLooksAdultOnly(input.title)) return false;
+  // Adult social / singles nights — never "Pre deti" even if scrape forced for_kids.
+  if (
+    /\bnezadan\b|\bsingles?\b|sportovy\s+vecer|vecer\s+pre|party\b/.test(title) &&
+    !/\bdeti\b|\bkids\b|pre deti|detsk/.test(title)
+  ) {
+    return false;
+  }
 
   if (input.forKids) {
     // Gemini sometimes marks mixed schedules as kids — trust title adult markers first.

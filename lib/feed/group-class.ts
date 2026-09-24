@@ -9,11 +9,15 @@ import {
 } from '@/lib/scrape/scrape-page-kind';
 
 const SPECIAL_EVENT_TITLE =
-  /\b(piatkovica|open\s*air|hyrox|workshop|masterclass|seminar|t[aá]bor|summer\s*camp|kids?\s*camp|marathon|turnaj|tournament|cup|championship|liga|match|zápas|exhibition|exhib[íi]cia|koncert|festival)\b/i;
+  /\b(piatkovica|open\s*air|hyrox|workshop|masterclass|seminar|t[aá]bor|summer\s*camp|kids?\s*camp|marathon|turnaj|tournament|cup|championship|liga|match|zápas|exhibition|exhib[íi]cia|koncert|festival|podujatie|party|singles?|nezadan)\b/i;
 
 /** Typical repeating studio / academy / group-class names (not one-off events). */
 const GROUP_CLASS_TITLE =
-  /\b(pilates|piloxing|hiit|yoga|joga|tabata|spinning|cycling|crossfit|body\s*pump|body\s*combat|power\s*plate|bungee|jumping|kruhov[ýa]|funkčn|functional|kickbox|k1|muay\s*thai|box|boxing|mma|bjj|grappling|tréning|trening|lekcia|lesson|class|fitcamp|visionbody|footwork|strečing|strecing|stretching|cvičen[iaeíeéyý]*|n[áa]bor|akademi[aeiy]*|barre|trx|deepwork|gymstick|instagym|korču[ľl]\w*)\b/i;
+  /\b(pilates|piloxing|hiit|yoga|joga|tabata|spinning|cycling|crossfit|body\s*pump|body\s*combat|power\s*plate|bungee|jumping|kruhov[ýa]|funkčn|functional|kickbox|k1|muay\s*thai|box|boxing|mma|bjj|grappling|tréning|trening|lekcia|lesson|class|fitcamp|visionbody|footwork|strečing|strecing|stretching|cvičen[iaeíeéyý]*|n[áa]bor|akademi[aeiy]*|barre|trx|deepwork|gymstick|instagym)\b/i;
+
+/** Seasonal kids clubs / courses — Programs feed, not weekly gym slots. */
+const SEASONAL_CLUB_OR_COURSE_TITLE =
+  /\b(kr[uú][zž]ok|kr[uú][zž]ky|kurz|kurzy|clinic|course|skolenie)\b/i;
 
 const GROUP_CLASS_DESCRIPTION =
   /skupinov[ée]\s+cvičen|skupinov[ýáé]\s+tr[eé]ning|group\s+class|rozvrh\s+lekci|týždenn[ýy]\s+rozvrh|kazd[ýy]\s+(pondelok|utorok|streda|štvrtok|stvrtok|piatok)|každ[ýy]\s+(pondelok|utorok|streda|štvrtok|piatok)|online\s+tr[eé]ningov[ýy]\s+program/i;
@@ -80,13 +84,14 @@ export function shouldForceGroupClassFromScrapePage(
   if (isMixedScrapePageKind(kind)) return false;
   if (
     scrapePageHasKind(kind, 'kids_camps') ||
+    scrapePageHasKind(kind, 'kids_clubs') ||
     scrapePageHasKind(kind, 'workshops') ||
     scrapePageHasKind(kind, 'tournaments')
   ) {
+    // Seasonal clubs/camps/workshops → Programs, not Events → Skupinové.
     return false;
   }
-  // Weekly kids clubs/krúžky are repeating lessons (unlike multi-day kids_camps).
-  if (scrapePageHasKind(kind, 'schedule') || scrapePageHasKind(kind, 'kids_clubs')) {
+  if (scrapePageHasKind(kind, 'schedule')) {
     return true;
   }
   return shouldForceGroupClassFromUrl(url);
@@ -94,13 +99,15 @@ export function shouldForceGroupClassFromScrapePage(
 
 export function looksLikeGroupClassListing(signals: GroupClassSignals): boolean {
   if (signals.isGroupClass === true && !looksLikeSpecialEventTitle(signals.title)) {
-    return true;
+    // Explicit Gemini flag — still not a seasonal kids club / structured course.
+    if (!SEASONAL_CLUB_OR_COURSE_TITLE.test(signals.title)) return true;
   }
 
   const externalId = (signals.externalId ?? '').toLowerCase();
   if (externalId.startsWith('class-')) return true;
 
   if (looksLikeSpecialEventTitle(signals.title)) return false;
+  if (SEASONAL_CLUB_OR_COURSE_TITLE.test(signals.title)) return false;
 
   const sourceUrl = (signals.sourceUrl ?? signals.ticketUrl ?? '').toLowerCase();
   if (shouldForceGroupClassFromUrl(sourceUrl)) return true;

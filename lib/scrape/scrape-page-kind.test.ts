@@ -38,15 +38,31 @@ describe('scrape-page-kind', () => {
     assert.equal(isMixedScrapePageKind('schedule,tournaments'), true);
   });
 
-  it('skips event extract only for pure availability', () => {
+  it('skips event extract unless tagged events/tournaments/kids/workshops', () => {
     assert.equal(shouldSkipEventExtractForKind('availability'), true);
-    assert.equal(shouldSkipEventExtractForKind('availability,schedule'), false);
+    assert.equal(shouldSkipEventExtractForKind('schedule'), true);
+    assert.equal(shouldSkipEventExtractForKind('website'), true);
+    assert.equal(shouldSkipEventExtractForKind('other'), true);
+    assert.equal(shouldSkipEventExtractForKind('availability,schedule'), true);
+    assert.equal(shouldSkipEventExtractForKind('events'), false);
+    assert.equal(shouldSkipEventExtractForKind('tournaments'), false);
+    assert.equal(shouldSkipEventExtractForKind('kids_clubs'), false);
+    assert.equal(shouldSkipEventExtractForKind('kids_camps'), false);
+    assert.equal(shouldSkipEventExtractForKind('workshops'), false);
+    assert.equal(shouldSkipEventExtractForKind('schedule,events'), false);
+    assert.equal(shouldSkipEventExtractForKind('availability,tournaments'), false);
   });
 
-  it('forceForKids when kids_camps or kids_clubs is among kinds', () => {
+  it('forceForKids only on dedicated kids pages (not mixed)', () => {
     assert.equal(shouldForceForKidsFromScrapePage('kids_camps'), true);
     assert.equal(shouldForceForKidsFromScrapePage('kids_clubs'), true);
-    assert.equal(shouldForceForKidsFromScrapePage('schedule,kids_camps'), true);
+    assert.equal(shouldForceForKidsFromScrapePage('schedule,kids_camps'), false);
+    assert.equal(
+      shouldForceForKidsFromScrapePage(
+        'schedule,events,tournaments,kids_clubs,kids_camps,workshops',
+      ),
+      false,
+    );
     assert.equal(shouldForceForKidsFromScrapePage('schedule'), false);
   });
 
@@ -68,7 +84,7 @@ describe('scrape-page-kind', () => {
     );
     assert.equal(
       shouldForceGroupClassFromScrapePage('kids_clubs', 'https://x.sk/kruzky'),
-      true,
+      false,
     );
     assert.equal(
       shouldForceGroupClassFromScrapePage('kids_camps', 'https://x.sk/tabory'),

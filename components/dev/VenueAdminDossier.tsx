@@ -88,6 +88,7 @@ type EventListing = {
   source: string | null;
   sourceUrl: string | null;
   isGroupClass: boolean;
+  programKind?: 'workshops' | 'camps' | 'courses' | null;
   isUpcoming: boolean;
 };
 
@@ -124,6 +125,7 @@ type Overview = {
   scheduleHints?: ScheduleHint[];
   listings: {
     groupClasses: EventListing[];
+    programs: EventListing[];
     events: EventListing[];
     tournaments: TournamentListing[];
   };
@@ -135,6 +137,7 @@ const CHECKLIST_LABELS: Record<string, string> = {
   schedule: 'Schedule URL',
   availability: 'Kalendár kurtov',
   groupClasses: 'Skupinové cvičenia',
+  programs: 'Programy (krúžky/tábory)',
   events: 'Eventy',
   tournaments: 'Turnaje',
   kids: 'Deti',
@@ -465,6 +468,7 @@ export function VenueAdminDossier({
         {typeof counts.scheduleSlots === 'number' && counts.scheduleSlots > 0
           ? ` · Rozvrh ${counts.scheduleSlots}`
           : ''}
+        {' · '}Programy {counts.programs ?? 0}
         {' · '}Eventy {counts.events}
         {' · '}Turnaje {counts.tournaments}
         {' · '}Hrať {counts.playCount}
@@ -700,6 +704,21 @@ export function VenueAdminDossier({
         ))}
       </ListingSection>
 
+      <ListingSection
+        title="Programy (krúžky / tábory / workshopy)"
+        empty="Žiadne programy."
+      >
+        {filterAudience(listings.programs ?? []).map((row) => (
+          <EventRow
+            key={row.id}
+            row={row}
+            busy={patchingId === row.id}
+            onPatch={(body) => void patchListing('event', row.id, body)}
+            programKind={row.programKind}
+          />
+        ))}
+      </ListingSection>
+
       <ListingSection title="Eventy" empty="Žiadne eventy.">
         {filterAudience(listings.events).map((row) => (
           <EventRow
@@ -821,11 +840,21 @@ function EventRow({
   row,
   busy,
   onPatch,
+  programKind,
 }: {
   row: EventListing;
   busy: boolean;
   onPatch: (body: Record<string, unknown>) => void;
+  programKind?: 'workshops' | 'camps' | 'courses' | null;
 }) {
+  const kindLabel =
+    (programKind ?? row.programKind) === 'courses'
+      ? 'Krúžok'
+      : (programKind ?? row.programKind) === 'camps'
+        ? 'Tábor'
+        : (programKind ?? row.programKind) === 'workshops'
+          ? 'Workshop'
+          : null;
   return (
     <li className="rounded-lg border border-white/10 bg-surface-container-low/50 p-3 space-y-2">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -836,6 +865,11 @@ function EventRow({
             {!row.isUpcoming ? ' · past' : ''}
           </p>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {kindLabel && (
+              <span className="rounded border border-teal-500/40 text-teal-200 px-1.5 py-0.5 text-[10px]">
+                {kindLabel}
+              </span>
+            )}
             <span className="rounded border border-white/15 px-1.5 py-0.5 text-[10px]">
               Feed: {modeBadge(row.effectiveParticipationMode)}
             </span>

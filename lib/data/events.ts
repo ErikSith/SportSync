@@ -1,7 +1,26 @@
 import { createClient } from '@/lib/supabase/server';
 import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
 import type { EventType } from '@/lib/constants/events';
-import { activeFeedSince, feedStartsAtFloor } from '@/lib/retention/feed-window';
+import { activeFeedSince, activeListingsOrFilter, feedStartsAtFloor } from '@/lib/retention/feed-window';
+
+type EventsQueryBuilder = {
+  gte: (column: string, value: string) => EventsQueryBuilder;
+  lte: (column: string, value: string) => EventsQueryBuilder;
+  or: (filters: string) => EventsQueryBuilder;
+};
+
+/** Upcoming start, or multi-day listing still running (end_time). */
+function applyActiveListingWindow<T extends EventsQueryBuilder>(
+  request: T,
+  bounds: { from: Date; to: Date } | null,
+): T {
+  if (bounds) {
+    return request
+      .gte('starts_at', feedStartsAtFloor(bounds.from))
+      .lte('starts_at', bounds.to.toISOString()) as T;
+  }
+  return request.or(activeListingsOrFilter()) as T;
+}
 import { parseDbInstant, alignStartsAtWithCopyTime } from '@/lib/datetime/bratislava';
 import { sanitizeListingCoverUrl, sanitizeListingPhotos } from '@/lib/media/listing-cover';
 import { listingParticipationMode } from '@/lib/participation/fixture-match';
@@ -291,14 +310,11 @@ async function fetchOfficialEventsMissingCoords(
     .select('*, venues ( name )')
     .eq('type', 'official')
     .in('status', ['open', 'live'])
-    .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
     .or('latitude.is.null,longitude.is.null')
     .order('starts_at', { ascending: true })
     .limit(400);
 
-  if (bounds) {
-    request = request.lte('starts_at', bounds.to.toISOString());
-  }
+  request = applyActiveListingWindow(request, bounds);
   request = applyEventQueryFilters(request, { ...query, type: 'official' });
 
   const { data, error } = await request;
@@ -352,7 +368,6 @@ async function findWithinRadius(query: EventFeedQuery, radiusKm: number): Promis
     .from('events')
     .select('*, venues ( name )')
     .in('status', ['open', 'live'])
-    .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
     .gte('latitude', box.minLat)
     .lte('latitude', box.maxLat)
     .gte('longitude', box.minLng)
@@ -360,9 +375,7 @@ async function findWithinRadius(query: EventFeedQuery, radiusKm: number): Promis
     .order('starts_at', { ascending: true })
     .limit(400);
 
-  if (bounds) {
-    request = request.lte('starts_at', bounds.to.toISOString());
-  }
+  request = applyActiveListingWindow(request, bounds);
   request = applyEventQueryFilters(request, query);
 
   const [{ data, error }, missingCoords] = await Promise.all([
@@ -441,14 +454,17 @@ export async function getCityEventsFeed(
     .from('events')
     .select('*, venues ( name )')
     .in('status', ['open', 'live'])
-    .ilike('city', city)
-    .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
-    .order('starts_at', { ascending: true })
-    .limit(400);
+    .ilike('city', city);
 
   if (bounds) {
-    request = request.lte('starts_at', bounds.to.toISOString());
+    request = request
+      .gte('starts_at', feedStartsAtFloor(bounds.from))
+      .lte('starts_at', bounds.to.toISOString());
+  } else {
+    request = request.or(activeListingsOrFilter());
   }
+
+  request = request.order('starts_at', { ascending: true }).limit(800);
   if (query.type && query.type !== 'ALL') {
     request = request.eq('type', query.type);
   }
@@ -517,13 +533,10 @@ export async function getEventsAtVenuesFeed(query: {
     .select('*, venues ( name )')
     .in('status', ['open', 'live'])
     .in('venue_id', query.venueIds)
-    .gte('starts_at', feedStartsAtFloor(bounds?.from ?? null))
     .order('starts_at', { ascending: true })
     .limit(400);
 
-  if (bounds) {
-    request = request.lte('starts_at', bounds.to.toISOString());
-  }
+  request = applyActiveListingWindow(request, bounds);
   if (query.type && query.type !== 'ALL') {
     request = request.eq('type', query.type);
   }
