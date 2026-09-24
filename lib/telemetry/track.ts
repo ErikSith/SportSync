@@ -8,6 +8,7 @@ export type SignalName =
   | 'search.query'
   | 'filter.apply'
   | 'geo.fallback'
+  | 'home.near_me_district'
   | 'event.register'
   | 'event.external_redirect'
   | 'event.report'
