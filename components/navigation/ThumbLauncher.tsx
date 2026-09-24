@@ -8,11 +8,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { THUMB_BUTTON_ENABLED } from '@/components/navigation/thumb-button-flags';
 import { useT } from '@/components/i18n/LocaleProvider';
 import type { MessageKey } from '@/lib/i18n/messages';
+import { useIsGuest } from '@/lib/auth/use-is-guest';
+import { useAuthModal } from '@/components/auth/AuthModalProvider';
 
 type NavItem = {
   href: string;
   labelKey: MessageKey;
   icon: string;
+  /** When true, guests are sent to register instead of this href. */
+  requiresAuth?: boolean;
   match: (pathname: string) => boolean;
 };
 
@@ -63,6 +67,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/profile',
     labelKey: 'nav.profile',
     icon: 'person',
+    requiresAuth: true,
     match: (p) =>
       p === '/profile' ||
       p.startsWith('/profile/') ||
@@ -84,6 +89,8 @@ function hasFixedBottomCta(pathname: string) {
 export function ThumbLauncher() {
   const pathname = usePathname();
   const t = useT();
+  const { isGuest } = useIsGuest();
+  const { openAuthModal } = useAuthModal();
   const menuId = useId();
   const rollupRef = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
@@ -189,6 +196,8 @@ export function ThumbLauncher() {
             >
               {ROLLUP_ITEMS.map((item) => {
                 const active = item.match(pathname);
+                const needsAuthGate = Boolean(item.requiresAuth && isGuest);
+                const href = needsAuthGate ? '#' : item.href;
                 return (
                   <motion.div
                     key={item.href}
@@ -208,8 +217,14 @@ export function ThumbLauncher() {
                     }}
                   >
                     <Link
-                      href={item.href}
-                      onClick={() => {
+                      href={href}
+                      onClick={(e) => {
+                        if (needsAuthGate) {
+                          e.preventDefault();
+                          close();
+                          openAuthModal({ mode: 'sign-up', redirectTo: item.href });
+                          return;
+                        }
                         if (item.match(pathname)) close();
                       }}
                       className={[

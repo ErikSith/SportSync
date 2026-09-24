@@ -49,12 +49,29 @@ export async function getVenueIdsForDistrict(districtId: string): Promise<string
   return (data ?? []).map((row) => row.id as string);
 }
 
+/** Union of venue ids across one or more boroughs. */
+export async function getVenueIdsForDistricts(districtIds: string[]): Promise<string[]> {
+  const unique = [...new Set(districtIds.filter((id) => Boolean(findDistrictById(id))))];
+  if (unique.length === 0) return [];
+  if (unique.length === 1) return getVenueIdsForDistrict(unique[0]!);
+
+  const batches = await Promise.all(unique.map((id) => getVenueIdsForDistrict(id)));
+  return [...new Set(batches.flat())];
+}
+
+function locationDistrictIds(location: ResolvedFeedLocation): string[] {
+  if (location.districtIds.length > 0) return location.districtIds;
+  if (location.area !== 'near_me' && location.area !== 'bratislava') return [location.area];
+  return [];
+}
+
 export async function getEventsForArea(input: {
   location: ResolvedFeedLocation;
   type?: EventType | 'ALL';
   participationMode?: ParticipationMode | 'all';
 }): Promise<EventFeedResult> {
   const { location, type = 'ALL', participationMode } = input;
+  const districtIds = locationDistrictIds(location);
 
   try {
     let feed: EventFeedResult;
@@ -68,7 +85,7 @@ export async function getEventsForArea(input: {
         radiusKm: location.radiusKm,
         allowExtended: location.allowExtended,
       });
-    } else if (location.area === 'bratislava') {
+    } else if (districtIds.length === 0) {
       feed = await getCityEventsFeed({
         city: 'Bratislava',
         type,
@@ -77,7 +94,7 @@ export async function getEventsForArea(input: {
         lng: location.lng,
       });
     } else {
-      const venueIds = await getVenueIdsForDistrict(location.area);
+      const venueIds = await getVenueIdsForDistricts(districtIds);
       feed = await getEventsAtVenuesFeed({
         venueIds,
         lat: location.lat,
@@ -151,6 +168,7 @@ export async function getVenuesForArea(input: {
   location: ResolvedFeedLocation;
 }): Promise<VenueFeedResult> {
   const { location } = input;
+  const districtIds = locationDistrictIds(location);
 
   if (location.area === 'near_me') {
     return getNearbyVenuesFeed({
@@ -161,7 +179,7 @@ export async function getVenuesForArea(input: {
     });
   }
 
-  if (location.area === 'bratislava') {
+  if (districtIds.length === 0) {
     return getCityVenuesFeed({
       city: 'Bratislava',
       lat: location.lat,
@@ -169,18 +187,45 @@ export async function getVenuesForArea(input: {
     });
   }
 
-  const feed = await getDistrictVenuesFeed({
-    districtId: location.area,
-    lat: location.lat,
-    lng: location.lng,
-  });
+  if (districtIds.length === 1) {
+    const feed = await getDistrictVenuesFeed({
+      districtId: districtIds[0]!,
+      lat: location.lat,
+      lng: location.lng,
+    });
+
+    return {
+      ...feed,
+      message:
+        feed.venues.length === 0
+          ? `No venues in ${location.label} right now.`
+          : feed.message,
+    };
+  }
+
+  const feeds = await Promise.all(
+    districtIds.map((districtId) =>
+      getDistrictVenuesFeed({
+        districtId,
+        lat: location.lat,
+        lng: location.lng,
+      }),
+    ),
+  );
+  const seen = new Set<string>();
+  const venues = feeds
+    .flatMap((feed) => feed.venues)
+    .filter((venue) => {
+      if (seen.has(venue.id)) return false;
+      seen.add(venue.id);
+      return true;
+    });
 
   return {
-    ...feed,
-    message:
-      feed.venues.length === 0
-        ? `No venues in ${location.label} right now.`
-        : feed.message,
+    venues,
+    radiusKm: 0,
+    showExtended: false,
+    message: venues.length === 0 ? `No venues in ${location.label} right now.` : undefined,
   };
 }
 
@@ -188,8 +233,9 @@ export async function getTournamentsForArea(input: {
   location: ResolvedFeedLocation;
 }): Promise<TournamentCardData[]> {
   const { location } = input;
+  const districtIds = locationDistrictIds(location);
 
-  if (location.area === 'bratislava') {
+  if (location.area === 'near_me' || districtIds.length === 0) {
     const all = await getUpcomingTournaments({});
     return all.filter((t) =>
       matchesFeedArea(location, {
@@ -202,20 +248,7 @@ export async function getTournamentsForArea(input: {
     );
   }
 
-  if (location.area === 'near_me') {
-    const all = await getUpcomingTournaments({});
-    return all.filter((t) =>
-      matchesFeedArea(location, {
-        lat: t.venueLatitude,
-        lng: t.venueLongitude,
-        city: t.venueCity,
-        title: t.name,
-        textParts: [t.venueName, t.venueAddress],
-      }),
-    );
-  }
-
-  const venueIds = await getVenueIdsForDistrict(location.area);
+  const venueIds = await getVenueIdsForDistricts(districtIds);
   if (venueIds.length > 0) {
     const atVenues = await getUpcomingTournamentsAtVenues(venueIds, 50);
     if (atVenues.length > 0) return atVenues;

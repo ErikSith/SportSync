@@ -6,6 +6,7 @@ import { TopAppBar } from '@/components/home/TopAppBar';
 import { ProfileTopSections } from '@/components/profile/ProfileTopSections';
 import { ProfileNavRows } from '@/components/profile/ProfileNavRows';
 import { SetupNotice } from '@/components/i18n/SetupNotice';
+import { loginHref } from '@/lib/auth/login-href';
 
 export const runtime = 'edge';
 
@@ -13,6 +14,10 @@ export default async function ProfilePage() {
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {
     return <SetupNotice />;
+  }
+
+  if (viewer.isGuest) {
+    redirect(loginHref('/profile', { mode: 'sign-up' }));
   }
 
   const { profile } = viewer;

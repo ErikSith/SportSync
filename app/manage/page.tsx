@@ -9,6 +9,7 @@ import { TopAppBar } from '@/components/home/TopAppBar';
 import { ManageCreateTabs } from '@/components/manage/ManageCreateTabs';
 import { ManageNavList, ManageSection, type ManageNavItem } from '@/components/manage/ManageNavList';
 import { t } from '@/lib/i18n/server';
+import { loginHref } from '@/lib/auth/login-href';
 
 export const runtime = 'edge';
 
@@ -28,11 +29,7 @@ export default async function ManagePage() {
   }
 
   if (viewer.isGuest) {
-    return (
-      <main className="mx-auto max-w-lg px-container-margin-mobile pt-24 text-center">
-        <p className="font-body-md text-body-md text-on-surface-variant">{t('manage.guestBlocked')}</p>
-      </main>
-    );
+    redirect(loginHref('/manage', { mode: 'sign-up' }));
   }
 
   const { profile } = viewer;

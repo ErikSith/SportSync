@@ -5,6 +5,7 @@ import {
   parseLocale,
 } from '@/lib/i18n/config';
 import { LocaleProvider } from '@/components/i18n/LocaleProvider';
+import { AuthModalProvider } from '@/components/auth/AuthModalProvider';
 import { ThumbLauncher } from '@/components/navigation/ThumbLauncher';
 import { THUMB_BUTTON_ENABLED } from '@/components/navigation/thumb-button-flags';
 import { ServiceWorkerRegister } from '@/components/pwa/ServiceWorkerRegister';
@@ -70,9 +71,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         ].join(' ')}
       >
         <LocaleProvider initialLocale={locale}>
-          {children}
-          <ThumbLauncher />
-          <ServiceWorkerRegister />
+          <AuthModalProvider>
+            {children}
+            <ThumbLauncher />
+            <ServiceWorkerRegister />
+          </AuthModalProvider>
         </LocaleProvider>
       </body>
     </html>

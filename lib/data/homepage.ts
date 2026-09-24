@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { matchesFeedArea, resolveFeedLocation, type FeedAreaId } from '@/lib/cities';
-import { getVenueIdsForDistrict } from '@/lib/data/area-feed';
+import { getVenueIdsForDistricts } from '@/lib/data/area-feed';
+import { homeFeedAreaParam } from '@/lib/home-feed-filters';
 import { boundingBox, distanceKm, DEFAULT_RADIUS_KM, EXTENDED_RADIUS_KM } from '@/lib/geo';
 import type { EventType } from '@/lib/constants/events';
 import type { EventCardData } from '@/lib/data/events';
@@ -787,8 +788,9 @@ export async function getHomepageEventInspiration(
   };
 
   const hasGps = profile.latitude !== null && profile.longitude !== null;
+  const areaRaw = filters ? homeFeedAreaParam(filters) : null;
   const location = resolveFeedLocation({
-    areaRaw: filters?.area,
+    areaRaw,
     profileCity: profile.city,
     profileLat: profile.latitude,
     profileLng: profile.longitude,
@@ -798,12 +800,12 @@ export async function getHomepageEventInspiration(
   const useGpsNearby = location.area === 'near_me' && hasGps;
 
   const districtVenueIds =
-    location.area !== 'near_me' && location.area !== 'bratislava'
-      ? new Set(await getVenueIdsForDistrict(location.area))
+    location.districtIds.length > 0
+      ? new Set(await getVenueIdsForDistricts(location.districtIds))
       : null;
 
   // No GPS / null location → skip radius queries and load all active events.
-  if (!hasGps && (filters?.area == null || filters.area === 'near_me')) {
+  if (!hasGps && (areaRaw == null || location.area === 'near_me')) {
     let allCandidates = await fetchAllActiveEventCandidates(location.lat, location.lng, filters);
     if (allCandidates.length === 0) {
       allCandidates = await fetchAllActiveEventCandidates(location.lat, location.lng);
@@ -840,8 +842,8 @@ export async function getHomepageEventInspiration(
   ]);
 
   const inArea = (event: EventCardData) => {
-    if (districtVenueIds) {
-      return event.venueId != null && districtVenueIds.has(event.venueId);
+    if (districtVenueIds && districtVenueIds.size > 0) {
+      if (event.venueId != null && districtVenueIds.has(event.venueId)) return true;
     }
     return matchesFeedArea(location, {
       lat: event.latitude,

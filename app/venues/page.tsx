@@ -12,11 +12,12 @@ import { LocationPrompt } from '@/components/home/LocationPrompt';
 import { PageTitleRow } from '@/components/shared/PageTitleRow';
 import { PlayerFeedFilterHydrator } from '@/components/home/HomeFeedFilterButton';
 import {
+  homeFeedAreaParam,
   matchesVenueFilter,
   matchesVenueSportsFilter,
   parseHomeFeedFilters,
 } from '@/lib/home-feed-filters';
-import { parseFeedArea, resolveFeedLocation } from '@/lib/cities';
+import { resolveFeedLocation } from '@/lib/cities';
 
 export const runtime = 'edge';
 
@@ -34,15 +35,15 @@ export default async function VenuesPage({ searchParams }: VenuesPageProps) {
 
   const city = profile.city ?? 'Bratislava';
   const feedFilters = parseHomeFeedFilters(searchParams);
-  const requestedArea = parseFeedArea(searchParams.area ?? feedFilters.area);
+  const areaRaw = searchParams.area ?? homeFeedAreaParam(feedFilters);
   const location = resolveFeedLocation({
-    areaRaw: requestedArea,
+    areaRaw,
     profileCity: profile.city,
     profileLat: profile.latitude,
     profileLng: profile.longitude,
   });
   const needsGpsPrompt =
-    requestedArea === 'near_me' && (profile.latitude === null || profile.longitude === null);
+    location.area === 'near_me' && (profile.latitude === null || profile.longitude === null);
 
   const [filterVenues, rawFeed] = await Promise.all([
     getVenuesForHomeFilter(city, 200),

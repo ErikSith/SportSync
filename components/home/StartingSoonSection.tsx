@@ -15,6 +15,7 @@ import {
 } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useT } from '@/components/i18n/LocaleProvider';
+import { loginHref } from '@/lib/auth/login-href';
 
 const DECK_LIMIT = 12;
 
@@ -152,7 +153,7 @@ export function StartingSoonSection({
             </p>
           </div>
           <Link
-            href={ctaNeedsLogin ? '/login' : '/venues'}
+            href={ctaNeedsLogin ? loginHref('/venues', { mode: 'sign-up' }) : '/venues'}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 font-label-caps text-[10px] uppercase tracking-[0.12em] text-primary transition-colors hover:bg-primary/20"
           >
             <span className="material-symbols-outlined text-[16px]">favorite</span>

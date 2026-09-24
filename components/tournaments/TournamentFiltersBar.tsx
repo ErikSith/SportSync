@@ -122,7 +122,11 @@ export function TournamentFiltersBar({
         type: searchParams.get('type') ?? undefined,
         area: next,
       });
-      saveHomeFeedFiltersToStorage({ ...current, area: next });
+      saveHomeFeedFiltersToStorage({
+        ...current,
+        area: next,
+        districts: next === 'near_me' || next === 'bratislava' ? [] : [next],
+      });
     },
     [searchParams],
   );

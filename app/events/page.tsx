@@ -13,8 +13,8 @@ import { GeoFallbackTracker } from '@/components/telemetry/GeoFallbackTracker';
 import { PageTitleRow } from '@/components/shared/PageTitleRow';
 import { BrandAppBar } from '@/components/shared/BrandAppBar';
 import { PlayerFeedFilterHydrator } from '@/components/home/HomeFeedFilterButton';
-import { applyPlayerFeedFilters, parseHomeFeedFilters } from '@/lib/home-feed-filters';
-import { parseFeedArea, resolveFeedLocation } from '@/lib/cities';
+import { applyPlayerFeedFilters, homeFeedAreaParam, parseHomeFeedFilters } from '@/lib/home-feed-filters';
+import { resolveFeedLocation } from '@/lib/cities';
 import { EventsFeed } from '@/components/events/EventsFeed';
 import { parseEventsFeedTab } from '@/lib/feed/events-feed-tab';
 import {
@@ -189,15 +189,15 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
       <div className="ambient-glow right-[-120px] top-56 h-[360px] w-[360px] bg-[#E53935]/[0.025]" />
     </>
   );
-  const requestedArea = parseFeedArea(searchParams.area ?? feedFilters.area);
+  const areaRaw = searchParams.area ?? homeFeedAreaParam(feedFilters);
   const location = resolveFeedLocation({
-    areaRaw: requestedArea,
+    areaRaw,
     profileCity: profile.city,
     profileLat: profile.latitude,
     profileLng: profile.longitude,
   });
   const needsGpsPrompt =
-    requestedArea === 'near_me' && (profile.latitude === null || profile.longitude === null);
+    location.area === 'near_me' && (profile.latitude === null || profile.longitude === null);
 
   let rawFeed: EventFeedResult = emptyFeed();
 

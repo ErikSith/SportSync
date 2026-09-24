@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { authedFetch } from '@/lib/auth/authed-fetch';
+import { loginHref } from '@/lib/auth/login-href';
 import { useT } from '@/components/i18n/LocaleProvider';
 
 interface VenueFollowButtonProps {
@@ -24,7 +25,7 @@ export function VenueFollowButton({
   if (isGuest) {
     return (
       <Link
-        href="/login"
+        href={loginHref(`/venues/${venueId}`, { mode: 'sign-up' })}
         className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 font-label-caps text-label-caps uppercase tracking-wider text-primary transition-colors hover:bg-primary/20"
       >
         <span className="material-symbols-outlined text-[18px]">favorite</span>

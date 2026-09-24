@@ -14,8 +14,8 @@ import { TournamentsFeed } from '@/components/tournaments/TournamentsFeed';
 import { PageTitleRow } from '@/components/shared/PageTitleRow';
 import { BrandAppBar } from '@/components/shared/BrandAppBar';
 import { PlayerFeedFilterHydrator } from '@/components/home/HomeFeedFilterButton';
-import { applyPlayerFeedFilters, parseHomeFeedFilters } from '@/lib/home-feed-filters';
-import { parseFeedArea, resolveFeedLocation } from '@/lib/cities';
+import { applyPlayerFeedFilters, homeFeedAreaParam, parseHomeFeedFilters } from '@/lib/home-feed-filters';
+import { resolveFeedLocation } from '@/lib/cities';
 import {
   applyEventDateRange,
   eventDayKeys,
@@ -73,9 +73,9 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
   const feedFilters = parseHomeFeedFilters(searchParams);
   const statusFilter = parseStatus(searchParams.status);
   const mode = parseMode(searchParams.mode);
-  const requestedArea = parseFeedArea(searchParams.area ?? feedFilters.area);
+  const areaRaw = searchParams.area ?? homeFeedAreaParam(feedFilters);
   const location = resolveFeedLocation({
-    areaRaw: requestedArea,
+    areaRaw,
     profileCity: profile.city,
     profileLat: profile.latitude,
     profileLng: profile.longitude,

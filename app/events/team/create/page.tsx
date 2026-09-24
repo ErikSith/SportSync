@@ -1,6 +1,8 @@
+import { redirect } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { TeamEventCreator } from '@/components/events/TeamEventCreator';
+import { loginHref } from '@/lib/auth/login-href';
 
 export const runtime = 'edge';
 
@@ -11,13 +13,7 @@ export default async function TeamEventCreatePage() {
   }
 
   if (viewer.isGuest) {
-    return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
-        <p className="font-body-md text-body-md text-tertiary-container">
-          Prihlásenie bude čoskoro — vytváranie zatiaľ nie je dostupné.
-        </p>
-      </main>
-    );
+    redirect(loginHref('/events/team/create', { mode: 'sign-up' }));
   }
 
   const { profile } = viewer;

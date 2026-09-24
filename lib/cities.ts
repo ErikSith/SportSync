@@ -279,6 +279,24 @@ export function findDistrictById(id: string): DistrictOption | undefined {
   return BRATISLAVA_DISTRICTS.find((d) => d.id === id);
 }
 
+/** Closest Bratislava borough centroid to a GPS fix (Haversine). */
+export function nearestBratislavaDistrict(
+  latitude: number,
+  longitude: number,
+): DistrictOption & { distanceKm: number } {
+  let best = BRATISLAVA_DISTRICTS[0]!;
+  let bestKm = distanceKm(latitude, longitude, best.latitude, best.longitude);
+  for (let i = 1; i < BRATISLAVA_DISTRICTS.length; i++) {
+    const district = BRATISLAVA_DISTRICTS[i]!;
+    const km = distanceKm(latitude, longitude, district.latitude, district.longitude);
+    if (km < bestKm) {
+      best = district;
+      bestKm = km;
+    }
+  }
+  return { ...best, distanceKm: Math.round(bestKm * 10) / 10 };
+}
+
 export function isBratislavaCity(city: string | null | undefined): boolean {
   return Boolean(city && city.toLowerCase().includes('bratislav'));
 }
@@ -345,12 +363,40 @@ export function pageContextIsOutsideBratislava(
 }
 
 export function parseFeedArea(raw: string | null | undefined): FeedAreaId {
-  if (!raw) return 'bratislava';
+  const selection = parseFeedAreaSelection(raw);
+  if (selection.mode === 'districts') return selection.districtIds[0] as FeedAreaId;
+  return selection.mode;
+}
+
+/** Parsed ?area= — supports near_me, bratislava, or one/more mestské časti (comma-separated). */
+export type FeedAreaSelection =
+  | { mode: 'near_me' }
+  | { mode: 'bratislava' }
+  | { mode: 'districts'; districtIds: string[] };
+
+export function parseFeedAreaSelection(raw: string | null | undefined): FeedAreaSelection {
+  if (!raw) return { mode: 'bratislava' };
   const key = raw.toLowerCase().trim();
-  if (key === 'near_me' || key === 'nearby' || key === 'near-me') return 'near_me';
-  if (key === 'bratislava' || key === 'all' || key === 'city') return 'bratislava';
-  if (findDistrictById(key)) return key as FeedAreaId;
-  return 'bratislava';
+  if (!key) return { mode: 'bratislava' };
+  if (key === 'near_me' || key === 'nearby' || key === 'near-me') return { mode: 'near_me' };
+  if (key === 'bratislava' || key === 'all' || key === 'city') return { mode: 'bratislava' };
+
+  const parts = key
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const districtIds = [
+    ...new Set(parts.filter((part) => Boolean(findDistrictById(part)))),
+  ];
+  if (districtIds.length > 0) return { mode: 'districts', districtIds };
+  return { mode: 'bratislava' };
+}
+
+/** URL / storage value for an area selection (`null` = whole Bratislava default). */
+export function serializeFeedAreaSelection(selection: FeedAreaSelection): string | null {
+  if (selection.mode === 'bratislava') return null;
+  if (selection.mode === 'near_me') return 'near_me';
+  return selection.districtIds.join(',');
 }
 
 export function feedAreaLabel(area: FeedAreaId): string {
@@ -359,8 +405,22 @@ export function feedAreaLabel(area: FeedAreaId): string {
   return findDistrictById(area)?.name ?? 'Bratislava';
 }
 
+export function feedAreaSelectionLabel(selection: FeedAreaSelection): string {
+  if (selection.mode === 'near_me') return 'Near me';
+  if (selection.mode === 'bratislava') return 'Bratislava';
+  const names = selection.districtIds
+    .map((id) => findDistrictById(id)?.name)
+    .filter((name): name is string => Boolean(name));
+  if (names.length === 0) return 'Bratislava';
+  if (names.length === 1) return names[0]!;
+  if (names.length === 2) return `${names[0]} + ${names[1]}`;
+  return `${names[0]} +${names.length - 1}`;
+}
+
 export interface ResolvedFeedLocation {
   area: FeedAreaId;
+  /** Selected borough ids when filtering by mestské časti (one or more). */
+  districtIds: string[];
   label: string;
   lat: number;
   lng: number;
@@ -368,6 +428,20 @@ export interface ResolvedFeedLocation {
   /** Prefer city-wide listing (all Bratislava events) over strict geo radius. */
   useCityFeed: boolean;
   allowExtended: boolean;
+}
+
+function bratislavaCityLocation(): ResolvedFeedLocation {
+  const ba = findCityByName('Bratislava')!;
+  return {
+    area: 'bratislava',
+    districtIds: [],
+    label: 'Bratislava',
+    lat: ba.latitude,
+    lng: ba.longitude,
+    radiusKm: BRATISLAVA_CITY_RADIUS_KM,
+    useCityFeed: true,
+    allowExtended: false,
+  };
 }
 
 /**
@@ -380,10 +454,9 @@ export function resolveFeedLocation(input: {
   profileLat?: number | null;
   profileLng?: number | null;
 }): ResolvedFeedLocation {
-  const area = parseFeedArea(input.areaRaw);
-  const ba = findCityByName('Bratislava')!;
+  const selection = parseFeedAreaSelection(input.areaRaw);
 
-  if (area === 'near_me') {
+  if (selection.mode === 'near_me') {
     const hasGps =
       input.profileLat != null &&
       input.profileLng != null &&
@@ -391,7 +464,8 @@ export function resolveFeedLocation(input: {
       Number.isFinite(input.profileLng);
     if (hasGps) {
       return {
-        area,
+        area: 'near_me',
+        districtIds: [],
         label: 'Near me',
         lat: input.profileLat as number,
         lng: input.profileLng as number,
@@ -401,41 +475,37 @@ export function resolveFeedLocation(input: {
       };
     }
     // No GPS — fall back to whole Bratislava rather than failing.
+    return bratislavaCityLocation();
+  }
+
+  if (selection.mode === 'districts') {
+    const districts = selection.districtIds
+      .map((id) => findDistrictById(id))
+      .filter((d): d is NonNullable<typeof d> => Boolean(d));
+    if (districts.length === 0) return bratislavaCityLocation();
+
+    const lat = districts.reduce((sum, d) => sum + d.latitude, 0) / districts.length;
+    const lng = districts.reduce((sum, d) => sum + d.longitude, 0) / districts.length;
+    const radiusKm = Math.max(
+      ...districts.map((d) => {
+        const centerDist = distanceKm(lat, lng, d.latitude, d.longitude);
+        return centerDist + d.radiusKm;
+      }),
+    );
+
     return {
-      area: 'bratislava',
-      label: 'Bratislava',
-      lat: ba.latitude,
-      lng: ba.longitude,
-      radiusKm: BRATISLAVA_CITY_RADIUS_KM,
-      useCityFeed: true,
+      area: districts[0]!.id as FeedAreaId,
+      districtIds: districts.map((d) => d.id),
+      label: feedAreaSelectionLabel(selection),
+      lat,
+      lng,
+      radiusKm,
+      useCityFeed: false,
       allowExtended: false,
     };
   }
 
-  if (area !== 'bratislava') {
-    const district = findDistrictById(area);
-    if (district) {
-      return {
-        area,
-        label: district.name,
-        lat: district.latitude,
-        lng: district.longitude,
-        radiusKm: district.radiusKm,
-        useCityFeed: false,
-        allowExtended: false,
-      };
-    }
-  }
-
-  return {
-    area: 'bratislava',
-    label: 'Bratislava',
-    lat: ba.latitude,
-    lng: ba.longitude,
-    radiusKm: BRATISLAVA_CITY_RADIUS_KM,
-    useCityFeed: true,
-    allowExtended: false,
-  };
+  return bratislavaCityLocation();
 }
 
 /** Soft address match when a venue/event has no coordinates. */
@@ -470,7 +540,7 @@ export function matchesFeedArea(
 ): boolean {
   const text = [item.city, ...(item.textParts ?? [])].filter(Boolean).join(' ').toLowerCase();
 
-  if (location.area === 'bratislava') {
+  if (location.area === 'bratislava' && location.districtIds.length === 0) {
     if (titleIsOutsideBratislava(item.title)) return false;
     if (isBratislavaCity(item.city) || text.includes('bratislav')) return true;
     if (item.lat != null && item.lng != null) {
@@ -489,14 +559,24 @@ export function matchesFeedArea(
     return !item.city || item.city.trim() === '' || isBratislavaCity(item.city) || text.includes('bratislav');
   }
 
-  const district = findDistrictById(location.area);
-  if (!district) return true;
+  const districtIds =
+    location.districtIds.length > 0
+      ? location.districtIds
+      : location.area !== 'near_me' && location.area !== 'bratislava'
+        ? [location.area]
+        : [];
 
-  const keywordHit = matchesDistrictText(location.area, item.city, ...(item.textParts ?? []));
-  if (item.lat != null && item.lng != null) {
-    const inRadius =
-      distanceKm(district.latitude, district.longitude, item.lat, item.lng) <= district.radiusKm;
-    return inRadius || keywordHit;
-  }
-  return keywordHit;
+  if (districtIds.length === 0) return true;
+
+  return districtIds.some((districtId) => {
+    const district = findDistrictById(districtId);
+    if (!district) return false;
+    const keywordHit = matchesDistrictText(districtId, item.city, ...(item.textParts ?? []));
+    if (item.lat != null && item.lng != null) {
+      const inRadius =
+        distanceKm(district.latitude, district.longitude, item.lat, item.lng) <= district.radiusKm;
+      return inRadius || keywordHit;
+    }
+    return keywordHit;
+  });
 }

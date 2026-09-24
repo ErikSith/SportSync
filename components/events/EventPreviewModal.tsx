@@ -290,14 +290,13 @@ export function EventPreviewModal({ event, open, onClose }: EventPreviewModalPro
                   label={t('events.registerOfficial')}
                 />
               ) : isSpectator && event.ticketUrl ? (
-                <a
-                  href={event.ticketUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-secondary py-3.5 font-label-caps text-[12px] uppercase tracking-[0.16em] text-on-secondary transition-colors hover:bg-secondary-fixed-dim"
-                >
-                  {t('events.getTickets')}
-                </a>
+                <EventExternalCta
+                  eventId={event.id}
+                  sourceUrl={event.ticketUrl}
+                  sourceName={resolvedSourceName}
+                  variant="compact"
+                  label={t('events.getTickets')}
+                />
               ) : (
                 <EventRegisterButton
                   eventId={event.id}

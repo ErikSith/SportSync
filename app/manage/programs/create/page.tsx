@@ -5,7 +5,7 @@ import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { getVenuesForOrganizer } from '@/lib/data/organizer-venues';
 import { VenueEventCreator } from '@/components/events/VenueEventCreator';
 import { programKindToListingBucket } from '@/lib/manage/listing-bucket';
-import { t } from '@/lib/i18n/server';
+import { loginHref } from '@/lib/auth/login-href';
 
 export const runtime = 'edge';
 
@@ -24,13 +24,7 @@ export default async function CreateProgramPage({ searchParams }: CreateProgramP
   }
 
   if (viewer.isGuest) {
-    return (
-      <main className="mx-auto max-w-lg px-container-margin-mobile pt-24 text-center">
-        <p className="font-body-md text-body-md text-on-surface-variant">
-          {t('manage.guestBlocked')}
-        </p>
-      </main>
-    );
+    redirect(loginHref('/manage/programs/create', { mode: 'sign-up' }));
   }
 
   if (!canAccessManageHub(viewer.profile.role)) {

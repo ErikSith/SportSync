@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { createClient } from '@/lib/supabase/server';
 import { TopAppBar } from '@/components/home/TopAppBar';
@@ -8,6 +9,7 @@ import { ProfileSettingsForm } from '@/components/profile/ProfileSettingsForm';
 import { SignOutButton } from '@/components/profile/SignOutButton';
 import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { t } from '@/lib/i18n/server';
+import { loginHref } from '@/lib/auth/login-href';
 
 export const runtime = 'edge';
 
@@ -15,6 +17,10 @@ export default async function ProfileSettingsPage() {
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {
     return <SetupNotice />;
+  }
+
+  if (viewer.isGuest) {
+    redirect(loginHref('/profile/settings', { mode: 'sign-up' }));
   }
 
   const { profile } = viewer;

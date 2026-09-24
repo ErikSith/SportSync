@@ -3,17 +3,25 @@
 import { Suspense, useEffect, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { BRATISLAVA_DISTRICTS, feedAreaLabel, type FeedAreaId } from '@/lib/cities';
+import {
+  BRATISLAVA_DISTRICTS,
+  feedAreaSelectionLabel,
+  nearestBratislavaDistrict,
+  type FeedAreaId,
+} from '@/lib/cities';
 import type { HomeFilterVenue } from '@/lib/data/homepage';
 import {
   activeHomeFeedFilterCount,
   EMPTY_HOME_FEED_FILTERS,
+  homeFeedAreaParam,
+  homeFeedAreaSelection,
   homeFeedFiltersFromStorage,
   parseHomeFeedFilters,
   saveHomeFeedFiltersToStorage,
   serializeHomeFeedFilters,
   type HomeFeedFilters,
 } from '@/lib/home-feed-filters';
+import { useT } from '@/components/i18n/LocaleProvider';
 import { trackSignal } from '@/lib/telemetry/track';
 
 type PreferencesChipVariant = 'pill' | 'minimal';
@@ -86,6 +94,11 @@ function FilterSheet({
   onClear: () => void;
   isPending: boolean;
 }) {
+  const t = useT();
+  const [gpsPending, setGpsPending] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [nearestHint, setNearestHint] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
 
@@ -106,7 +119,7 @@ function FilterSheet({
   if (!open) return null;
 
   const chip =
-    'flex w-full items-center justify-center rounded-xl border px-2 py-2.5 text-center font-body-sm text-[11px] leading-tight transition-colors duration-200 active:scale-[0.98]';
+    'flex h-full w-full items-center justify-center rounded-xl border px-1.5 py-1.5 text-center font-body-sm text-[11px] leading-snug transition-colors duration-200 active:scale-[0.98]';
   const chipIdle =
     'border-white/10 bg-transparent text-on-surface-variant hover:border-white/18 hover:bg-white/[0.03] hover:text-zinc-200';
   const chipOn = 'border-primary-container/40 bg-primary-container/10 text-white';
@@ -115,7 +128,80 @@ function FilterSheet({
     { id: 'near_me' as FeedAreaId, label: 'Near me' },
     { id: 'bratislava' as FeedAreaId, label: 'All Bratislava' },
   ] as const;
-  const scopeActive = draft.area === 'near_me' || draft.area === 'bratislava';
+  const scopeActive = draft.districts.length === 0;
+  const selectionLabel = feedAreaSelectionLabel(homeFeedAreaSelection(draft));
+  const nearMeSelected =
+    (scopeActive && draft.area === 'near_me') || Boolean(nearestHint && draft.districts.length === 1);
+
+  function setScope(area: FeedAreaId) {
+    if (area !== 'near_me' && area !== 'bratislava') return;
+    setGpsError(null);
+    setNearestHint(null);
+    setDraft((prev) => ({ ...prev, area, districts: [] }));
+  }
+
+  function requestNearMeGps() {
+    setGpsError(null);
+    setNearestHint(null);
+
+    if (!('geolocation' in navigator)) {
+      setGpsError(t('location.noGps'));
+      setDraft((prev) => ({ ...prev, area: 'near_me', districts: [] }));
+      return;
+    }
+
+    setGpsPending(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const nearest = nearestBratislavaDistrict(latitude, longitude);
+        setDraft((prev) => ({
+          ...prev,
+          area: nearest.id as FeedAreaId,
+          districts: [nearest.id],
+        }));
+        setNearestHint(
+          `${nearest.name}${nearest.distanceKm > 0 ? ` · ${nearest.distanceKm} km` : ''}`,
+        );
+        setGpsPending(false);
+        trackSignal('home.near_me_district', {
+          districtId: nearest.id,
+          distanceKm: nearest.distanceKm,
+        });
+        // Persist for signed-in users (guest / bypass gets 401 — ignore).
+        void fetch('/api/profile/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: 'gps', latitude, longitude }),
+        }).catch(() => {});
+      },
+      () => {
+        setGpsPending(false);
+        setGpsError(t('location.denied'));
+        setDraft((prev) => ({ ...prev, area: 'near_me', districts: [] }));
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60_000 },
+    );
+  }
+
+  function toggleDistrict(districtId: string) {
+    setNearestHint(null);
+    setGpsError(null);
+    setDraft((prev) => {
+      const selected = prev.districts.includes(districtId);
+      const districts = selected
+        ? prev.districts.filter((id) => id !== districtId)
+        : [...prev.districts, districtId];
+      if (districts.length === 0) {
+        return { ...prev, area: 'bratislava', districts: [] };
+      }
+      return {
+        ...prev,
+        area: districts[0] as FeedAreaId,
+        districts,
+      };
+    });
+  }
 
   return (
     <div
@@ -154,19 +240,26 @@ function FilterSheet({
         >
           <div className="flex w-full">
             {scopeTabs.map((opt) => {
-              const selected = draft.area === opt.id;
+              const selected =
+                opt.id === 'near_me'
+                  ? nearMeSelected || gpsPending
+                  : scopeActive && draft.area === opt.id && !nearestHint;
               return (
                 <button
                   key={opt.id}
                   type="button"
                   role="tab"
                   aria-selected={selected}
-                  onClick={() => setDraft((prev) => ({ ...prev, area: opt.id }))}
+                  disabled={gpsPending && opt.id === 'near_me'}
+                  onClick={() => {
+                    if (opt.id === 'near_me') requestNearMeGps();
+                    else setScope(opt.id);
+                  }}
                   className={`relative flex flex-1 items-center justify-center px-2 py-3 font-label-caps text-[10px] uppercase tracking-[0.12em] transition-colors duration-200 sm:text-[11px] ${
                     selected ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
+                  } disabled:opacity-70`}
                 >
-                  {opt.label}
+                  {opt.id === 'near_me' && gpsPending ? 'Locating…' : opt.label}
                   {selected ? (
                     <span
                       className="absolute inset-x-3 bottom-0 h-px bg-primary-container/90 sm:inset-x-6"
@@ -184,26 +277,35 @@ function FilterSheet({
             <p className="mb-2.5 text-center font-label-caps text-[9px] uppercase tracking-[0.14em] text-tertiary">
               Mestské časti
             </p>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            <div className="grid auto-rows-[3rem] grid-cols-2 gap-1.5 sm:grid-cols-3">
               {BRATISLAVA_DISTRICTS.map((district) => {
-                const selected = draft.area === district.id;
+                const selected = draft.districts.includes(district.id);
                 return (
                   <button
                     key={district.id}
                     type="button"
                     aria-pressed={selected}
-                    onClick={() => setDraft((prev) => ({ ...prev, area: district.id }))}
+                    onClick={() => toggleDistrict(district.id)}
                     className={`${chip} ${selected ? chipOn : chipIdle}`}
                     title={district.name}
                   >
-                    <span className="line-clamp-2">{district.name}</span>
+                    <span className="line-clamp-2 break-words hyphens-auto">{district.name}</span>
                   </button>
                 );
               })}
             </div>
-            {!scopeActive ? (
+            {gpsError ? (
+              <p className="mt-3 text-center font-body-sm text-[10px] text-error">{gpsError}</p>
+            ) : nearestHint ? (
               <p className="mt-3 text-center font-body-sm text-[10px] text-primary-container/90">
-                {feedAreaLabel(draft.area)}
+                Near me → {nearestHint}
+              </p>
+            ) : !scopeActive ? (
+              <p className="mt-3 text-center font-body-sm text-[10px] text-primary-container/90">
+                {selectionLabel}
+                {draft.districts.length > 1
+                  ? ` · ${draft.districts.length} vybrané`
+                  : null}
               </p>
             ) : null}
           </div>
@@ -251,23 +353,32 @@ export function HomeFeedPreferencesChip({ city, variant = 'pill' }: HomeFeedPref
   function openSheet() {
     const fromUrl = filtersFromParams(searchParams);
     const stored = homeFeedFiltersFromStorage();
+    const areaParam = homeFeedAreaParam(fromUrl);
     setDraft({
       ...EMPTY_HOME_FEED_FILTERS,
-      area: fromUrl.area !== 'bratislava' ? fromUrl.area : (stored?.area ?? fromUrl.area),
+      ...(areaParam
+        ? { area: fromUrl.area, districts: fromUrl.districts }
+        : stored
+          ? { area: stored.area, districts: stored.districts }
+          : { area: 'bratislava', districts: [] }),
     });
     setOpen(true);
   }
 
   function applyFilters(next: HomeFeedFilters) {
     const current = filtersFromParams(searchParams);
-    const mergedFilters: HomeFeedFilters = { ...current, area: next.area };
+    const mergedFilters: HomeFeedFilters = {
+      ...current,
+      area: next.area,
+      districts: next.districts,
+    };
     saveHomeFeedFiltersToStorage(mergedFilters);
     trackSignal('filter.apply', {
       page: pathname,
       sports: mergedFilters.sports.join(','),
       venues: mergedFilters.venueIds.length,
       type: mergedFilters.type,
-      area: mergedFilters.area,
+      area: homeFeedAreaParam(mergedFilters) ?? 'bratislava',
     });
     const params = serializeHomeFeedFilters(mergedFilters);
     const merged = new URLSearchParams(searchParams.toString());
@@ -280,7 +391,11 @@ export function HomeFeedPreferencesChip({ city, variant = 'pill' }: HomeFeedPref
 
   function clearFilters() {
     const current = filtersFromParams(searchParams);
-    const mergedFilters: HomeFeedFilters = { ...current, area: 'bratislava' };
+    const mergedFilters: HomeFeedFilters = {
+      ...current,
+      area: 'bratislava',
+      districts: [],
+    };
     saveHomeFeedFiltersToStorage(mergedFilters);
     const merged = new URLSearchParams(searchParams.toString());
     merged.delete('area');
@@ -289,7 +404,7 @@ export function HomeFeedPreferencesChip({ city, variant = 'pill' }: HomeFeedPref
     setOpen(false);
   }
 
-  const areaLabel = feedAreaLabel(applied.area);
+  const areaLabel = feedAreaSelectionLabel(homeFeedAreaSelection(applied));
   const isMinimal = variant === 'minimal';
 
   return (

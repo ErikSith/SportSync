@@ -1,6 +1,12 @@
 import type { EventType } from '@/lib/constants/events';
 import { EVENT_SPORTS, isEventSport, sportDisplayLabel } from '@/lib/constants/sports';
-import { feedAreaLabel, parseFeedArea, type FeedAreaId } from '@/lib/cities';
+import {
+  feedAreaSelectionLabel,
+  parseFeedAreaSelection,
+  serializeFeedAreaSelection,
+  type FeedAreaId,
+  type FeedAreaSelection,
+} from '@/lib/cities';
 
 export const HOME_FEED_STORAGE_KEY = 'sportsync-home-feed-filters';
 
@@ -8,8 +14,13 @@ export interface HomeFeedFilters {
   sports: string[];
   venueIds: string[];
   type: EventType | 'ALL';
-  /** Location scope: near me / whole Bratislava / borough. */
+  /**
+   * Location scope. Use `near_me` / `bratislava`, or put one+ borough ids in
+   * `districts` (multi mestské časti). When `districts` is non-empty it wins.
+   */
   area: FeedAreaId;
+  /** Selected Bratislava borough ids (multi-select). */
+  districts: string[];
   /** @deprecated Silent mix is always on; kept for storage backward-compat. */
   discoveryEnabled: boolean;
 }
@@ -25,8 +36,34 @@ export const EMPTY_HOME_FEED_FILTERS: HomeFeedFilters = {
   venueIds: [],
   type: 'ALL',
   area: 'bratislava',
+  districts: [],
   discoveryEnabled: true,
 };
+
+export function homeFeedAreaSelection(filters: HomeFeedFilters): FeedAreaSelection {
+  if (filters.districts.length > 0) {
+    return { mode: 'districts', districtIds: filters.districts };
+  }
+  if (filters.area === 'near_me') return { mode: 'near_me' };
+  return { mode: 'bratislava' };
+}
+
+/** Raw `?area=` value for resolveFeedLocation / URL (null = whole BA). */
+export function homeFeedAreaParam(filters: HomeFeedFilters): string | null {
+  return serializeFeedAreaSelection(homeFeedAreaSelection(filters));
+}
+
+function filtersFromAreaSelection(
+  selection: FeedAreaSelection,
+): Pick<HomeFeedFilters, 'area' | 'districts'> {
+  if (selection.mode === 'districts') {
+    return {
+      area: selection.districtIds[0] as FeedAreaId,
+      districts: selection.districtIds,
+    };
+  }
+  return { area: selection.mode, districts: [] };
+}
 
 export function parseHomeFeedFilters(params: {
   sport?: string | string[];
@@ -57,11 +94,14 @@ export function parseHomeFeedFilters(params: {
   const type: EventType | 'ALL' =
     typeParam === 'official' || typeParam === 'community' ? typeParam : 'ALL';
 
+  const areaBits = filtersFromAreaSelection(parseFeedAreaSelection(params.area));
+
   return {
     sports: validSports,
     venueIds: venueList,
     type,
-    area: parseFeedArea(params.area),
+    area: areaBits.area,
+    districts: areaBits.districts,
     discoveryEnabled: true,
   };
 }
@@ -71,7 +111,8 @@ export function serializeHomeFeedFilters(filters: HomeFeedFilters): URLSearchPar
   if (filters.sports.length > 0) params.set('sport', filters.sports.join(','));
   if (filters.venueIds.length > 0) params.set('venues', filters.venueIds.join(','));
   if (filters.type !== 'ALL') params.set('type', filters.type);
-  if (filters.area !== 'bratislava') params.set('area', filters.area);
+  const areaParam = homeFeedAreaParam(filters);
+  if (areaParam) params.set('area', areaParam);
   // Discovery mix is always silent/on — never expose in the URL.
   return params;
 }
@@ -81,7 +122,7 @@ export function activeHomeFeedFilterCount(filters: HomeFeedFilters): number {
   if (filters.sports.length > 0) count += filters.sports.length;
   if (filters.venueIds.length > 0) count += filters.venueIds.length;
   if (filters.type !== 'ALL') count += 1;
-  if (filters.area !== 'bratislava') count += 1;
+  if (homeFeedAreaParam(filters) != null) count += 1;
   return count;
 }
 
@@ -99,12 +140,42 @@ export function homeFeedFiltersFromStorage(): HomeFeedFilters | null {
   try {
     const raw = localStorage.getItem(HOME_FEED_STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<HomeFeedFilters> & { discovery?: string };
+    const parsed = JSON.parse(raw) as Partial<HomeFeedFilters> & {
+      discovery?: string;
+      districts?: unknown;
+    };
+    const storedDistricts = Array.isArray(parsed.districts)
+      ? parsed.districts.filter((id): id is string => typeof id === 'string')
+      : [];
+    const fromArea = filtersFromAreaSelection(
+      parseFeedAreaSelection(
+        typeof parsed.area === 'string'
+          ? parsed.area
+          : storedDistricts.length > 0
+            ? storedDistricts.join(',')
+            : undefined,
+      ),
+    );
+    const districts =
+      storedDistricts.length > 0
+        ? [
+            ...new Set(
+              storedDistricts.map((id) => id.toLowerCase().trim()).filter(Boolean),
+            ),
+          ]
+        : fromArea.districts;
+
+    const areaBits =
+      districts.length > 0
+        ? filtersFromAreaSelection({ mode: 'districts', districtIds: districts })
+        : fromArea;
+
     return {
       sports: Array.isArray(parsed.sports) ? parsed.sports : [],
       venueIds: Array.isArray(parsed.venueIds) ? parsed.venueIds : [],
       type: parsed.type === 'official' || parsed.type === 'community' ? parsed.type : 'ALL',
-      area: parseFeedArea(parsed.area),
+      area: areaBits.area,
+      districts: areaBits.districts,
       discoveryEnabled: true,
     };
   } catch {
@@ -177,7 +248,7 @@ export function summarizeHomeFeedFilters(
     return 'Everything in Bratislava — personalize area, sports & venues';
   }
 
-  const parts: string[] = [feedAreaLabel(filters.area)];
+  const parts: string[] = [feedAreaSelectionLabel(homeFeedAreaSelection(filters))];
   if (filters.type !== 'ALL') {
     parts.push(filters.type === 'official' ? 'Official events' : 'Community events');
   }

@@ -1,23 +1,17 @@
 'use client';
 
 import type { HomepageEventInspiration } from '@/lib/data/homepage';
-import type { LobbyCardData } from '@/lib/data/lobbies';
 import { isProgramEvent } from '@/lib/programs/classify';
 import { StartingSoonSection } from '@/components/home/StartingSoonSection';
-import { OpenLobbiesList } from '@/components/home/OpenLobbiesList';
 import { GroupedProgramsSection } from '@/components/home/GroupedProgramsSection';
 import { EventInspirationRow } from '@/components/home/EventInspirationRow';
 import { useT } from '@/components/i18n/LocaleProvider';
 
 interface EventsInspirationSectionProps {
   data: HomepageEventInspiration;
-  openLobbies?: LobbyCardData[];
 }
 
-export function EventsInspirationSection({
-  data,
-  openLobbies = [],
-}: EventsInspirationSectionProps) {
+export function EventsInspirationSection({ data }: EventsInspirationSectionProps) {
   const t = useT();
   const { startingSoon, nearby, lastSpots, usedAllEventsFallback, showFavoritesCta, favoritesCtaNeedsLogin } =
     data;
@@ -30,7 +24,6 @@ export function EventsInspirationSection({
     data.followedVenueCount > 0 ||
     startingSoonEvents.length > 0 ||
     lastSpotsEvents.length > 0 ||
-    openLobbies.length > 0 ||
     programPool.some((event) => isProgramEvent(event));
 
   if (!hasAny) return null;
@@ -57,9 +50,6 @@ export function EventsInspirationSection({
           !showFavoritesCta && startingSoonEvents.length === 0 && data.followedVenueCount > 0
         }
       />
-
-      {/* NearYou slot → active lobbies from /lobby feed */}
-      <OpenLobbiesList lobbies={openLobbies} />
 
       <GroupedProgramsSection events={programPool} />
 

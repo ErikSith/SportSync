@@ -11,11 +11,6 @@ import {
   type HomeFilterVenue,
   type HomepageEventInspiration,
 } from '@/lib/data/homepage';
-import {
-  getLobbyPageFeed,
-  joinableOpenLobbies,
-  type LobbyCardData,
-} from '@/lib/data/lobbies';
 import { getActivePromotedBanners } from '@/lib/data/promoted';
 import type { PromotedBannerItem } from '@/lib/data/promoted-types';
 import { activeFeedSinceIso } from '@/lib/retention/feed-window';
@@ -26,12 +21,11 @@ import { CockpitHeader } from '@/components/home/CockpitHeader';
 import { QuickActions } from '@/components/home/QuickActions';
 import { FeaturedShowcaseCarousel } from '@/components/home/FeaturedShowcaseCarousel';
 import { EventsInspirationSection } from '@/components/home/EventsInspirationSection';
-import { OpenLobbiesList } from '@/components/home/OpenLobbiesList';
 import { CockpitDisclaimer } from '@/components/home/CockpitDisclaimer';
 import { LocationPrompt } from '@/components/home/LocationPrompt';
 import { HomeFeedFilterHydrator as PlayerFeedFilterHydrator } from '@/components/home/HomeFeedFilterButton';
 import { TrackPageView } from '@/components/telemetry/TrackPageView';
-import { parseHomeFeedFilters, activeHomeFeedFilterCount } from '@/lib/home-feed-filters';
+import { parseHomeFeedFilters, activeHomeFeedFilterCount, homeFeedAreaParam } from '@/lib/home-feed-filters';
 
 export const runtime = 'edge';
 
@@ -54,37 +48,6 @@ function isNextNavigationError(error: unknown): boolean {
     ((error as { digest: string }).digest.startsWith('NEXT_REDIRECT') ||
       (error as { digest: string }).digest.startsWith('NEXT_NOT_FOUND'))
   );
-}
-
-function pickHomeOpenLobbies(lobbies: LobbyCardData[]): LobbyCardData[] {
-  return joinableOpenLobbies(lobbies).sort(
-    (a, b) =>
-      a.scheduledAt.getTime() - b.scheduledAt.getTime() ||
-      a.distanceKm - b.distanceKm ||
-      b.spotsTotal - b.spotsFilled - (a.spotsTotal - a.spotsFilled),
-  );
-}
-
-async function loadHomeOpenLobbies(input: {
-  hasGps: boolean;
-  profileId: string;
-  lat: number;
-  lng: number;
-  city: string;
-}): Promise<LobbyCardData[]> {
-  try {
-    // Identical source as `/lobby` so sport chips/counts stay in sync.
-    const feed = await getLobbyPageFeed({
-      profileId: input.profileId,
-      city: input.city,
-      lat: input.hasGps ? input.lat : null,
-      lng: input.hasGps ? input.lng : null,
-    });
-    return pickHomeOpenLobbies(feed);
-  } catch (err) {
-    console.error('Homepage open lobbies error:', err);
-    return [];
-  }
 }
 
 function HomeFallback({ message }: { message?: string }) {
@@ -196,10 +159,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   let inspiration: HomepageEventInspiration | null = null;
   let promoted: PromotedBannerItem[] = [];
   let venues: HomeFilterVenue[] = [];
-  let openLobbies: LobbyCardData[] = [];
 
   try {
-    const [inspirationResult, promotedResult, filterVenues, lobbyResult] = await Promise.all([
+    const [inspirationResult, promotedResult, filterVenues] = await Promise.all([
       (async () => {
         let next: HomepageEventInspiration | null = null;
         if (hasGps) {
@@ -226,29 +188,14 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         return [] as PromotedBannerItem[];
       }),
       getVenuesForHomeFilter(city).catch(() => [] as HomeFilterVenue[]),
-      loadHomeOpenLobbies({
-        hasGps,
-        profileId: profile.id,
-        lat: feedLat,
-        lng: feedLng,
-        city,
-      }),
     ]);
 
     inspiration = inspirationResult;
     promoted = promotedResult;
     venues = filterVenues;
-    openLobbies = lobbyResult;
   } catch (error) {
     console.error('Homepage data fetch error:', error);
     inspiration = await getHomepageEventInspiration(profile, feedFilters, favoritesOpts);
-    openLobbies = await loadHomeOpenLobbies({
-      hasGps,
-      profileId: profile.id,
-      lat: feedLat,
-      lng: feedLng,
-      city,
-    });
   }
 
   const displayName = profile.fullName ?? profile.username;
@@ -260,11 +207,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         extra={{
           city,
           hasLocation: String(hasGps),
-          area: feedFilters.area,
+          area: homeFeedAreaParam(feedFilters) ?? 'bratislava',
           nearbyCount: String(inspiration?.nearby.length ?? 0),
           startingSoonCount: String(inspiration?.startingSoon.length ?? 0),
           lastSpotsCount: String(inspiration?.lastSpots.length ?? 0),
-          openLobbiesCount: String(openLobbies.length),
           feedFilters: String(activeHomeFeedFilterCount(feedFilters)),
           promotedCount: String(promoted.length),
         }}
@@ -293,12 +239,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </section>
 
         {inspiration ? (
-          <EventsInspirationSection data={inspiration} openLobbies={openLobbies} />
+          <EventsInspirationSection data={inspiration} />
         ) : (
-          <>
-            <OpenLobbiesList lobbies={openLobbies} />
-            <LocationPrompt />
-          </>
+          <LocationPrompt />
         )}
 
         <CockpitDisclaimer />

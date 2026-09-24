@@ -4,6 +4,7 @@ import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { getVenuesForOrganizer } from '@/lib/data/organizer-venues';
 import { canCreateTournament } from '@/lib/auth/tournament-access';
 import { TournamentCreator } from '@/components/tournaments/TournamentCreator';
+import { loginHref } from '@/lib/auth/login-href';
 
 export const runtime = 'edge';
 
@@ -18,13 +19,7 @@ export default async function CreateTournamentPage({ searchParams }: CreateTourn
   }
 
   if (viewer.isGuest) {
-    return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
-        <p className="font-body-md text-body-md text-tertiary-container">
-          Prihlásenie bude čoskoro — vytváranie zatiaľ nie je dostupné.
-        </p>
-      </main>
-    );
+    redirect(loginHref('/tournaments/create', { mode: 'sign-up' }));
   }
 
   const { profile } = viewer;
