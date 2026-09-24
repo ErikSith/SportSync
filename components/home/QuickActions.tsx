@@ -5,7 +5,9 @@ import { motion } from 'framer-motion';
 import { useT } from '@/components/i18n/LocaleProvider';
 import type { MessageKey } from '@/lib/i18n/messages';
 
-type HubAccent = 'coral' | 'teal';
+/** Pure red — not Material orange (#FF5722). Hub tiles share one surface; accent is icon-only. */
+
+type HubAccent = 'red' | 'gold' | 'sky' | 'teal';
 
 const ACTIONS: Array<{
   href: string;
@@ -15,25 +17,25 @@ const ACTIONS: Array<{
   accent: HubAccent;
 }> = [
   {
-    href: '/lobby',
-    labelKey: 'home.quick.lobby',
-    icon: 'group',
-    hintKey: 'home.quick.lobbyHint',
-    accent: 'coral',
+    href: '/events',
+    labelKey: 'home.quick.events',
+    icon: 'celebration',
+    hintKey: 'home.quick.eventsHint',
+    accent: 'red',
   },
   {
     href: '/tournaments',
     labelKey: 'home.quick.tournaments',
     icon: 'emoji_events',
     hintKey: 'home.quick.tournamentsHint',
-    accent: 'coral',
+    accent: 'gold',
   },
   {
-    href: '/events',
-    labelKey: 'home.quick.events',
-    icon: 'event',
-    hintKey: 'home.quick.eventsHint',
-    accent: 'coral',
+    href: '/skupinove-cvicenia',
+    labelKey: 'home.quick.schedules',
+    icon: 'fitness_center',
+    hintKey: 'home.quick.schedulesHint',
+    accent: 'sky',
   },
   {
     href: '/programs',
@@ -45,11 +47,23 @@ const ACTIONS: Array<{
 ];
 
 const ACCENT = {
-  coral: {
-    hoverBorder: 'hover:border-[#FF5722]/40',
-    glow: 'bg-[#FF5722]/10',
-    ring: 'group-hover:ring-[#FF5722]/35',
-    icon: 'text-[#FF5722]',
+  red: {
+    hoverBorder: 'hover:border-[#E53935]/45',
+    glow: 'bg-[#E53935]/12',
+    ring: 'group-hover:ring-[#E53935]/40',
+    icon: 'text-[#E53935]',
+  },
+  gold: {
+    hoverBorder: 'hover:border-[#c4a035]/45',
+    glow: 'bg-[#c4a035]/12',
+    ring: 'group-hover:ring-[#c4a035]/40',
+    icon: 'text-[#c4a035]',
+  },
+  sky: {
+    hoverBorder: 'hover:border-[#8EB4C8]/40',
+    glow: 'bg-[#8EB4C8]/12',
+    ring: 'group-hover:ring-[#8EB4C8]/35',
+    icon: 'text-[#8EB4C8]',
   },
   teal: {
     hoverBorder: 'hover:border-teal-400/45',
@@ -97,7 +111,7 @@ export function QuickActions() {
               ].join(' ')}
             >
               <div
-                className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full blur-2xl transition-opacity group-hover:opacity-100 ${accent.glow}`}
+                className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-0 blur-2xl transition-opacity group-hover:opacity-100 ${accent.glow}`}
                 aria-hidden
               />
               <span

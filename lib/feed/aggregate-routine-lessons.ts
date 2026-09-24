@@ -7,9 +7,13 @@ import {
 } from '@/lib/datetime/bratislava';
 import {
   looksLikeGroupClassListing,
+  looksLikeNavOrSectionTitle,
+  looksLikeOneOffSpecialEvent,
   looksLikeSpecialEventTitle,
+  isListingNoise,
   recurringSeriesLessonIds,
 } from '@/lib/feed/group-class';
+import { looksLikeNewsOrResultTitle } from '@/lib/scrape/news-result';
 import { displayVenueName } from '@/lib/venues/listing-url';
 import { dedupeLessonsAtSameVenueSlot } from '@/lib/events/event-identity';
 
@@ -182,6 +186,34 @@ function passesRoutineGates(event: EventCardData): boolean {
 }
 
 /**
+ * Eventy / Zápasy tab — only unusual one-offs (marathon, Red Bull night, …),
+ * community lobbies, or watch fixtures. Weekly studio slots and news never.
+ */
+export function belongsOnEventsMatchesTab(event: EventCardData): boolean {
+  if (looksLikeNewsOrResultTitle(event.title, event.description)) return false;
+  if (
+    isListingNoise({
+      title: event.title,
+      description: event.description,
+      sourceUrl: event.sourceUrl,
+      ticketUrl: event.ticketUrl,
+    })
+  ) {
+    return false;
+  }
+  if (looksLikeNavOrSectionTitle(event.title)) return false;
+
+  const externalId = (event.externalId ?? '').toLowerCase();
+  if (externalId.startsWith('class-')) return false;
+
+  if (event.type === 'community') return true;
+  if (event.participationMode === 'spectator') return true;
+  if (looksLikeOneOffSpecialEvent(event.title, event.description)) return true;
+
+  return false;
+}
+
+/**
  * Classify a feed event as a repeating venue group lesson vs a standalone event
  * (tournament, lobby match, marketing one-off, in-app registration).
  *
@@ -197,6 +229,7 @@ export function isRoutineLesson(
   recurringSeriesIds?: ReadonlySet<string>,
 ): boolean {
   if (!passesRoutineGates(event)) return false;
+  if (looksLikeNewsOrResultTitle(event.title, event.description)) return false;
 
   const externalId = (event.externalId ?? '').toLowerCase();
   // Schedule upserts always use class-* — keep HYROX / Open Air studio slots in
@@ -253,6 +286,7 @@ export function denseVenueDayLessonIds(events: EventCardData[]): Set<string> {
     if (event.type === 'community') continue;
     if (!event.isAggregated) continue;
     if (looksLikeSpecialEventTitle(event.title)) continue;
+    if (looksLikeNewsOrResultTitle(event.title, event.description)) continue;
 
     // Density is still measured per venue+day (timetable on one calendar day).
     const key = `${groupKey(event)}__${eventDayKey(event.startsAt)}`;
@@ -443,9 +477,12 @@ export function partitionFeedForSplitTabs(events: EventCardData[]): PartitionedF
     minGroupSize: SPLIT_FEED_MIN_GROUP_SIZE,
   });
 
-  // Safety net: never surface a routine lesson as a match card.
+  // Safety net: Eventy only gets one-off specials / community / watch — never
+  // weekly lessons, news headlines, or weak scraped PODUJATIE cards.
   const uniqueEvents = partitioned.uniqueEvents.filter(
-    (item) => !isRoutineLesson(item.event, denseIds, seriesIds),
+    (item) =>
+      !isRoutineLesson(item.event, denseIds, seriesIds) &&
+      belongsOnEventsMatchesTab(item.event),
   );
 
   return {

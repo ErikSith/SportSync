@@ -4,10 +4,7 @@ import { resolveSportType, buildThemeConfig } from '@/lib/ai/theme-config';
 import { classifyListingAudience } from '@/lib/events/audience';
 import { listingIsOutsideBratislava } from '@/lib/cities';
 import { createAdminClient } from '@/lib/supabase/admin';
-import {
-  classifyProgramSignals,
-  type ProgramBucket,
-} from '@/lib/programs/classify';
+import { type ProgramBucket } from '@/lib/programs/classify';
 import {
   GEMINI_SCRAPER_SOURCE,
   type ScrapedEvent,
@@ -17,10 +14,10 @@ import { toAppDateKey } from '@/lib/datetime/bratislava';
 import { dateOnlySortInstant } from './date-only-time';
 import {
   looksLikeGroupClassListing,
-  normalizeLessonTitle,
   recurringNormalizedTitlesFromBatch,
   shouldForceGroupClassFromUrl,
 } from '@/lib/feed/group-class';
+import { classifyScrapedEventBucket } from '@/lib/scrape/listing-bucket';
 import {
   loadVenueUrlIndex,
   findVenueInIndex,
@@ -126,15 +123,18 @@ function withNotice(
   return `${base.slice(0, 400)}\n\n${notice}`.slice(0, 600);
 }
 
-function looksLikeTournament(event: ScrapedEvent): boolean {
-  if (event.isTournament) return true;
-  return /\b(turnaj|tournament|\bcup\b|championship|trophy|s[uú]ťaž|sutaz|kvalifik[aá]c)/i.test(
-    `${event.title} ${event.description ?? ''}`,
-  );
-}
-
 function strEq(a: unknown, b: unknown): boolean {
   return String(a ?? '') === String(b ?? '');
+}
+
+function classifyForUpsert(event: ScrapedEvent, opts: UpsertScrapedOptions) {
+  return classifyScrapedEventBucket(event, {
+    scrapePageUrl: opts.scrapePageUrl,
+    scrapePageKind: opts.scrapePageKind,
+    forceProgramKind: opts.forceProgramKind,
+    forceGroupClass: opts.forceGroupClass,
+    recurringTitles: opts.recurringTitles,
+  });
 }
 
 export interface UpsertScrapedOptions {
@@ -173,41 +173,6 @@ function resolveWriteVenue(
     (resolved && resolved.id === venueId ? resolved : null) ??
     (venueId && index ? findVenueInIndex(venueId, index) : null);
   return { venueId, named };
-}
-
-function resolveProgramKind(
-  event: ScrapedEvent,
-  opts: UpsertScrapedOptions,
-): ProgramBucket | null {
-  return classifyProgramSignals({
-    title: event.title,
-    description: event.description,
-    sourceUrl: opts.scrapePageUrl ?? event.originalUrl,
-    ticketUrl: event.originalUrl,
-    isGroupClass: event.isGroupClass,
-    isCamp: event.isCamp,
-    isWorkshop: event.isWorkshop,
-    isCourse: event.isCourse,
-    scrapePageKind: opts.scrapePageKind,
-    themeProgramKind: opts.forceProgramKind,
-  });
-}
-
-function isGroupClassWrite(event: ScrapedEvent, opts: UpsertScrapedOptions): boolean {
-  if (resolveProgramKind(event, opts)) return false;
-  if (looksLikeTournament(event) && !event.isCamp && !event.isWorkshop && !event.isCourse) {
-    return false;
-  }
-  if (opts.forceGroupClass) return true;
-  if (event.isGroupClass) return true;
-  if (opts.recurringTitles?.has(normalizeLessonTitle(event.title))) return true;
-  const pageUrl = opts.scrapePageUrl ?? event.originalUrl;
-  return looksLikeGroupClassListing({
-    title: event.title,
-    description: event.description,
-    sourceUrl: pageUrl,
-    isGroupClass: event.isGroupClass,
-  });
 }
 
 type ExistingEvent = {
@@ -301,8 +266,12 @@ async function upsertEvent(
 
   const supabase = createAdminClient();
   const geminiUrl = canonicalizeSourceUrl(event.originalUrl);
-  const asGroupClass = isGroupClassWrite(event, opts);
-  const programKind = resolveProgramKind(event, opts);
+  const classified = classifyForUpsert(event, opts);
+  if (classified.bucket === 'skip' || classified.bucket === 'tournament') {
+    return 'skipped';
+  }
+  const asGroupClass = classified.bucket === 'group_class';
+  const programKind = classified.programKind;
   const scheduleUrl =
     asGroupClass && opts.scrapePageUrl
       ? canonicalizeSourceUrl(opts.scrapePageUrl)
@@ -605,6 +574,8 @@ export async function upsertScrapedEvents(
     updated: 0,
     unchanged: 0,
     skipped: 0,
+    groupClassesCreated: 0,
+    specialEventsCreated: 0,
     tournamentsCreated: 0,
     tournamentsUpdated: 0,
   };
@@ -657,15 +628,32 @@ export async function upsertScrapedEvents(
         );
         continue;
       }
-      const programKind = resolveProgramKind(event, writeOpts);
-      const asTournament = !programKind && looksLikeTournament(event);
-      const result = asTournament
-        ? await upsertTournament(event, writeOpts)
-        : await upsertEvent(event, writeOpts);
-      stats[result] += 1;
-      if (asTournament) {
+
+      const classified = classifyForUpsert(event, writeOpts);
+      if (classified.bucket === 'skip') {
+        stats.skipped += 1;
+        console.log(`[scraper.db] skip ${classified.reason}: ${event.title}`);
+        continue;
+      }
+
+      if (classified.bucket === 'tournament') {
+        const result = await upsertTournament(event, writeOpts);
+        stats[result] += 1;
         if (result === 'created') stats.tournamentsCreated += 1;
         else if (result === 'updated') stats.tournamentsUpdated += 1;
+        continue;
+      }
+
+      const eventOpts: UpsertScrapedOptions = {
+        ...writeOpts,
+        forceGroupClass: classified.bucket === 'group_class',
+        forceProgramKind: classified.programKind ?? writeOpts.forceProgramKind,
+      };
+      const result = await upsertEvent(event, eventOpts);
+      stats[result] += 1;
+      if (result === 'created') {
+        if (classified.bucket === 'group_class') stats.groupClassesCreated += 1;
+        else if (classified.bucket === 'event') stats.specialEventsCreated += 1;
       }
     } catch (err) {
       stats.skipped += 1;

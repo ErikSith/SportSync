@@ -40,6 +40,17 @@ describe('titleLooksLikeHeadToHeadFixture', () => {
     assert.equal(titleLooksLikeHeadToHeadFixture('Klub Muay Thai - Technika a kondícia'), false);
   });
 
+  it('matches youth club fixtures with Futbalový zápas: prefix', () => {
+    assert.equal(
+      titleLooksLikeHeadToHeadFixture('Futbalový zápas: FKM Karlova Ves - PŠC Pezinok (Muži)'),
+      true,
+    );
+    assert.equal(
+      titleLooksLikeHeadToHeadFixture('Futbalový zápas U14: FKM Karlova Ves - DAC Dunajská Streda'),
+      true,
+    );
+  });
+
   it('keeps lobby Tím vs Tím joinable', () => {
     assert.equal(titleLooksLikeHeadToHeadFixture('Tím vs Tím'), false);
     assert.equal(titleLooksLikeHeadToHeadFixture('Team vs Team'), false);

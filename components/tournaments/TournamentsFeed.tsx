@@ -38,7 +38,7 @@ export function TournamentsFeed({
       />
 
       {tournaments.length === 0 ? (
-        <div className="rounded-2xl border border-secondary/20 bg-[#16140f]/80 px-6 py-10 text-center">
+        <div className="rounded-2xl border border-secondary/20 bg-transparent px-6 py-10 text-center">
           <span
             className="material-symbols-outlined mb-3 text-[32px] text-secondary/70"
             style={{ fontVariationSettings: "'FILL' 1" }}

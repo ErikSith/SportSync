@@ -281,7 +281,7 @@ export function TournamentFiltersBar({
     'inline-flex shrink-0 items-center rounded-xl border px-3 py-2 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 active:scale-[0.98] whitespace-nowrap';
   const chipIdle =
     'border-[#c4a035]/15 bg-transparent text-on-surface-variant hover:border-[#c4a035]/25 hover:bg-[#c4a035]/[0.04] hover:text-[#e8d59a]';
-  const chipOn = 'border-[#c4a035]/25 bg-[#c4a035]/[0.08] text-[#e8d59a]';
+  const chipOn = 'border-[#c4a035]/25 bg-transparent text-[#e8d59a]';
   const scrollRow =
     'flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain hide-scrollbar touch-pan-x';
 
@@ -300,10 +300,10 @@ export function TournamentFiltersBar({
         className={[
           'group flex h-full min-w-0 w-full items-center justify-center gap-1 rounded-xl px-1.5 py-2.5 text-center transition-colors duration-200 sm:gap-1.5 sm:px-2',
           open
-            ? 'bg-[#c4a035]/[0.08] text-[#e8d59a]'
+            ? 'bg-transparent text-[#e8d59a]'
             : opts.filtered
-              ? 'text-[#e8d59a] hover:bg-[#c4a035]/[0.04]'
-              : 'text-on-surface-variant hover:bg-[#c4a035]/[0.04] hover:text-[#e8d59a]',
+              ? 'text-[#e8d59a]'
+              : 'text-on-surface-variant hover:text-[#e8d59a]',
         ].join(' ')}
       >
         <span className="min-w-0 truncate font-label-caps text-[9px] uppercase tracking-[0.1em] sm:tracking-[0.12em]">
@@ -627,8 +627,8 @@ export function TournamentFiltersBar({
                   className={[
                     'flex h-full w-full min-w-0 items-center justify-center rounded-xl px-1.5 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.1em] transition-colors duration-200 sm:tracking-[0.12em] md:py-2',
                     active
-                      ? 'bg-[#c4a035]/[0.08] text-[#e8d59a]'
-                      : 'text-on-surface-variant hover:bg-[#c4a035]/[0.04] hover:text-[#e8d59a]',
+                      ? 'bg-transparent text-[#e8d59a]'
+                      : 'text-on-surface-variant hover:text-[#e8d59a]',
                   ].join(' ')}
                 >
                   <span className="truncate">{option.label}</span>
@@ -653,8 +653,8 @@ export function TournamentFiltersBar({
             className={[
               'rounded-xl px-3 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 md:px-3.5 md:py-2',
               !isSpectator
-                ? 'bg-[#c4a035]/[0.08] text-[#e8d59a]'
-                : 'text-on-surface-variant hover:bg-[#c4a035]/[0.04] hover:text-[#e8d59a]',
+                ? 'bg-transparent text-[#e8d59a]'
+                : 'text-on-surface-variant hover:text-[#e8d59a]',
             ].join(' ')}
           >
             {t('common.play')}
@@ -667,8 +667,8 @@ export function TournamentFiltersBar({
             className={[
               'inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 md:px-3.5 md:py-2',
               isSpectator
-                ? 'bg-[#c4a035]/[0.08] text-[#e8d59a]'
-                : 'text-on-surface-variant hover:bg-[#c4a035]/[0.04] hover:text-[#e8d59a]',
+                ? 'bg-transparent text-[#e8d59a]'
+                : 'text-on-surface-variant hover:text-[#e8d59a]',
             ].join(' ')}
           >
             <Eye className="h-3.5 w-3.5" strokeWidth={2} />

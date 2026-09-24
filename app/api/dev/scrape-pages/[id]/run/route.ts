@@ -145,6 +145,8 @@ export async function POST(request: Request, context: RouteContext) {
             updated: 0,
             unchanged: 0,
             skipped: 0,
+            groupClassesCreated: 0,
+            specialEventsCreated: 0,
             tournamentsCreated: 0,
             tournamentsUpdated: 0,
           };

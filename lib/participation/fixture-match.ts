@@ -24,7 +24,20 @@ const EXPLICIT_SEP = /\s+(?:vs\.?|versus|proti|v\.?s\.?)\s+/i;
  * "FC A - FC B" from "SIAM FIGHTERS - Zápasnícky tréning".
  */
 const TEAM_MARKER =
-  /\b(?:fc|fk|šk|sk|mfk|ofk|hc|tj|afc|ac|nk|mšk|msk|asc|škf|sfc|1\.?\s*fc|inter|slovan|petržalka|petrzalka|vion|spartak|dukla|dynamo|ban[ií]k|žilina|zilina|tren[cč][ií]n|trnava|nitra|senica|ruzomberok|ružomberok|podbrezov[aá]|zlat[eé]\s+moravce|samorin|šamor[ií]n|malženice|malzenice|vra[aá]ble)\b/i;
+  /\b(?:fc|fk|fkm|šk|sk|mfk|ofk|hc|tj|afc|ac|nk|mšk|msk|asc|škf|sfc|p[sš]c|dac|n[sš]k|1\.?\s*fc|inter|slovan|petržalka|petrzalka|vion|spartak|dukla|dynamo|ban[ií]k|žilina|zilina|tren[cč][ií]n|trnava|nitra|senica|ruzomberok|ružomberok|podbrezov[aá]|zlat[eé]\s+moravce|samorin|šamor[ií]n|malženice|malzenice|vra[aá]ble|pezinok|karlova\s+ves)\b/i;
+
+/**
+ * Youth / club sites often prefix fixtures: "Futbalový zápas: FKM … - …",
+ * "Futbalový zápas U14: …". Strip before H2H side matching.
+ */
+function stripFixtureLabel(title: string): string {
+  return title
+    .replace(
+      /^(?:futbalov[yý]\s+)?z[aá]pas(?:\s+u\d+)?:\s*/i,
+      '',
+    )
+    .trim();
+}
 
 /** Right/left side is clearly a class, promo, or league note — not a club. */
 const NON_TEAM_SIDE =
@@ -73,7 +86,7 @@ function bothSidesAreClubs(left: string, right: string): boolean {
  *   explicit `vs` — callers must not use this for lobby UI.
  */
 export function titleLooksLikeHeadToHeadFixture(title: string): boolean {
-  const t = fold(title);
+  const t = stripFixtureLabel(fold(title));
   if (t.length < 5) return false;
 
   const explicit = EXPLICIT_SEP.exec(t);

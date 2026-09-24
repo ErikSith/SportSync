@@ -9,16 +9,11 @@ import {
 } from '@/lib/scrape/fetch';
 import type { AdapterResult, NormalizedScrapedEvent, ParticipationMode } from '@/lib/scrape/types';
 import { titleIsOutsideBratislava } from '@/lib/cities';
+import { looksLikeNewsOrResultTitle } from '@/lib/scrape/news-result';
 
 const HOME_URL = 'https://www.stz.sk/';
 const TENIS_DOMA_URL = 'https://www.stz.sk/tenis-doma';
 const BASE = 'https://www.stz.sk';
-
-const RESULT_TITLE =
-  /v[ií][tť]azk?(ou|mi|om)|finalistk?(ou|om)|vypadol|pod[ľl]ah|post[uú]pil[ao]?|z[ií]skal[ao]?\s+titul|prebojoval/i;
-
-const UPCOMING_HINT =
-  /uskuto[cč]n[ií]|kon[aá]\s|term[ií]ne|t[yý][zž]dni\s+od|uz[aá]vierka\s+prihl|prihl[aá]sen[eé]|nominovan[eé]|vstupenk|predpredaj|ticketportal/i;
 
 /**
  * Slovak Tennis Association news → upcoming tournaments (participate)
@@ -61,7 +56,7 @@ function parseNewsPage(html: string): NormalizedScrapedEvent[] {
     const combined = `${title} ${body}`;
 
     // Skip pure result write-ups unless they also announce a future event
-    if (RESULT_TITLE.test(title) && !UPCOMING_HINT.test(combined)) return;
+    if (looksLikeNewsOrResultTitle(title, body)) return;
     if (!isSportEventCandidate(title, body, href)) return;
 
     const startsAt = extractEventStartsAt(combined) ?? (publishRaw?.[1] ? parseSlovakDate(publishRaw[1]) : null);

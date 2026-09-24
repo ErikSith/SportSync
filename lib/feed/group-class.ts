@@ -7,9 +7,11 @@ import {
   isMixedScrapePageKind,
   scrapePageHasKind,
 } from '@/lib/scrape/scrape-page-kind';
+import { looksLikeNewsOrResultTitle } from '@/lib/scrape/news-result';
 
+/** Unusual one-day (or short) happenings → Eventy tab, not weekly Skupinové. */
 const SPECIAL_EVENT_TITLE =
-  /\b(piatkovica|open\s*air|hyrox|workshop|masterclass|seminar|t[aá]bor|summer\s*camp|kids?\s*camp|marathon|turnaj|tournament|cup|championship|liga|match|zápas|exhibition|exhib[íi]cia|koncert|festival|podujatie|party|singles?|nezadan)\b/i;
+  /\b(piatkovica|open\s*air|hyrox|workshop|masterclass|seminar|t[aá]bor|summer\s*camp|kids?\s*camp|marathon|marat[oó]n|polmarat[oó]n|half[\s-]?marathon|\d{1,2}\s*k\b|race|night\s*run|color\s*run|mud\s*run|triathlon|duathlon|ocr|spartan|adventure\s*race|red\s*bull|festival|koncert|party|singles?|nezadan|turnaj|tournament|cup|championship|trophy|liga|match|z[aá]pas|exhibition|exhib[íi]cia|podujatie|galave[cč]er|show\s*match|streetball|3\s*[x×]\s*3|otvoren[iíe]|grand\s*opening|de[nň]\s+otvoren|family\s*day|rodinn[ýy]\s+de[nň]|charitat|benefi[cč]|tane[cč]n|beh\b)\b/i;
 
 /** Typical repeating studio / academy / group-class names (not one-off events). */
 const GROUP_CLASS_TITLE =
@@ -31,6 +33,13 @@ const COURT_RENTAL_URL =
 
 const COURT_RENTAL_TITLE =
   /^(cenník|prenájom(\s+tenisových)?\s+kurt|prenajom(\s+tenisovych)?\s+kurt|otváracie\s+hodiny|opening\s+hours)\b/i;
+
+/**
+ * Hub / menu / section pages scraped as listings — never Events, Programs, or Cups.
+ * Keep short exact titles only so real "Padelový turnaj …" still passes.
+ */
+const NAV_OR_SECTION_TITLE =
+  /^(kurzy|kr[uú][zž]ky(\s+a\s+kurzy)?|workshopy(\s+a\s+semin[aá]re)?|t[aá]bory|kempy|detsk[eé]\s+(kempy|kurzy|t[aá]bory)|turnaje|podujatia|eventy?|rozvrh|kalend[aá]r(\s+olympi[aá]d.*)?|event\s*kalend[aá]r|predbe[zž]n[aá]\s+term[ií]nov[aá]\s+listina.*|doprava|pl[aá][zž]e|ubytovanie(\s+a\s+strava)?|tr[eé]ningov[yý]\s+proces)$/i;
 
 export interface GroupClassSignals {
   title: string;
@@ -54,6 +63,26 @@ export interface RecurringListing {
 
 export function looksLikeSpecialEventTitle(title: string): boolean {
   return SPECIAL_EVENT_TITLE.test(title);
+}
+
+/**
+ * One-off Eventy card: marathon, Red Bull night, festival, open day, cup, …
+ * Not a weekly pilates slot and not a press-result headline.
+ */
+export function looksLikeOneOffSpecialEvent(
+  title: string,
+  description?: string | null,
+): boolean {
+  if (looksLikeNewsOrResultTitle(title, description)) return false;
+  if (looksLikeNavOrSectionTitle(title)) return false;
+  return looksLikeSpecialEventTitle(title);
+}
+
+/** Exact hub/menu titles ("Turnaje", "Kurzy", "Kalendár olympiád…") — not real listings. */
+export function looksLikeNavOrSectionTitle(title: string): boolean {
+  const t = title.trim().replace(/\s+/g, ' ');
+  if (t.length < 2) return true;
+  return NAV_OR_SECTION_TITLE.test(t);
 }
 
 export function normalizeLessonTitle(title: string): string {
@@ -98,6 +127,7 @@ export function shouldForceGroupClassFromScrapePage(
 }
 
 export function looksLikeGroupClassListing(signals: GroupClassSignals): boolean {
+  if (looksLikeNewsOrResultTitle(signals.title, signals.description)) return false;
   if (signals.isGroupClass === true && !looksLikeSpecialEventTitle(signals.title)) {
     // Explicit Gemini flag — still not a seasonal kids club / structured course.
     if (!SEASONAL_CLUB_OR_COURSE_TITLE.test(signals.title)) return true;
@@ -124,6 +154,8 @@ export function isListingNoise(
 ): boolean {
   const title = signals.title.trim();
   if (COURT_RENTAL_TITLE.test(title)) return true;
+  if (looksLikeNavOrSectionTitle(title)) return true;
+  if (looksLikeNewsOrResultTitle(title, signals.description)) return true;
 
   const url = `${signals.sourceUrl ?? ''} ${signals.ticketUrl ?? ''}`.toLowerCase();
   if (COURT_RENTAL_URL.test(url)) {

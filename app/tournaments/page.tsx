@@ -135,12 +135,12 @@ export default async function TournamentsPage({ searchParams }: TournamentsPageP
 
       <BrandAppBar accent="secondary" />
 
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden>
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#16140f]" aria-hidden>
         <div className="ambient-glow bg-secondary/10 h-[420px] w-[420px] left-[-160px] top-16" />
         <div className="ambient-glow bg-primary-container/5 h-[360px] w-[360px] right-[-120px] top-56" />
       </div>
 
-      <main className="relative z-10 mx-auto flex w-full max-w-screen-xl min-w-0 flex-grow flex-col gap-4 px-container-margin-mobile pb-8 pt-5 md:px-container-margin-desktop md:gap-5">
+      <main className="relative z-10 mx-auto flex w-full max-w-screen-xl min-w-0 flex-grow flex-col gap-4 bg-[#16140f] px-container-margin-mobile pb-8 pt-5 md:px-container-margin-desktop md:gap-5">
         <PageTitleRow
           title={
             <div className="space-y-1 min-w-0">

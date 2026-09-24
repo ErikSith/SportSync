@@ -27,6 +27,7 @@ import {
   syncCategoryAndFlags,
 } from './category';
 import { groundScrapedEventDates } from './ground-dates';
+import { applyFieldGuards } from './field-guards';
 import { applySourceEvidence } from './source-evidence';
 
 /**
@@ -145,6 +146,19 @@ Z čistého textu webovej stránky (iba hlavný obsah) vyber športové udalosti
 Si nekompromisný a presný dátový analytik pre športovú aplikáciu v Bratislave.
 AKTUÁLNY DNEŠNÝ DÁTUM JE: ${todayFormatted}.
 
+MAPA POLÍ → SportSync (kam čo ide — nič iné do týchto polí):
+• title → nadpis karty (Event/Tournament). IBA krátky názov aktivity.
+• sportType → ikona/filter športu (Padel, Tenis, Joga…). NIE mesto, NIE kategória.
+• category → routing: TURNAJ→tabuľka tournaments; SKUPINOVE_CVICENIE/WORKSHOP/DETSKY_*→programy/eventy; PODUJATIE→event (často Sledovať).
+• startTime / endTime / timeKnown → kalendár a zoradenie (starts_at, start_time). Čas LEN začiatok hry/lekcie.
+• locationName → párovanie na venue_id (na karte sa zobrazí názov športoviska z DB). IBA názov/adresa.
+• city → geo filter; mimo Bratislavy sa záznam ZMAŽE. NIE ulica, NIE doprava.
+• priceText → price_cents / štartovné. IBA „15 €“ / „Zadarmo“.
+• description → krátky text na karte. NIE doprava/parkovanie/marketing.
+• isForKids / isForWomenOnly → badge „Pre deti“ / „Pre ženy“. Len pri explicitnom určení.
+• ageCategory → doplnok do description („Vek: U12“). Len ak je na stránke.
+• originalUrl / detailUrl → odkaz „u organizátora“ (source_url). Nikdy vymyslené URL.
+
 PRAVIDLÁ PRE EXTRAKCIU:
 1. Ak stránka uvádza relatívne dátumy ('Dnes', 'Zajtra', 'Tento piatok'), dopočítaj presný kalendárny dátum podľa dnešného dátumu (${todayFormatted}).
 2. Čas začiatku (startTime) extrahuj LEN vtedy, ak jednoznačne patrí k danej udalosti/turnaju. Nezmiešaj ho s otváracími hodinami recepcie ani pätky!
@@ -154,8 +168,14 @@ PRAVIDLÁ PRE EXTRAKCIU:
 
 Pravidlá:
 - Ignoruj marketing, navigáciu, cookies, footer, opakujúce sa menu.
-- NEEXTRAHUJ cenníky prenájmu kurtov/ihrísk, otváracie hodiny, „objednajte si kurt“,
-  ani časové pásma cien (Pondelok–Piatok 07:00–14:00 = cenník, nie event).
+- NEEXTRAHUJ: cenníky prenájmu kurtov/ihrísk, otváracie hodiny, „objednajte si kurt“,
+  časové pásma cien (Pondelok–Piatok 07:00–14:00 = cenník, nie event),
+  kontakt/o nás/GDPR, brigády, pracovné ponuky, newsletter, sociálne siete,
+  uzávierku areálu, stavanie haly, čisto past „Udialo sa“ bez budúceho dátumu.
+- NEEXTRAHUJ novinky / výsledky zápasov bez prihlášky alebo vstupeniek:
+  „postúpila do osmičky“, „vypadla v Singapure“, „prehrala s…“, „získala striebro“,
+  „Čítať viac“, „AKTUALITY / News“. To nie je Hrať ani Sledovať.
+- NEZAPISUJ do žiadneho poľa: e-maily, telefóny, IČO, číslo účtu, Instagram handly.
 - Ak stránka obsahuje TÝŽDENNÝ ROZVRH (Pondelok/Utorok/... alebo Po/Ut/... + čas + názov AKTIVITY),
   vygeneruj konkrétne lekcie na najbližších 7 dní od kotevného dátumu vyššie. Každý slot = 1 záznam so startTime v ISO 8601.
   Tieto sloty = category SKUPINOVE_CVICENIE — nie unikátne eventy.
@@ -173,24 +193,32 @@ Pravidlá:
     isForKids = true. NIE drop-in fitnes lekcia pre dospelých.
   • PODUJATIE — jednorazová komunitná akcia, exhibícia, otvorenie, koncert, zápas A vs B, iné bez špecifickej kategórie.
 - Bežný názov lekcie (Pilates, HIIT, Box, Yoga, Kickbox, Fitbox, Pole Dance) = SKUPINOVE_CVICENIE.
+- PODUJATIE = len nezvyčajná jednorazová akcia (maratón, Red Bull night, festival, party,
+  deň otvorených dverí, exhibícia). NIE týždenný rozvrh, NIE novinky/výsledky.
 - Ak sú uvedené konkrétne dátumy (deň.mesiac.rok / ISO), použi ich.
 - Viacdňové festivaly/turnaje (napr. „5 novembra – 9 novembra“, „24.–25. 10.“, „5-9“):
   startTime = prvý deň, endTime = posledný deň. Jeden záznam na celé obdobie (nie karty po dňoch).
   Ak nie je HH:MM, timeKnown = false a oba časy na 12:00 toho dňa.
 - startTime (a endTime) musia byť ISO 8601 s offsetom Bratislavy (+02:00 alebo +01:00).
-- locationName ber len z hlavného obsahu (adresa / názov športoviska pri udalosti), nie z menu ani footera.
-- city: mesto konania (Bratislava, Košice, Žilina, …). Ber LEN z riadku pri udalosti
-  (napr. „Pripravujeme: 365 Grand Prix 2026, 24.-25.10.2026, Košice“ → city = Košice).
+- ANTI-HALLUCINATION (povinné — zlé polia = zlý feed):
+  • locationName: IBA názov športoviska / adresa („NTC Aréna“, „Kalinčiakova 12“).
+    ZAKÁZANÉ: doprava, „15 min od…“, parkovanie, P+R, MHD, GPS, „ako sa dostať“, telefón, e-mail.
+    Ber len z obsahu pri udalosti, nie z menu/footera.
+  • startTime: ZAKÁZANÉ otváracie hodiny, uzávierka prihlášok, dátum publikácie článku,
+    čas dopravy, „od–do“ cenníka. endTime = koniec hry/lekcie, NIE deadline registrácie.
+  • title: ZAKÁZANÉ celé marketingové vety, „Cenník“, „Kontakt“, „O nás“, brigády.
+  • priceText: IBA „15 €“ / „Zadarmo“. ZAKÁZANÉ „€/hod“ prenájmu, členstvo, platobné podmienky.
+  • description: max 2 faktické vety (formát, prihláška). Reklama / doprava / cookies → null.
+  • sportType: konkrétny šport. ZAKÁZANÉ „Šport“, „Event“, názov klubu, mesto.
+  • ageCategory: len explicitné „U12“, „6-10 rokov“… ZAKÁZANÉ „pre všetkých“ / vymyslený vek.
+  • city: len mesto z riadku udalosti. ZAKÁZANÉ ulica, „Slovensko“, dopravný popis.
 - SportSync je VÝHRADNE Bratislava: ak city / locationName / riadok s dátumom uvádza iné mesto
   (Košice, Žilina, Prešov, Banská Bystrica, Nitra, Trnava, …), udalosť NEEXTRAHUJ — aj keď
   stránka patrí bratislavskému športovisku (pobočka len oznamuje cudzí event).
-- Past / „Udialo sa“ bez budúceho dátumu NEEXTRAHUJ.
-- originalUrl / detailUrl MUSIA byť platné absolútne http(s) URL.
-  Ak text obsahuje bloky „=== DETAIL N === / URL: …“, použi TÚ URL ako detailUrl aj originalUrl pre danú udalosť.
-  Inak použi priamy rezervačný/registračný odkaz (rezervácia, booking, prihláška, lístky).
-  Fallback: ${pageUrl}
-- Nikdy nevymýšľaj URL. detailUrl/originalUrl musí patriť organizátorovi / rezervačnému systému.
-- description: 1–3 krátke vety s dôležitými faktami pre hráča (formát, časové okno, prihláška). priceText len ak je cena uvedená.
+- originalUrl / detailUrl MUSIA byť platné absolútne http(s) URL organizátora/bookingu.
+  Ak text obsahuje bloky „=== DETAIL N === / URL: …“, použi TÚ URL ako detailUrl aj originalUrl.
+  Inak rezervácia / prihláška / lístky. Fallback: ${pageUrl}
+  ZAKÁZANÉ: vymyslené URL, mailto:, facebook/instagram event bez oficiálnej stránky.
 - OZNÁMENIA / KALENDÁRE DÁTUMOV (vysoká recall — žiadny turnaj nesmie uniknúť):
   • Ak text obsahuje riadky typu „26.9. … turnaj … 9:30–12:30 a … turnaj … 13:00–18:00“,
     vytvor SAMOSTATNÝ záznam pre KAŽDÚ aktivitu s vlastným časom (ženy ≠ mužská štvorhra).
@@ -470,7 +498,8 @@ function normalizeExtractedEvents(
   options?: { skipEvidence?: boolean },
 ): ScrapedEvent[] {
   const now = Date.now() - 60 * 60 * 1000;
-  const withAudience = events
+  const guarded = applyFieldGuards(events, pageUrl);
+  const withAudience = guarded
     .map((e) => {
       const detailOrOriginal = absoluteHttpUrl(
         e.detailUrl || e.originalUrl,

@@ -17,6 +17,7 @@ import { useT } from '@/components/i18n/LocaleProvider';
 
 export const EVENT_TAB_RAIL_W = 'w-[min(168px,72vw)] sm:w-[176px]';
 export const EVENT_TAB_H = 'h-[176px] sm:h-[188px]';
+export const EVENT_TAB_FILL_H = 'h-[196px]';
 
 function asDate(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value);
@@ -62,7 +63,7 @@ export function EventAtmosphereTab({
     : asDate(event.startsAt);
   const sizeClass =
     layout === 'fill'
-      ? `w-full ${EVENT_TAB_H}`
+      ? `w-full ${EVENT_TAB_FILL_H}`
       : `${EVENT_TAB_RAIL_W} ${EVENT_TAB_H} shrink-0 snap-start`;
   const price = priceLabel(event, t('common.free'));
 
@@ -76,15 +77,15 @@ export function EventAtmosphereTab({
         <button
           type="button"
           onClick={() => setPreviewOpen(true)}
-          className="group relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-outline-variant/20 bg-[#141210] p-3 text-left shadow-[0_12px_28px_rgba(0,0,0,0.35)] transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_36px_rgba(0,0,0,0.45)] active:scale-95"
+          className="group relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-[#E53935]/30 bg-[#141010] p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#E53935]/55 hover:shadow-[0_14px_32px_rgba(229,57,53,0.18)] active:scale-95"
           aria-label={`Otvoriť event: ${event.title}`}
         >
-          <AtmosphereTabMedia src={cover} wash="coral" />
+          <AtmosphereTabMedia src={cover} wash="red" />
 
           <div className="relative z-10 grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] gap-1.5">
             <div className="flex h-4 items-center gap-1.5 overflow-hidden">
               {timeKnown ? (
-                <span className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] leading-none text-primary drop-shadow-[0_1px_4px_rgba(0,0,0,0.65)]">
+                <span className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] leading-none text-[#ffc9c6] drop-shadow-[0_1px_4px_rgba(0,0,0,0.65)]">
                   {formatAppDayLabel(startsAt)}
                 </span>
               ) : null}
@@ -99,7 +100,7 @@ export function EventAtmosphereTab({
               {event.isAggregated ? (
                 <>
                   <span className="shrink-0 text-white/35 leading-none">·</span>
-                  <span className="shrink-0 truncate font-label-caps text-[8px] uppercase tracking-[0.1em] leading-none text-secondary">
+                  <span className="shrink-0 truncate font-label-caps text-[8px] uppercase tracking-[0.1em] leading-none text-[#ffc9c6]/80">
                     Zdroj
                   </span>
                 </>
@@ -117,19 +118,19 @@ export function EventAtmosphereTab({
                 : formatAppDayRangeLabel(startsAt, event.endsAt)}
             </time>
 
-            <h3 className="min-h-0 overflow-hidden font-headline-md text-[12px] font-semibold leading-[1.25] text-white/95 drop-shadow-[0_1px_6px_rgba(0,0,0,0.65)] transition-colors group-hover:text-primary [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+            <h3 className="min-h-0 overflow-hidden font-headline-md text-[12px] font-semibold leading-[1.25] text-white/95 drop-shadow-[0_1px_6px_rgba(0,0,0,0.65)] transition-colors group-hover:text-[#ffc9c6] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
               {event.title}
             </h3>
 
             <p className="flex h-4 min-w-0 items-center gap-1 overflow-hidden font-body-md text-[11px] leading-none text-white/75 drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)]">
-              <MapPin className="h-3 w-3 shrink-0 text-primary-container" strokeWidth={2.25} />
+              <MapPin className="h-3 w-3 shrink-0 text-[#E53935]" strokeWidth={2.25} />
               <span className="min-w-0 truncate">{venue}</span>
             </p>
 
             <div className="flex h-4 shrink-0 items-center overflow-hidden">
               <span
                 className={`font-label-caps text-[10px] uppercase tracking-[0.12em] leading-none drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)] ${
-                  free ? 'text-primary-container' : 'text-primary'
+                  free ? 'text-[#ffc9c6]' : 'text-[#E53935]'
                 }`}
               >
                 {price}

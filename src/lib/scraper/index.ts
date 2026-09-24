@@ -44,6 +44,16 @@ export {
 } from './fetcher';
 export type { CleanTextResult } from './fetcher';
 
+export {
+  applyFieldGuards,
+  guardScrapedEventFields,
+  sanitizeLocationName,
+  sanitizePriceText,
+  sanitizeDescription,
+  sanitizeTitle,
+} from './field-guards';
+export type { FieldGuardResult, FieldGuardRejectionReason } from './field-guards';
+
 export { extractEventsFromText } from './extractor';
 export { groundScrapedEventDates } from './ground-dates';
 export {

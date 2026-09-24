@@ -1,5 +1,4 @@
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
 import type { EventFeedResult, ParticipationMode } from '@/lib/data/events';
 import { t } from '@/lib/i18n/server';
@@ -16,7 +15,6 @@ import { PlayerFeedFilterHydrator } from '@/components/home/HomeFeedFilterButton
 import { applyPlayerFeedFilters, parseHomeFeedFilters } from '@/lib/home-feed-filters';
 import { parseFeedArea, resolveFeedLocation } from '@/lib/cities';
 import { EventsFeed } from '@/components/events/EventsFeed';
-import { parseEventsFeedTab } from '@/lib/feed/events-feed-tab';
 import {
   applyEventAudienceFilter,
   eventAudienceLabel,
@@ -30,7 +28,7 @@ import {
 
 export const runtime = 'edge';
 
-interface EventsPageProps {
+interface SchedulesPageProps {
   searchParams: {
     sport?: string;
     venues?: string;
@@ -39,51 +37,8 @@ interface EventsPageProps {
     area?: string;
     from?: string;
     to?: string;
-    discovery?: string;
-    feed?: string;
     q?: string;
     audience?: string;
-  };
-}
-
-/** Old `/events?feed=schedules` bookmarks → standalone schedules route. */
-function schedulesRedirectPath(
-  searchParams: EventsPageProps['searchParams'],
-): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(searchParams)) {
-    if (key === 'feed' || value == null || value === '') continue;
-    params.set(key, value);
-  }
-  const qs = params.toString();
-  return qs ? `/skupinove-cvicenia?${qs}` : '/skupinove-cvicenia';
-}
-
-function emptyStateMessage(
-  type: EventType | 'ALL',
-  mode: ParticipationMode,
-): { title: string; subtitle: string } {
-  if (mode === 'spectator') {
-    return {
-      title: t('events.empty.spectator.title'),
-      subtitle: t('events.empty.spectator.sub'),
-    };
-  }
-  if (type === 'official') {
-    return {
-      title: t('events.empty.official.title'),
-      subtitle: t('events.empty.official.sub'),
-    };
-  }
-  if (type === 'community') {
-    return {
-      title: t('events.empty.community.title'),
-      subtitle: t('events.empty.community.sub'),
-    };
-  }
-  return {
-    title: t('events.empty.all.title'),
-    subtitle: t('events.empty.all.sub'),
   };
 }
 
@@ -105,10 +60,6 @@ function emptyFeed(): EventFeedResult {
   };
 }
 
-/**
- * Load events via direct Supabase queries (no HTTP `/api/events`).
- * Missing GPS or empty 20km scope → all active events (incl. null coords).
- */
 async function loadEventsFeed(input: {
   hasGps: boolean;
   needsGpsPrompt: boolean;
@@ -139,7 +90,7 @@ async function loadEventsFeed(input: {
       lng: location.lng,
     });
   } catch (error) {
-    console.error('Events page Supabase query error:', error);
+    console.error('Schedules page Supabase query error:', error);
     try {
       return await getAllActiveEventsFeedSafe({
         type: typeFilter,
@@ -147,24 +98,20 @@ async function loadEventsFeed(input: {
         lng: location.lng,
       });
     } catch (fallbackError) {
-      console.error('Events page fallback query error:', fallbackError);
+      console.error('Schedules page fallback query error:', fallbackError);
       return emptyFeed();
     }
   }
 }
 
-export default async function EventsPage({ searchParams }: EventsPageProps) {
-  if (parseEventsFeedTab(searchParams.feed) === 'schedules') {
-    redirect(schedulesRedirectPath(searchParams));
-  }
-
+export default async function SkupinoveCviceniaPage({ searchParams }: SchedulesPageProps) {
   let viewer;
   try {
     viewer = await getPageViewer();
   } catch (error) {
-    console.error('Events page viewer error:', error);
+    console.error('Schedules page viewer error:', error);
     return (
-      <main className="pt-24 px-container-margin-mobile max-w-lg mx-auto text-center">
+      <main className="mx-auto max-w-lg px-container-margin-mobile pt-24 text-center">
         <p className="font-body-md text-body-md text-tertiary-container">
           {t('events.loadError')}
         </p>
@@ -182,13 +129,6 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   const feedFilters = parseHomeFeedFilters(searchParams);
   const typeFilter = feedFilters.type;
   const mode = parseMode(searchParams.mode);
-  const pageBg = 'bg-[#141212]';
-  const pageGlow = (
-    <>
-      <div className="ambient-glow left-[-160px] top-16 h-[420px] w-[420px] bg-[#E53935]/[0.05]" />
-      <div className="ambient-glow right-[-120px] top-56 h-[360px] w-[360px] bg-[#E53935]/[0.025]" />
-    </>
-  );
   const requestedArea = parseFeedArea(searchParams.area ?? feedFilters.area);
   const location = resolveFeedLocation({
     areaRaw: requestedArea,
@@ -204,7 +144,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   try {
     rawFeed = await loadEventsFeed({ hasGps, needsGpsPrompt, location, typeFilter });
   } catch (error) {
-    console.error('Events page data fetch error:', error);
+    console.error('Schedules page data fetch error:', error);
     rawFeed = await getAllActiveEventsFeedSafe({
       type: typeFilter,
       lat: location.lat,
@@ -212,7 +152,6 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
     }).catch(() => emptyFeed());
   }
 
-  // Area from DB → date → text search → hard sport/venue/type (chip filters must stick).
   const areaScoped = rawFeed.events;
   const dateRange = parseEventDateRange({
     from: searchParams.from,
@@ -222,7 +161,8 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   const query = (searchParams.q ?? '').trim().toLowerCase();
   const queryScoped = query
     ? dateScoped.filter((event) => {
-        const haystack = `${event.title} ${event.sport} ${event.description ?? ''} ${event.venueName ?? ''}`.toLowerCase();
+        const haystack =
+          `${event.title} ${event.sport} ${event.description ?? ''} ${event.venueName ?? ''}`.toLowerCase();
         return haystack.includes(query);
       })
     : dateScoped;
@@ -250,46 +190,51 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
           subtitle: 'Skús iný filter publika alebo zruš výber.',
         }
       : queryFilterActive
-      ? {
-          title: `Nič pre „${searchParams.q?.trim()}“.`,
-          subtitle: 'Skús iný názov športu alebo zruš Other filter.',
-        }
-      : sportFilterActive
         ? {
-            title: 'Žiadne eventy pre vybraný šport.',
-            subtitle: 'Skús iný šport alebo zruš filter.',
+            title: `Nič pre „${searchParams.q?.trim()}“.`,
+            subtitle: 'Skús iný názov športu alebo zruš Other filter.',
           }
-        : emptyStateMessage(typeFilter, mode);
+        : sportFilterActive
+          ? {
+              title: 'Žiadne eventy pre vybraný šport.',
+              subtitle: 'Skús iný šport alebo zruš filter.',
+            }
+          : {
+              title: t('events.empty.schedulesTitle'),
+              subtitle: t('events.empty.schedulesSub'),
+            };
 
   return (
     <>
-      <TrackPageView page="events" extra={{ typeFilter, mode, area: location.area, needsGps: String(needsGpsPrompt) }} />
+      <TrackPageView
+        page="skupinove-cvicenia"
+        extra={{ typeFilter, mode, area: location.area, needsGps: String(needsGpsPrompt) }}
+      />
       <Suspense fallback={null}>
         <PlayerFeedFilterHydrator />
       </Suspense>
-      <BrandAppBar accent="events" />
+      <BrandAppBar accent="schedules" />
 
-      <div className={`pointer-events-none fixed inset-0 z-0 overflow-hidden ${pageBg}`} aria-hidden>
-        {pageGlow}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#121518]" aria-hidden>
+        <div className="ambient-glow left-[-160px] top-16 h-[420px] w-[420px] bg-[#8EB4C8]/[0.04]" />
+        <div className="ambient-glow right-[-120px] top-56 h-[360px] w-[360px] bg-slate-400/[0.02]" />
       </div>
 
-      <main
-        className={`relative z-10 mx-auto flex w-full max-w-screen-xl min-w-0 flex-grow flex-col gap-4 ${pageBg} px-container-margin-mobile pb-8 pt-5 md:px-container-margin-desktop md:gap-5`}
-      >
+      <main className="relative z-10 mx-auto flex w-full min-w-0 max-w-screen-xl flex-grow flex-col gap-4 bg-[#121518] px-container-margin-mobile pb-8 pt-5 md:gap-5 md:px-container-margin-desktop">
         <PageTitleRow
           title={
             <div className="min-w-0 space-y-1">
-              <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-[#E53935]">
-                {t('events.eyebrow')}
+              <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-[#8EB4C8]">
+                {t('home.quick.schedulesHint')}
               </p>
               <h1 className="font-headline-md text-[28px] leading-tight tracking-wide text-on-background sm:text-3xl md:text-4xl">
-                {t('events.title')}
+                {t('events.tab.schedules')}
               </h1>
             </div>
           }
           subtitle={
             <p className="mt-1 max-w-md font-body-md text-sm text-on-surface-variant md:text-body-md">
-              {t('events.subtitle')}
+              {t('events.schedulesSub')}
             </p>
           }
         />
@@ -297,15 +242,15 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         {needsGpsPrompt ? (
           <section className="flex flex-col gap-4">
             <LocationPrompt variant="inline" />
-            {rawFeed.usedAllEventsFallback && events.length > 0 && (
+            {rawFeed.usedAllEventsFallback && events.length > 0 ? (
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-outline-variant/15" />
-                <span className="font-label-caps text-label-caps text-on-surface-variant uppercase text-center text-xs">
+                <span className="text-center font-label-caps text-xs uppercase text-on-surface-variant">
                   {t('home.allEventsFallback')}
                 </span>
                 <div className="h-px flex-1 bg-outline-variant/15" />
               </div>
-            )}
+            ) : null}
             <EventsFeed
               events={events}
               allEvents={areaScoped}
@@ -313,26 +258,25 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
               typeFilter={typeFilter}
               selectedSports={feedFilters.sports}
               eventDayKeys={dayKeys}
-              feedTab="matches"
+              feedTab="schedules"
               emptyTitle={emptyState.title}
               emptySubtitle={emptyState.subtitle}
             />
           </section>
         ) : (
           <section className="flex flex-col gap-4">
-            {location.allowExtended && (
+            {location.allowExtended ? (
               <GeoFallbackTracker showExtended={rawFeed.showExtended} radiusKm={rawFeed.radiusKm} />
-            )}
-            {(rawFeed.showExtended || rawFeed.usedAllEventsFallback) && events.length > 0 && (
+            ) : null}
+            {(rawFeed.showExtended || rawFeed.usedAllEventsFallback) && events.length > 0 ? (
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-outline-variant/15" />
-                <span className="font-label-caps text-label-caps text-on-surface-variant uppercase text-center text-xs">
+                <span className="text-center font-label-caps text-xs uppercase text-on-surface-variant">
                   {t('home.allEventsFallback')}
                 </span>
                 <div className="h-px flex-1 bg-outline-variant/15" />
               </div>
-            )}
-
+            ) : null}
             <EventsFeed
               events={events}
               allEvents={areaScoped}
@@ -340,14 +284,13 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
               typeFilter={typeFilter}
               selectedSports={feedFilters.sports}
               eventDayKeys={dayKeys}
-              feedTab="matches"
+              feedTab="schedules"
               emptyTitle={emptyState.title}
               emptySubtitle={emptyState.subtitle}
             />
           </section>
         )}
       </main>
-
     </>
   );
 }

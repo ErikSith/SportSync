@@ -103,6 +103,57 @@ describe('classifyProgramSignals', () => {
     );
   });
 
+  it('ignores wrongly stored programKind on weekly gym slots', () => {
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Basic kurz',
+        sourceUrl: 'http://www.ladiesthaibox.sk/treningy',
+        externalId: 'class-5fe6c9',
+        themeProgramKind: 'courses',
+        isGroupClass: true,
+      }),
+      null,
+    );
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Badmintonový tréning - Skupina A',
+        sourceUrl: 'https://badmintonland.sk/klub/treningy',
+        externalId: 'class-cef0b5',
+        themeProgramKind: 'courses',
+      }),
+      null,
+    );
+    assert.equal(
+      classifyProgramSignals({
+        title: 'FC Petržalka vs OFK Dynamo Malženice',
+        themeProgramKind: 'courses',
+      }),
+      null,
+    );
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Turnaje',
+        themeProgramKind: 'camps',
+      }),
+      null,
+    );
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Rafting',
+        sourceUrl: 'https://www.divokavoda.sk/aktivity-sport/rafting-cunovo',
+        themeProgramKind: 'courses',
+      }),
+      null,
+    );
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Basketbalová prípravka - ZŠ Vazovova',
+        themeProgramKind: 'courses',
+      }),
+      'courses',
+    );
+  });
+
   it('classifies a structured course that is not a weekly class', () => {
     assert.equal(
       classifyProgramSignals({

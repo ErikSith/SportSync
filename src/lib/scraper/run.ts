@@ -81,6 +81,8 @@ function emptyUpsert(): ScraperUpsertStats {
     updated: 0,
     unchanged: 0,
     skipped: 0,
+    groupClassesCreated: 0,
+    specialEventsCreated: 0,
     tournamentsCreated: 0,
     tournamentsUpdated: 0,
   };
@@ -92,6 +94,8 @@ function addStats(a: ScraperUpsertStats, b: ScraperUpsertStats): ScraperUpsertSt
     updated: a.updated + b.updated,
     unchanged: a.unchanged + b.unchanged,
     skipped: a.skipped + b.skipped,
+    groupClassesCreated: a.groupClassesCreated + b.groupClassesCreated,
+    specialEventsCreated: a.specialEventsCreated + b.specialEventsCreated,
     tournamentsCreated: a.tournamentsCreated + b.tournamentsCreated,
     tournamentsUpdated: a.tournamentsUpdated + b.tournamentsUpdated,
   };

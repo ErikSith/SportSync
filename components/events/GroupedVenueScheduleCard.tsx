@@ -21,7 +21,7 @@ import { EventPreviewModal } from '@/components/events/EventPreviewModal';
 export const SCHEDULE_TAB_RAIL_W = 'w-[min(300px,85vw)] sm:w-[312px]';
 
 const SURFACE =
-  'rounded-2xl border border-dashed border-white/14 bg-white/[0.02] transition-colors duration-200 hover:border-white/22 hover:bg-white/[0.04]';
+  'rounded-2xl border border-[#8EB4C8]/12 bg-[#14171a] transition-colors duration-200 hover:border-[#8EB4C8]/22';
 
 const CHIP_BASE =
   'snap-start shrink-0 flex flex-col justify-center rounded-xl border px-3 py-2.5 transition-colors duration-200 active:scale-[0.98]';
@@ -204,7 +204,7 @@ function ClassSessionRow({
               <span className="text-on-surface-variant/70"> • </span>
               <span
                 className={
-                  spots === 'Plné' ? 'text-on-surface-variant' : 'text-primary-container/90'
+                  spots === 'Plné' ? 'text-on-surface-variant' : 'text-[#8EB4C8]/80'
                 }
               >
                 {spots}
@@ -238,7 +238,7 @@ function ClassSessionTimeline({
       {sections.map((section) => (
         <div key={section.dayKey} className="space-y-1.5">
           {sections.length > 1 ? (
-            <p className="font-label-caps text-[9px] uppercase tracking-[0.14em] text-primary-container/85">
+            <p className="font-label-caps text-[9px] uppercase tracking-[0.14em] text-[#8EB4C8]/80">
               {shortScheduleDayLabel(section.dayLabel)}
               <span className="text-on-surface-variant/70">
                 {' '}
@@ -327,7 +327,7 @@ export function GroupedVenueScheduleCard({
           <div className="relative z-10 flex h-full min-h-0 flex-col gap-2.5 p-3">
             <div className="flex items-start gap-2.5">
               <span className="flex w-[3.25rem] shrink-0 flex-col items-start gap-0.5">
-                <span className="font-label-caps text-[9px] uppercase tracking-[0.12em] text-primary-container/80">
+                <span className="font-label-caps text-[9px] uppercase tracking-[0.12em] text-[#8EB4C8]/80">
                   Rozpis
                 </span>
                 <span className="font-headline-md text-lg font-bold tabular-nums tracking-tight text-white leading-none">
@@ -394,7 +394,7 @@ export function GroupedVenueScheduleCard({
           className="group flex w-full items-center gap-3 px-3 py-3 text-left transition-colors duration-200 active:bg-white/[0.05] sm:gap-3.5 sm:px-3.5"
         >
           <span className="flex w-[3.5rem] shrink-0 flex-col items-start gap-0.5 sm:w-14">
-            <span className="font-label-caps text-[9px] uppercase tracking-[0.12em] text-primary-container/85">
+            <span className="font-label-caps text-[9px] uppercase tracking-[0.12em] text-[#8EB4C8]/80">
               Rozpis
             </span>
             <span className="font-headline-md text-xl font-bold tabular-nums tracking-tight text-white leading-none">
@@ -403,7 +403,7 @@ export function GroupedVenueScheduleCard({
           </span>
 
           <span
-            className="material-symbols-outlined shrink-0 text-[22px] text-primary-container/85"
+            className="material-symbols-outlined shrink-0 text-[22px] text-[#8EB4C8]/80"
             style={{ fontVariationSettings: "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24" }}
             aria-hidden
           >

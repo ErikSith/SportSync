@@ -107,9 +107,3 @@ export function slovakProgramCountLabel(
   if (n >= 2 && n <= 4) return `${n} krúžky`;
   return `${n} krúžkov`;
 }
-
-export function programTabEyebrow(tab: ProgramsFeedTab): string {
-  if (tab === 'camps') return 'Tábory';
-  if (tab === 'workshops') return 'Workshopy';
-  return 'Krúžky';
-}

@@ -1,5 +1,6 @@
 import type { EventCardData } from '@/lib/data/events';
-import { looksLikeGroupClassListing } from '@/lib/feed/group-class';
+import { looksLikeGroupClassListing, looksLikeNavOrSectionTitle } from '@/lib/feed/group-class';
+import { titleLooksLikeHeadToHeadFixture } from '@/lib/participation/fixture-match';
 import {
   isMixedScrapePageKind,
   scrapePageHasKind,
@@ -37,7 +38,8 @@ const COURSE_TITLE_RE =
   /\b(kurz|kurzy|clinic|course|courses|skolenie)\b/i;
 
 /** Seasonal kids clubs (RŠK krúžky) — Programs → Krúžky, not Events → Skupinové. */
-const KIDS_CLUB_TITLE_RE = /\b(kruzok|kruzky)\b/i;
+const KIDS_CLUB_TITLE_RE =
+  /\b(kruzok|kruzky|pripravk[ay]|kids?\s*(?:academy|club|course|program)|training\s+programs?\s+from)\b/i;
 
 /**
  * One-day / social / special venue events — stay in Events feed, never Programs → Krúžky
@@ -122,9 +124,11 @@ export function classifyProgramSignals(
     return null;
   }
 
-  const stored = normalizeStoredKind(signals.themeProgramKind);
-  if (stored) return stored;
+  // Club fixtures and nav/hub pages are never camps/courses/workshops.
+  if (titleLooksLikeHeadToHeadFixture(signals.title)) return null;
+  if (looksLikeNavOrSectionTitle(signals.title)) return null;
 
+  const stored = normalizeStoredKind(signals.themeProgramKind);
   const fromPage = programKindFromScrapePage(signals.scrapePageKind);
 
   if (signals.isCamp === true || fromPage === 'camps' || CAMP_TITLE_RE.test(titleHay)) {
@@ -161,8 +165,47 @@ export function classifyProgramSignals(
     return 'courses';
   }
 
-  // Weekly studio slots (class-* rozvrh) stay out of Programs.
-  if (looksLikeWeeklyLesson(signals)) return null;
+  // Weekly studio slots (class-* rozvrh) stay out of Programs — even when
+  // theme_config.programKind was wrongly forced on a mixed scrape.
+  // Exception: stored/page "courses" + real "Kurz …" title that is not a
+  // gym level label (Basic/Beast/Stronger) or "tréning — Skupina".
+  if (looksLikeWeeklyLesson(signals)) {
+    const studioLevelKurz = /\b(basic|beast|stronger)\s+kurz\b|\bkurz\b.*\b(basic|beast|stronger)\b/i.test(
+      titleHay,
+    );
+    const trainingGroup = /\btr[eé]ning\b.*\bskupin/i.test(titleHay) || /\bskupin[aay]\b/i.test(titleHay);
+    if (
+      stored === 'courses' &&
+      COURSE_TITLE_RE.test(titleHay) &&
+      !studioLevelKurz &&
+      !trainingGroup
+    ) {
+      return 'courses';
+    }
+    return null;
+  }
+
+  // Trust persisted programKind only when the title actually looks like that bucket
+  // (avoids rafting/paintball/menu pages wrongly tagged as courses).
+  if (stored === 'camps' && (CAMP_TITLE_RE.test(titleHay) || fromPage === 'camps')) {
+    return 'camps';
+  }
+  if (stored === 'workshops' && (WORKSHOP_TITLE_RE.test(titleHay) || fromPage === 'workshops')) {
+    return 'workshops';
+  }
+  if (
+    stored === 'courses' &&
+    (COURSE_TITLE_RE.test(titleHay) ||
+      KIDS_CLUB_TITLE_RE.test(titleHay) ||
+      fromPage === 'courses')
+  ) {
+    return 'courses';
+  }
+
+  // Pay-per-ride venue attractions (Divoká Voda /aktivity-sport/…) are not krúžky.
+  if (/\/aktivity[-_]sport\b/i.test(urlHay)) {
+    return null;
+  }
 
   if (COURSE_TITLE_RE.test(titleHay)) {
     return 'courses';

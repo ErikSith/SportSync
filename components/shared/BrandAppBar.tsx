@@ -7,31 +7,46 @@ import { useT } from '@/components/i18n/LocaleProvider';
  * Shared sticky brand header used on Events / Tournaments / Lobby / Programs.
  * Structure is identical — only accent colors change per section.
  */
-export type BrandAppBarAccent = 'primary' | 'secondary' | 'programs';
+export type BrandAppBarAccent = 'primary' | 'events' | 'schedules' | 'secondary' | 'programs';
 
 const ACCENT: Record<
   BrandAppBarAccent,
-  { border: string; brand: string; iconHover: string }
+  { border: string; brand: string; iconHover: string; barBg: string }
 > = {
   primary: {
     border: 'border-outline-variant/25',
     brand: 'text-primary-container hover:text-primary-fixed-dim',
     iconHover: 'hover:text-primary-container',
+    barBg: 'bg-surface/80',
+  },
+  events: {
+    border: 'border-[#E53935]/18',
+    brand: 'text-[#E53935] hover:text-[#ff6b66]',
+    iconHover: 'hover:text-[#E53935]',
+    barBg: 'bg-[#141212]/90',
+  },
+  schedules: {
+    border: 'border-[#8EB4C8]/20',
+    brand: 'text-[#8EB4C8] hover:text-[#b0cdda]',
+    iconHover: 'hover:text-[#8EB4C8]',
+    barBg: 'bg-[#121518]/90',
   },
   secondary: {
     border: 'border-secondary/15',
     brand: 'text-secondary hover:text-secondary-fixed',
     iconHover: 'hover:text-secondary',
+    barBg: 'bg-[#16140f]/85',
   },
   programs: {
     border: 'border-teal-400/20',
     brand: 'text-teal-300 hover:text-teal-200',
     iconHover: 'hover:text-teal-300',
+    barBg: 'bg-[#121615]/90',
   },
 };
 
 interface BrandAppBarProps {
-  /** primary = Events / Lobby (coral), secondary = Tournaments (gold), programs = Camps (teal) */
+  /** primary = Lobby, events = red, schedules = soft steel-blue, secondary = gold, programs = teal */
   accent?: BrandAppBarAccent;
 }
 
@@ -42,7 +57,8 @@ export function BrandAppBar({ accent = 'primary' }: BrandAppBarProps) {
   return (
     <header
       className={[
-        'sticky top-0 z-50 w-full max-w-[100vw] bg-surface/80 backdrop-blur-xl shadow-2xl shadow-black/40',
+        'sticky top-0 z-50 w-full max-w-[100vw] backdrop-blur-xl shadow-2xl shadow-black/40',
+        a.barBg,
         'border-b',
         a.border,
       ].join(' ')}

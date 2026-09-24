@@ -28,16 +28,11 @@ const NAV_ITEMS: NavItem[] = [
     icon: 'home',
     match: (p) => p === '/',
   },
-  {
-    href: '/lobby',
-    labelKey: 'nav.lobby',
-    icon: 'group',
-    match: (p) => p === '/lobby' || p.startsWith('/lobby/'),
-  },
+  // Lobby hidden for now — Eventy covers one-off actions.
   {
     href: '/events',
     labelKey: 'nav.events',
-    icon: 'event',
+    icon: 'celebration',
     match: (p) => p === '/events' || p.startsWith('/events/'),
   },
   {

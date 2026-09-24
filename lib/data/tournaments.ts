@@ -3,6 +3,8 @@ import { parseDbInstant } from '@/lib/datetime/bratislava';
 import { sanitizeListingCoverUrl } from '@/lib/media/listing-cover';
 import { activeFeedSinceIso, isListingStillActive } from '@/lib/retention/feed-window';
 import { titleIsOutsideBratislava, isBratislavaCity } from '@/lib/cities';
+import { looksLikeNavOrSectionTitle } from '@/lib/feed/group-class';
+import { titleLooksLikeHeadToHeadFixture } from '@/lib/participation/fixture-match';
 
 export interface TournamentCardData {
   id: string;
@@ -109,6 +111,13 @@ function isBratislavaScopedTournament(row: TournamentRow): boolean {
   return true;
 }
 
+/** Hub pages and club fixtures must not appear as open cups. */
+function isRealTournamentListing(row: TournamentRow): boolean {
+  if (looksLikeNavOrSectionTitle(row.name)) return false;
+  if (titleLooksLikeHeadToHeadFixture(row.name)) return false;
+  return true;
+}
+
 function isUpcomingTournamentRow(row: TournamentRow, now = new Date()): boolean {
   return isListingStillActive(row.starts_at, row.ends_at, now);
 }
@@ -187,6 +196,7 @@ export async function getUpcomingTournaments(query: {
     .filter((row) => {
       if (!isUpcomingTournamentRow(row)) return false;
       if (!isBratislavaScopedTournament(row)) return false;
+      if (!isRealTournamentListing(row)) return false;
       if (!search) return true;
       const venue = resolveVenue(row.venues);
       return (
@@ -228,7 +238,12 @@ export async function getUpcomingTournamentsAtVenues(
   }
 
   return (data as TournamentRow[])
-    .filter((row) => isUpcomingTournamentRow(row) && isBratislavaScopedTournament(row))
+    .filter(
+      (row) =>
+        isUpcomingTournamentRow(row) &&
+        isBratislavaScopedTournament(row) &&
+        isRealTournamentListing(row),
+    )
     .map(mapTournamentRow);
 }
 

@@ -112,6 +112,7 @@ export function ProgramsFeed({
           selectedSports={selectedSports}
           eventDayKeys={eventDayKeys}
           showMode={false}
+          accent="teal"
         />
       </Suspense>
 
@@ -120,7 +121,7 @@ export function ProgramsFeed({
       </Suspense>
 
       {events.length === 0 ? (
-        <div className="rounded-2xl border border-teal-400/20 bg-[#14201e] px-5 py-10 text-center">
+    <div className="rounded-2xl border border-teal-400/20 bg-transparent px-5 py-10 text-center">
           <span
             className="material-symbols-outlined mb-3 text-[36px]"
             style={{ color: TEAL }}
@@ -145,7 +146,7 @@ export function ProgramsFeed({
                 {t('programs.listSub')}
               </p>
             </div>
-            <span className="shrink-0 rounded-full border border-teal-400/25 bg-teal-400/10 px-2.5 py-1 font-label-caps text-[10px] uppercase tracking-wider text-teal-300">
+            <span className="shrink-0 rounded-full border border-teal-400/30 bg-teal-400/10 px-2.5 py-1 font-label-caps text-[10px] uppercase tracking-wider text-teal-200">
               {venueGroups.length}
             </span>
           </div>

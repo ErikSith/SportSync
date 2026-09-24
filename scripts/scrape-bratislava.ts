@@ -19,10 +19,9 @@ import { upsertScrapedEvents } from '../src/lib/scraper/db-service';
 import { sleep } from '../src/lib/scraper/fetcher';
 import type { ScraperUpsertStats } from '../src/lib/scraper/types';
 import {
-  looksLikeGroupClassListing,
   shouldForceGroupClassFromScrapePage,
-  shouldForceGroupClassFromUrl,
 } from '../lib/feed/group-class';
+import { classifyListingHubBucket } from '../lib/scrape/listing-bucket';
 import { programKindFromScrapePage } from '../lib/programs/classify';
 import { shouldForceForKidsFromScrapePage } from '../lib/scrape/scrape-page-kind';
 import { createAdminClient } from '../lib/supabase/admin';
@@ -97,28 +96,28 @@ function classify(
     scrapePageKind?: string | null;
   },
 ) {
-  if (flags?.isCamp) return 'camp' as const;
-  if (flags?.isWorkshop) return 'workshop' as const;
-  if (flags?.isCourse) return 'course' as const;
-  if (
-    flags?.isTournament ||
-    /\b(turnaj|tournament|\bcup\b|championship|trophy)\b/i.test(`${title} ${description ?? ''}`)
-  ) {
-    return 'tournament' as const;
+  const hub = classifyListingHubBucket({
+    title,
+    description,
+    sourceUrl: url,
+    isTournament: flags?.isTournament,
+    isCamp: flags?.isCamp,
+    isWorkshop: flags?.isWorkshop,
+    isCourse: flags?.isCourse,
+    isGroupClass: flags?.isGroupClass,
+    scrapePageKind: flags?.scrapePageKind,
+    forceProgramKind: programKindFromScrapePage(flags?.scrapePageKind),
+    forceGroupClass: shouldForceGroupClassFromScrapePage(flags?.scrapePageKind, url),
+  });
+  if (hub.bucket === 'program') {
+    if (hub.programKind === 'camps') return 'camp' as const;
+    if (hub.programKind === 'workshops') return 'workshop' as const;
+    return 'course' as const;
   }
-  if (
-    looksLikeGroupClassListing({
-      title,
-      description,
-      sourceUrl: url,
-      isGroupClass: flags?.isGroupClass,
-    }) ||
-    shouldForceGroupClassFromScrapePage(flags?.scrapePageKind, url) ||
-    shouldForceGroupClassFromUrl(url)
-  ) {
-    return 'group_class' as const;
-  }
-  return 'event' as const;
+  if (hub.bucket === 'tournament') return 'tournament' as const;
+  if (hub.bucket === 'group_class') return 'group_class' as const;
+  if (hub.bucket === 'event') return 'event' as const;
+  return 'skip' as const;
 }
 
 function emptyClassCounts() {
@@ -129,6 +128,7 @@ function emptyClassCounts() {
     camp: 0,
     workshop: 0,
     course: 0,
+    skip: 0,
   };
 }
 
@@ -180,6 +180,8 @@ async function main() {
     updated: 0,
     unchanged: 0,
     skipped: 0,
+    groupClassesCreated: 0,
+    specialEventsCreated: 0,
     tournamentsCreated: 0,
     tournamentsUpdated: 0,
   };
@@ -254,6 +256,8 @@ async function main() {
         upsert.updated += stats.updated;
         upsert.unchanged += stats.unchanged;
         upsert.skipped += stats.skipped;
+        upsert.groupClassesCreated += stats.groupClassesCreated;
+        upsert.specialEventsCreated += stats.specialEventsCreated;
         upsert.tournamentsCreated += stats.tournamentsCreated;
         upsert.tournamentsUpdated += stats.tournamentsUpdated;
       }

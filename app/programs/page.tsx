@@ -247,25 +247,25 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
       </Suspense>
       <BrandAppBar accent="programs" />
 
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden>
-        <div className="absolute left-[-160px] top-16 h-[420px] w-[420px] rounded-full bg-teal-400/[0.08] blur-3xl" />
-        <div className="absolute right-[-120px] top-56 h-[360px] w-[360px] rounded-full bg-teal-500/[0.05] blur-3xl" />
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#121615]" aria-hidden>
+        <div className="absolute left-[-160px] top-16 h-[420px] w-[420px] rounded-full bg-teal-400/[0.04] blur-3xl" />
+        <div className="absolute right-[-120px] top-56 h-[360px] w-[360px] rounded-full bg-teal-500/[0.02] blur-3xl" />
       </div>
 
-      <main className="relative z-10 mx-auto flex w-full min-w-0 max-w-screen-xl flex-grow flex-col gap-4 px-container-margin-mobile pb-8 pt-5 md:gap-5 md:px-container-margin-desktop">
+      <main className="relative z-10 mx-auto flex w-full min-w-0 max-w-screen-xl flex-grow flex-col gap-4 bg-[#121615] px-container-margin-mobile pb-8 pt-5 md:gap-5 md:px-container-margin-desktop">
         <PageTitleRow
           title={
             <div className="min-w-0 space-y-1">
-              <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-teal-400/80">
+              <p className="font-label-caps text-[10px] uppercase tracking-[0.2em] text-teal-300">
                 {t('programs.eyebrow')}
               </p>
-              <h1 className="font-headline-md text-[28px] leading-tight tracking-wide text-white sm:text-3xl md:text-4xl">
+              <h1 className="font-headline-md text-[28px] leading-tight tracking-wide text-on-background sm:text-3xl md:text-4xl">
                 {t('programs.title')}
               </h1>
             </div>
           }
           subtitle={
-            <p className="mt-1 max-w-md font-body-md text-sm text-zinc-400 md:text-body-md">
+            <p className="mt-1 max-w-md font-body-md text-sm text-on-surface-variant md:text-body-md">
               {t('programs.subtitle')}
             </p>
           }

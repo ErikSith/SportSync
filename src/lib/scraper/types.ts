@@ -13,10 +13,15 @@ export const EventCategoryEnum = z.enum([
 export type EventCategory = z.infer<typeof EventCategoryEnum>;
 
 export const ScrapedEventSchema = z.object({
-  title: z.string().describe('Presný názov športovej udalosti alebo akcie'),
+  title: z
+    .string()
+    .describe('Presný názov akcie. IBA názov, žiadne vety navyše.'),
   sportType: z
     .string()
-    .describe('Druh športu (napr. Padel, Futbal, Tenis, Joga, Plávanie)'),
+    .describe(
+      'Konkrétny druh športu (Padel, Futbal, Tenis, Joga, Plávanie). ' +
+        "ZAKÁZANÉ: 'Šport', 'Event', názov klubu, mesto, doprava.",
+    ),
 
   // HLAVNÁ KATEGORIZÁCIA (presne jedna z 6) — Gemini povinné; adapters môžu vynechať (sync doplní)
   category: EventCategoryEnum.optional().describe(
@@ -70,13 +75,18 @@ export const ScrapedEventSchema = z.object({
     .optional()
     .nullable()
     .describe(
-      "Vekové obmedzenie ak je explicitne uvedené (napr. 'U12', '6-10 rokov', 'Dospelí')",
+      "Vekové obmedzenie LEN ak je explicitne na stránke (napr. 'U12', '6-10 rokov', 'Dospelí'). " +
+        "ZAKÁZANÉ: 'pre všetkých', vymyslený vek, text z dopravy/cenníka.",
     ),
 
+  // OCHRANA PRED HALUCINÁCIAMI V ČASE
   startTime: z
     .string()
     .describe(
-      'Dátum a čas začiatku vo formáte ISO 8601 (napr. 2026-08-15T09:00:00+02:00). Ak čas chýba, použi 12:00 a timeKnown=false.',
+      "Presný dátum a čas začiatku v ISO 8601 (napr. 2026-08-15T09:00:00+02:00). " +
+        "Čas zapisuj LEN ak jednoznačne patrí k udalosti. " +
+        "EXPLICITNE ZAKÁZANÉ: otváracie hodiny („Otvorené od 8:00“), cenníkové pásma, čas cesty/dopravy. " +
+        'Ak chýba HH:MM pri udalosti, použi 12:00 a timeKnown=false — nikdy nevymýšľaj iný čas.',
     ),
   timeKnown: z
     .boolean()
@@ -90,26 +100,40 @@ export const ScrapedEventSchema = z.object({
     .optional()
     .nullable()
     .describe(
-      'Dátum a čas konca ak je uvedený. Pri viacdňovom festivale/tábore (5.–9. novembra) nastav posledný deň.',
+      'Presný dátum a čas konca v ISO 8601. Ak nie je jasne uvedený, vráť null. ' +
+        'Pri viacdňovom festivale/tábore (5.–9. novembra) nastav posledný deň.',
     ),
-  locationName: z.string().describe('Názov športoviska alebo adresa konania'),
+  // OCHRANA PRED NEZMYSLAMI (Doprava, Parkovanie)
+  locationName: z
+    .string()
+    .describe(
+      "IBA presný názov športoviska alebo fyzická adresa (napr. 'NTC Aréna' alebo 'Kalinčiakova 12'). " +
+        "EXPLICITNE ZAKÁZANÉ: Nesmieš sem zapisovať inštrukcie o doprave, čas cesty (napr. 'doprava 15min'), " +
+        'informácie o parkovaní, MHD, GPS súradnice ani navigačné tipy!',
+    ),
   city: z
     .string()
     .optional()
     .nullable()
     .describe(
-      'Mesto konania (Bratislava, Košice, …) — len ak je explicitne pri udalosti',
+      'Mesto konania (Bratislava, …) — len ak je explicitne pri udalosti. ' +
+        'ZAKÁZANÉ: ulica, doprava, parkovanie, „Slovensko“.',
     ),
   priceText: z
     .string()
     .optional()
     .nullable()
-    .describe("Cena (napr. '15 €', 'Zadarmo')"),
+    .describe(
+      "IBA samotná cena alebo 'Zadarmo' (napr. '15 €'). Nekopíruj celé vety o platobných podmienkach ani cenník prenájmu.",
+    ),
   description: z
     .string()
     .optional()
     .nullable()
-    .describe('Stručný výťah pokynov alebo programu (max 2 vety)'),
+    .describe(
+      'Stručný výťah pravidiel alebo programu (max 2 vety). Ak ide len o reklamný balast, vráť null. ' +
+        'NEPÍŠ sem dopravu, parkovanie ani otváracie hodiny.',
+    ),
 
   /**
    * Priama URL detailu podujatia (po prekliknutí z listingu).
@@ -119,12 +143,16 @@ export const ScrapedEventSchema = z.object({
     .string()
     .url()
     .optional()
-    .describe('Priama URL adresa na detail podujatia, na ktorú scraper klikol'),
+    .describe(
+      'Priama http(s) URL detailu podujatia. ZAKÁZANÉ: vymyslené URL, mailto:, sociálne siete.',
+    ),
   /** Canonical source / booking URL used by upsert (filled from detailUrl when present). */
   originalUrl: z
     .string()
     .url()
-    .describe('Priama URL adresa zdroja/rezervačného systému alebo detailu'),
+    .describe(
+      'Priama http(s) URL zdroja/rezervácie. ZAKÁZANÉ: vymyslené URL, mailto:, facebook/instagram.',
+    ),
 });
 
 export type ScrapedEvent = z.infer<typeof ScrapedEventSchema> & {
@@ -150,11 +178,12 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
         properties: {
           title: {
             type: 'string',
-            description: 'Presný názov športovej udalosti alebo akcie',
+            description: 'Presný názov akcie. IBA názov, žiadne vety navyše.',
           },
           sportType: {
             type: 'string',
-            description: 'Druh športu (napr. Padel, Futbal, Tenis, Joga, Plávanie)',
+            description:
+              "Konkrétny šport (Padel, Futbal, Tenis, Joga). ZAKÁZANÉ: 'Šport', názov klubu, mesto.",
           },
           category: {
             type: 'string',
@@ -183,12 +212,13 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
             type: 'string',
             nullable: true,
             description:
-              "Vekové obmedzenie ak je explicitne uvedené (napr. 'U12', '6-10 rokov', 'Dospelí')",
+              "Len explicitné 'U12' / '6-10 rokov'. ZAKÁZANÉ: 'pre všetkých', vymyslený vek.",
           },
           startTime: {
             type: 'string',
             description:
-              'ISO 8601 začiatok. Ak chýba HH:MM, použi 12:00 a timeKnown=false.',
+              'ISO 8601 začiatok udalosti. ZAKÁZANÉ: otváracie hodiny, cenníkové pásma, čas dopravy. ' +
+              'Ak chýba HH:MM, použi 12:00 a timeKnown=false.',
           },
           timeKnown: {
             type: 'boolean',
@@ -199,37 +229,41 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
             type: 'string',
             nullable: true,
             description:
-              'Koniec ak je uvedený. Pri viacdňovom rozsahu (5.–9. novembra) posledný deň.',
+              'ISO 8601 koniec. Ak nie je jasne uvedený, null. Pri viacdňovom rozsahu (5.–9. novembra) posledný deň.',
           },
           locationName: {
             type: 'string',
-            description: 'Názov športoviska alebo adresa',
+            description:
+              "IBA názov športoviska alebo adresa (napr. 'NTC Aréna', 'Kalinčiakova 12'). " +
+              "ZAKÁZANÉ: doprava, čas cesty ('doprava 15min'), parkovanie, MHD, navigačné tipy.",
           },
           city: {
             type: 'string',
             nullable: true,
             description:
-              'Mesto konania (Bratislava, Košice, …) — len ak je explicitne pri udalosti',
+              'Mesto pri udalosti. ZAKÁZANÉ: ulica, doprava, parkovanie, „Slovensko“.',
           },
           priceText: {
             type: 'string',
             nullable: true,
-            description: "Cena (napr. '15 €', 'Zadarmo')",
+            description:
+              "IBA cena alebo 'Zadarmo' (napr. '15 €'). Nekopíruj platobné podmienky ani €/hod prenájmu.",
           },
           description: {
             type: 'string',
             nullable: true,
-            description: 'Stručný výťah pravidiel alebo pokynov (max 2 vety)',
+            description:
+              'Stručný výťah pravidiel/programu (max 2 vety). Reklamný balast → null. Bez dopravy/parkovania/otváracích hodín.',
           },
           detailUrl: {
             type: 'string',
             description:
-              'Priama URL detailu podujatia (po prekliknutí). Inak URL listingu.',
+              'Priama http(s) URL detailu. ZAKÁZANÉ: vymyslené URL, mailto:, sociálne siete.',
           },
           originalUrl: {
             type: 'string',
             description:
-              'Priama URL zdroja/rezervačného systému (synonymum detailUrl)',
+              'Priama http(s) URL zdroja/bookingu. ZAKÁZANÉ: vymyslené URL, mailto:, facebook/instagram.',
           },
         },
         required: [
@@ -256,6 +290,10 @@ export interface ScraperUpsertStats {
   updated: number;
   unchanged: number;
   skipped: number;
+  /** New weekly / studio slots (Skupinové) — not Eventy one-offs. */
+  groupClassesCreated: number;
+  /** New unusual one-day / special happenings (Eventy). */
+  specialEventsCreated: number;
   tournamentsCreated: number;
   tournamentsUpdated: number;
 }

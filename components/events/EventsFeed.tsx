@@ -1,5 +1,6 @@
 import type { EventCardData } from '@/lib/data/events';
 import { isProgramEvent } from '@/lib/programs/classify';
+import { looksLikeNavOrSectionTitle } from '@/lib/feed/group-class';
 import type { ParticipationMode } from '@/lib/data/events';
 import type { EventType } from '@/lib/constants/events';
 import { t } from '@/lib/i18n/server';
@@ -13,9 +14,8 @@ import {
 } from '@/lib/feed/aggregate-routine-lessons';
 import { dedupeEventsByIdentity } from '@/lib/events/event-identity';
 import { EventFiltersBar } from '@/components/events/EventFiltersBar';
-import { EventListItem } from '@/components/events/EventListItem';
+import { EventAtmosphereTab } from '@/components/events/EventAtmosphereTab';
 import { GroupedVenueScheduleCard } from '@/components/events/GroupedVenueScheduleCard';
-import { EventsFeedSplitTabs } from '@/components/events/EventsFeedSplitTabs';
 import type { EventsFeedTab } from '@/lib/feed/events-feed-tab';
 
 interface EventsFeedProps {
@@ -48,18 +48,14 @@ function SectionHeader({
     <div className="flex items-end justify-between gap-3">
       <div className="min-w-0">
         <div className="mb-1 flex items-center gap-2">
-          <span
-            className={`h-1 w-6 rounded-full ${
-              accent === 'spectator' ? 'bg-secondary' : 'bg-primary-container'
-            }`}
-          />
+          <span className="h-1 w-6 rounded-full bg-[#E53935]" />
           <h2 className="font-headline-md text-[15px] tracking-wide text-on-background">{title}</h2>
         </div>
         {subtitle && (
           <p className="pl-8 font-body-md text-xs text-on-surface-variant">{subtitle}</p>
         )}
       </div>
-      <span className="shrink-0 rounded-full border border-outline-variant/20 bg-surface-container-high px-2.5 py-1 font-label-caps text-[10px] uppercase tracking-wider text-on-surface-variant">
+      <span className="shrink-0 rounded-full border border-[#E53935]/30 bg-[#E53935]/10 px-2.5 py-1 font-label-caps text-[10px] uppercase tracking-wider text-[#ffc9c6]">
         {countLabel}
       </span>
     </div>
@@ -75,10 +71,14 @@ function UniqueEventsTimeline({
 }) {
   if (events.length === 0) return null;
   return (
-    <div role="list" aria-label={ariaLabel} className="flex flex-col gap-2">
-      {events.map((item) => (
+    <div
+      role="list"
+      aria-label={ariaLabel}
+      className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5"
+    >
+      {events.map((item, index) => (
         <div key={item.event.id} role="listitem" className="min-w-0">
-          <EventListItem event={item.event} />
+          <EventAtmosphereTab event={item.event} index={index} layout="fill" />
         </div>
       ))}
     </div>
@@ -87,19 +87,8 @@ function UniqueEventsTimeline({
 
 function SchedulesOverviewHeader({ groups }: { groups: VenueScheduleGroup[] }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="min-w-0">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="h-px w-6 bg-white/20" />
-          <h2 className="font-headline-md text-[15px] font-semibold tracking-wide text-white">
-            {t('events.tab.schedules')}
-          </h2>
-        </div>
-        <p className="pl-8 font-body-md text-xs text-zinc-400">
-          {t('events.schedulesSub')}
-        </p>
-      </div>
-      <span className="inline-flex shrink-0 items-center rounded-full border border-white/10 bg-zinc-900/40 px-3 py-1.5 font-label-caps text-[10px] tracking-wide text-zinc-400">
+    <div className="flex justify-end">
+      <span className="shrink-0 rounded-full border border-[#8EB4C8]/30 bg-[#8EB4C8]/10 px-2.5 py-1 font-label-caps text-[10px] uppercase tracking-wider text-[#c5d9e6]">
         {scheduleOverviewPillLabel(groups)}
       </span>
     </div>
@@ -158,10 +147,29 @@ function MatchesFeedSection({
   );
 }
 
-function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
+function EmptyState({
+  title,
+  subtitle,
+  tone = 'events',
+}: {
+  title: string;
+  subtitle: string;
+  tone?: 'events' | 'schedules';
+}) {
+  const isSchedules = tone === 'schedules';
   return (
-    <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-low/80 px-6 py-10 text-center">
-      <span className="material-symbols-outlined mb-3 text-[32px] text-primary-container/70">event_busy</span>
+    <div
+      className={`rounded-2xl border bg-transparent px-6 py-10 text-center ${
+        isSchedules ? 'border-[#8EB4C8]/20' : 'border-[#E53935]/20'
+      }`}
+    >
+      <span
+        className={`material-symbols-outlined mb-3 text-[32px] ${
+          isSchedules ? 'text-[#8EB4C8]/70' : 'text-[#E53935]/70'
+        }`}
+      >
+        {isSchedules ? 'fitness_center' : 'celebration'}
+      </span>
       <p className="font-headline-md text-[16px] text-on-surface">{title}</p>
       <p className="mt-2 font-body-md text-sm text-on-surface-variant">{subtitle}</p>
     </div>
@@ -196,7 +204,9 @@ export function EventsFeed({
   emptyTitle,
   emptySubtitle,
 }: EventsFeedProps) {
-  const listingEvents = events.filter((event) => !isProgramEvent(event));
+  const listingEvents = events.filter(
+    (event) => !isProgramEvent(event) && !looksLikeNavOrSectionTitle(event.title),
+  );
   const participate = listingEvents.filter((e) => e.participationMode === 'participate');
   const spectator = listingEvents.filter((e) => e.participationMode === 'spectator');
 
@@ -206,10 +216,9 @@ export function EventsFeed({
       typeFilter={typeFilter}
       selectedSports={selectedSports}
       eventDayKeys={eventDayKeys}
+      accent={feedTab === 'schedules' ? 'sky' : 'red'}
     />
   );
-
-  const splitTabs = mode === 'participate' ? <EventsFeedSplitTabs active={feedTab} /> : null;
 
   const modeEvents = mode === 'spectator' ? spectator : participate;
 
@@ -217,7 +226,6 @@ export function EventsFeed({
     return (
       <div className="flex flex-col gap-5">
         {filterBar}
-        {splitTabs}
         <EmptyState title={emptyTitle} subtitle={emptySubtitle} />
       </div>
     );
@@ -291,23 +299,15 @@ export function EventsFeed({
   const playerGrid = dedupeEvents(playerSource);
   const playerFeed = toSplitFeed(playerGrid);
 
-  const showMatches = feedTab === 'matches';
   const showSchedules = feedTab === 'schedules';
-
-  const matchesEmpty = showMatches && playerFeed.uniqueEvents.length === 0;
-
+  const matchesEmpty = !showSchedules && playerFeed.uniqueEvents.length === 0;
   const schedulesEmpty = showSchedules && playerFeed.venueGroupedSchedules.length === 0;
   const hasScheduleGroups = playerFeed.venueGroupedSchedules.length > 0;
-
-  // After scrape, repeating group lessons live only on Skupinové lekcie. Don't
-  // strand the default Eventy tab on a blank empty-state when lessons exist.
-  const revealSchedulesOnEmptyMatches = matchesEmpty && hasScheduleGroups;
 
   if (playerGrid.length === 0) {
     return (
       <div className="flex flex-col gap-5">
         {filterBar}
-        {splitTabs}
         <EmptyState title={emptyTitle} subtitle={emptySubtitle} />
       </div>
     );
@@ -316,17 +316,24 @@ export function EventsFeed({
   return (
     <div className="flex flex-col gap-5">
       {filterBar}
-      {splitTabs}
 
-      {showMatches && (
+      {showSchedules ? (
+        hasScheduleGroups ? (
+          <VenueSchedulesStack groups={playerFeed.venueGroupedSchedules} />
+        ) : schedulesEmpty ? (
+          <EmptyState
+            title={t('events.empty.schedulesTitle')}
+            subtitle={t('events.empty.schedulesSub')}
+            tone="schedules"
+          />
+        ) : null
+      ) : (
         <div className="flex flex-col gap-7">
           {matchesEmpty ? (
-            revealSchedulesOnEmptyMatches ? null : (
-              <EmptyState
-                title={t('events.empty.matchesTitle')}
-                subtitle={t('events.empty.matchesSub')}
-              />
-            )
+            <EmptyState
+              title={t('events.empty.matchesTitle')}
+              subtitle={t('events.empty.matchesSub')}
+            />
           ) : (
             <MatchesFeedSection
               title={typeFilter === 'community' ? t('events.communityGames') : t('events.eventsMatches')}
@@ -342,16 +349,6 @@ export function EventsFeed({
           )}
         </div>
       )}
-
-      {(showSchedules || revealSchedulesOnEmptyMatches) &&
-        (hasScheduleGroups ? (
-          <VenueSchedulesStack groups={playerFeed.venueGroupedSchedules} />
-        ) : schedulesEmpty ? (
-          <EmptyState
-            title={t('events.empty.schedulesTitle')}
-            subtitle={t('events.empty.schedulesSub')}
-          />
-        ) : null)}
     </div>
   );
 }

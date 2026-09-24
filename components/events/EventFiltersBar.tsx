@@ -46,6 +46,8 @@ interface EventFiltersBarProps {
   panels?: FilterPanelId[];
   showAudience?: boolean;
   showMode?: boolean;
+  /** Section accent — mirrors TournamentFiltersBar: unified page bg, color only on chrome. */
+  accent?: 'neutral' | 'red' | 'sky' | 'teal';
 }
 
 type FilterPanel = FilterPanelId | null;
@@ -83,8 +85,61 @@ export function EventFiltersBar({
   panels = ['when', 'where', 'sport'],
   showAudience = true,
   showMode = true,
+  accent = 'neutral',
 }: EventFiltersBarProps) {
   const t = useT();
+  const isRed = accent === 'red';
+  const isSky = accent === 'sky';
+  const isTeal = accent === 'teal';
+  const border = isRed
+    ? 'border-[#E53935]/20'
+    : isSky
+      ? 'border-[#8EB4C8]/20'
+      : isTeal
+        ? 'border-teal-400/20'
+        : 'border-white/10';
+  const divider = isRed
+    ? 'bg-[#E53935]/20'
+    : isSky
+      ? 'bg-[#8EB4C8]/20'
+      : isTeal
+        ? 'bg-teal-400/20'
+        : 'bg-white/10';
+  const activeSoft = isRed
+    ? 'bg-transparent text-[#ffc9c6]'
+    : isSky
+      ? 'bg-transparent text-[#c5d9e6]'
+      : isTeal
+        ? 'bg-transparent text-teal-200'
+        : 'bg-transparent text-white';
+  const idleHover = isRed
+    ? 'text-on-surface-variant hover:text-[#ffc9c6]'
+    : isSky
+      ? 'text-on-surface-variant hover:text-[#c5d9e6]'
+      : isTeal
+        ? 'text-on-surface-variant hover:text-teal-200'
+        : 'text-on-surface-variant hover:text-zinc-200';
+  const chipOnClass = isRed
+    ? 'border-[#E53935]/25 bg-transparent text-[#ffc9c6]'
+    : isSky
+      ? 'border-[#8EB4C8]/25 bg-transparent text-[#c5d9e6]'
+      : isTeal
+        ? 'border-teal-400/25 bg-transparent text-teal-200'
+        : 'border-white/18 bg-transparent text-white';
+  const chipIdleClass = isRed
+    ? 'border-[#E53935]/15 bg-transparent text-on-surface-variant hover:border-[#E53935]/25 hover:bg-[#E53935]/[0.04] hover:text-[#ffc9c6]'
+    : isSky
+      ? 'border-[#8EB4C8]/15 bg-transparent text-on-surface-variant hover:border-[#8EB4C8]/25 hover:bg-[#8EB4C8]/[0.04] hover:text-[#c5d9e6]'
+      : isTeal
+        ? 'border-teal-400/15 bg-transparent text-on-surface-variant hover:border-teal-400/25 hover:bg-teal-400/[0.04] hover:text-teal-200'
+        : 'border-white/10 bg-transparent text-on-surface-variant hover:border-white/18 hover:bg-white/[0.03] hover:text-zinc-200';
+  const filteredText = isRed
+    ? 'text-[#ffc9c6]'
+    : isSky
+      ? 'text-[#c5d9e6]'
+      : isTeal
+        ? 'text-teal-200'
+        : 'text-white';
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -307,9 +362,8 @@ export function EventFiltersBar({
 
   const chip =
     'inline-flex shrink-0 items-center rounded-xl border px-3 py-2 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 active:scale-[0.98] whitespace-nowrap';
-  const chipIdle =
-    'border-white/10 bg-transparent text-on-surface-variant hover:border-white/18 hover:bg-white/[0.03] hover:text-zinc-200';
-  const chipOn = 'border-white/18 bg-white/[0.05] text-white';
+  const chipIdle = chipIdleClass;
+  const chipOn = chipOnClass;
   const scrollRow =
     'flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain hide-scrollbar touch-pan-x';
 
@@ -328,10 +382,10 @@ export function EventFiltersBar({
         className={[
           'group flex h-full min-w-0 w-full items-center justify-center gap-1 rounded-xl px-1.5 py-2.5 text-center transition-colors duration-200 sm:gap-1.5 sm:px-2',
           open
-            ? 'bg-white/[0.05] text-white'
+            ? activeSoft
             : opts.filtered
-              ? 'text-white hover:bg-white/[0.03]'
-              : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
+              ? filteredText
+              : idleHover,
         ].join(' ')}
       >
         <span className="min-w-0 truncate font-label-caps text-[9px] uppercase tracking-[0.1em] sm:tracking-[0.12em]">
@@ -353,7 +407,7 @@ export function EventFiltersBar({
   return (
     <div className="flex w-full min-w-0 flex-col gap-2.5" data-event-filters-bar="v9-where-tab">
       <div
-        className={`grid min-w-0 ${gridCols} items-stretch gap-0 rounded-2xl border border-white/10 bg-transparent p-1 transition-colors duration-200`}
+        className={`grid min-w-0 ${gridCols} items-stretch gap-0 rounded-2xl border ${border} bg-transparent p-1 transition-colors duration-200`}
         role="toolbar"
         aria-label="Filtre"
       >
@@ -361,7 +415,7 @@ export function EventFiltersBar({
           <div key={panel.id} className="relative min-w-0">
             {index > 0 ? (
               <span
-                className="pointer-events-none absolute inset-y-1.5 left-0 w-px bg-white/10"
+                className={`pointer-events-none absolute inset-y-1.5 left-0 w-px ${divider}`}
                 aria-hidden
               />
             ) : null}
@@ -382,7 +436,7 @@ export function EventFiltersBar({
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden"
           >
-            <div className="rounded-2xl border border-white/10 bg-transparent px-3 py-3 space-y-2.5 sm:px-3.5">
+            <div className={`rounded-2xl border ${border} bg-transparent px-3 py-3 space-y-2.5 sm:px-3.5`}>
               {openPanel === 'when' ? (
                 <>
                   <div className={scrollRow} role="list" aria-label="Dátum">
@@ -640,7 +694,7 @@ export function EventFiltersBar({
       >
         {showAudience ? (
         <div
-          className={`grid min-w-0 w-full grid-cols-3 items-stretch gap-0 rounded-2xl border border-white/10 bg-transparent p-1 ${
+          className={`grid min-w-0 w-full grid-cols-3 items-stretch gap-0 rounded-2xl border ${border} bg-transparent p-1 ${
             showMode ? 'md:max-w-[min(100%,22rem)] md:flex-1' : ''
           } ${modePending ? 'opacity-70' : ''}`}
           role="list"
@@ -652,7 +706,7 @@ export function EventFiltersBar({
               <div key={option.key} className="relative min-w-0">
                 {index > 0 ? (
                   <span
-                    className="pointer-events-none absolute inset-y-1.5 left-0 w-px bg-white/10"
+                    className={`pointer-events-none absolute inset-y-1.5 left-0 w-px ${divider}`}
                     aria-hidden
                   />
                 ) : null}
@@ -662,9 +716,7 @@ export function EventFiltersBar({
                   onClick={() => setAudience(option.key)}
                   className={[
                     'flex h-full w-full min-w-0 items-center justify-center rounded-xl px-1.5 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.1em] transition-colors duration-200 sm:tracking-[0.12em] md:py-2',
-                    active
-                      ? 'bg-white/[0.05] text-white'
-                      : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
+                    active ? activeSoft : idleHover,
                   ].join(' ')}
                 >
                   <span className="truncate">{option.label}</span>
@@ -677,7 +729,7 @@ export function EventFiltersBar({
 
         {showMode ? (
         <div
-          className={`grid w-full min-w-0 grid-cols-2 items-stretch gap-0.5 rounded-2xl border border-white/10 bg-transparent p-1 transition-colors duration-200 md:w-auto md:shrink-0 ${
+          className={`grid w-full min-w-0 grid-cols-2 items-stretch gap-0.5 rounded-2xl border ${border} bg-transparent p-1 transition-colors duration-200 md:w-auto md:shrink-0 ${
             modePending ? 'opacity-70' : ''
           }`}
           role="tablist"
@@ -690,9 +742,7 @@ export function EventFiltersBar({
             onClick={() => setMode('participate')}
             className={[
               'rounded-xl px-3 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 md:px-3.5 md:py-2',
-              !isSpectator
-                ? 'bg-white/[0.05] text-white'
-                : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
+              !isSpectator ? activeSoft : idleHover,
             ].join(' ')}
           >
             {t('common.play')}
@@ -704,9 +754,7 @@ export function EventFiltersBar({
             onClick={() => setMode('spectator')}
             className={[
               'inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 font-label-caps text-[9px] uppercase tracking-[0.12em] transition-colors duration-200 md:px-3.5 md:py-2',
-              isSpectator
-                ? 'bg-white/[0.05] text-white'
-                : 'text-on-surface-variant hover:bg-white/[0.03] hover:text-zinc-200',
+              isSpectator ? activeSoft : idleHover,
             ].join(' ')}
           >
             <Eye className="h-3.5 w-3.5" strokeWidth={2} />
