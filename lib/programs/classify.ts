@@ -128,8 +128,10 @@ export function classifyProgramSignals(
   if (titleLooksLikeHeadToHeadFixture(signals.title)) return null;
   if (looksLikeNavOrSectionTitle(signals.title)) return null;
 
-  const stored = normalizeStoredKind(signals.themeProgramKind);
-  const fromPage = programKindFromScrapePage(signals.scrapePageKind);
+  // Explicit ProgramBucket union — avoids CFA narrowing `stored`/`fromPage` to
+  // `"courses" | null` after earlier camps/workshops early-returns (Vercel tsc).
+  const stored: ProgramBucket | null = normalizeStoredKind(signals.themeProgramKind);
+  const fromPage: ProgramBucket | null = programKindFromScrapePage(signals.scrapePageKind);
 
   if (signals.isCamp === true || fromPage === 'camps' || CAMP_TITLE_RE.test(titleHay)) {
     return 'camps';
@@ -187,10 +189,12 @@ export function classifyProgramSignals(
 
   // Trust persisted programKind only when the title actually looks like that bucket
   // (avoids rafting/paintball/menu pages wrongly tagged as courses).
-  if (stored === 'camps' && (CAMP_TITLE_RE.test(titleHay) || fromPage === 'camps')) {
+  // Note: fromPage === 'camps'|'workshops' already returned above, so only title
+  // can re-affirm a stored camps/workshops tag here.
+  if (stored === 'camps' && CAMP_TITLE_RE.test(titleHay)) {
     return 'camps';
   }
-  if (stored === 'workshops' && (WORKSHOP_TITLE_RE.test(titleHay) || fromPage === 'workshops')) {
+  if (stored === 'workshops' && WORKSHOP_TITLE_RE.test(titleHay)) {
     return 'workshops';
   }
   if (
