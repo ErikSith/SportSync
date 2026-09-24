@@ -6,7 +6,7 @@
  * | event         | Eventy                | /events                | events (not class-*, no programKind)         |
  * | tournament    | Turnaje               | /tournaments           | tournaments table                            |
  * | group_class   | Skupinové cvičenia    | /skupinove-cvicenia    | events with class-* + group-class write      |
- * | program       | Tábory & krúžky       | /programs              | events + theme_config.programKind            |
+ * | program       | Workshopy / Tábory / Krúžky | /programs, /tabory, /kruzky | events + theme_config.programKind |
  * | skip          | —                     | —                      | news / nav chrome / weak leftovers           |
  *
  * Eventy = unusual one-day happenings (marathon, Red Bull night, festival).

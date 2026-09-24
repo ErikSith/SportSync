@@ -22,6 +22,8 @@ export interface ProgramClassifySignals {
   isGroupClass?: boolean | null;
   /** Persisted on events.theme_config.programKind after scrape upsert. */
   themeProgramKind?: string | null;
+  /** Manage-hub / venue-owner create — trust programKind without title heuristics. */
+  organizerListing?: boolean | null;
   scrapePageKind?: string | null;
   isCamp?: boolean | null;
   isWorkshop?: boolean | null;
@@ -133,6 +135,11 @@ export function classifyProgramSignals(
   const stored: ProgramBucket | null = normalizeStoredKind(signals.themeProgramKind);
   const fromPage: ProgramBucket | null = programKindFromScrapePage(signals.scrapePageKind);
 
+  // Venue-owner create from /manage — explicit programKind wins (not scrapes).
+  if (signals.organizerListing && stored && !looksLikeWeeklyLesson(signals)) {
+    return stored;
+  }
+
   if (signals.isCamp === true || fromPage === 'camps' || CAMP_TITLE_RE.test(titleHay)) {
     return 'camps';
   }
@@ -228,6 +235,12 @@ function themeProgramKind(event: EventCardData): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+function themeOrganizerListing(event: EventCardData): boolean {
+  const cfg = event.themeConfig;
+  if (!cfg || typeof cfg !== 'object') return false;
+  return (cfg as Record<string, unknown>).organizerListing === true;
+}
+
 /** Classify camps vs workshops vs structured courses. Weekly group lessons never match. */
 export function classifyProgram(event: EventCardData): ProgramBucket | null {
   return classifyProgramSignals({
@@ -238,6 +251,7 @@ export function classifyProgram(event: EventCardData): ProgramBucket | null {
     venueName: event.venueName,
     externalId: event.externalId,
     themeProgramKind: themeProgramKind(event),
+    organizerListing: themeOrganizerListing(event),
   });
 }
 

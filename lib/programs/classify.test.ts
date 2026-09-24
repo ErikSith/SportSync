@@ -203,6 +203,45 @@ describe('classifyProgramSignals', () => {
       null,
     );
   });
+
+  it('trusts manage-hub organizerListing programKind without title keywords', () => {
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Padel pre deti — jarný blok',
+        themeProgramKind: 'camps',
+        organizerListing: true,
+      }),
+      'camps',
+    );
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Technika úderov',
+        themeProgramKind: 'workshops',
+        organizerListing: true,
+      }),
+      'workshops',
+    );
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Stolný tenis U10',
+        themeProgramKind: 'courses',
+        organizerListing: true,
+      }),
+      'courses',
+    );
+  });
+
+  it('does not let organizerListing override weekly class-* slots', () => {
+    assert.equal(
+      classifyProgramSignals({
+        title: 'Pilates Midday',
+        themeProgramKind: 'courses',
+        organizerListing: true,
+        externalId: 'class-manage-abc',
+      }),
+      null,
+    );
+  });
 });
 
 describe('programKindFromScrapePage', () => {

@@ -45,7 +45,13 @@ const NAV_ITEMS: NavItem[] = [
     href: '/programs',
     labelKey: 'nav.programs',
     icon: 'camping',
-    match: (p) => p === '/programs' || p.startsWith('/programs/'),
+    match: (p) =>
+      p === '/programs' ||
+      p.startsWith('/programs/') ||
+      p === '/tabory' ||
+      p.startsWith('/tabory/') ||
+      p === '/kruzky' ||
+      p.startsWith('/kruzky/'),
   },
   {
     href: '/venues',

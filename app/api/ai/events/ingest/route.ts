@@ -11,6 +11,10 @@ import { emitDomainEvent } from '@/lib/orchestration/emit';
 import { DOMAIN_EVENTS } from '@/lib/orchestration/types';
 import { EVENT_SPORTS } from '@/lib/constants/sports';
 import { autoMatchPlayers } from '@/lib/matching/auto-match';
+import {
+  listingPersistFields,
+  parseManageListingBucket,
+} from '@/lib/manage/listing-bucket';
 
 export const runtime = 'edge';
 
@@ -31,6 +35,10 @@ const ingestRequestSchema = z.object({
   photos: z.array(z.string().url()).max(12).default([]),
   sponsors: z.array(sponsorSchema).max(8).default([]),
   rawBrief: z.string().min(12).max(4000).optional(),
+  listingBucket: z
+    .enum(['event', 'group_class', 'camps', 'workshops', 'courses'])
+    .optional()
+    .default('event'),
 });
 
 export async function POST(request: Request) {
@@ -155,6 +163,12 @@ export async function POST(request: Request) {
   const entryRequirements = intent.entryRequirements ?? null;
   const themeConfig = intent.themeConfig ?? {};
   const sponsorsJson = intent.sponsors ?? [];
+  const listingBucket = parseManageListingBucket(input.listingBucket);
+  const persist = listingPersistFields(listingBucket);
+  const mergedTheme = {
+    ...(typeof themeConfig === 'object' && themeConfig ? themeConfig : {}),
+    ...persist.themeConfig,
+  };
 
   // Step 5b: AI enrichment pass (title/description/tags/promo from raw intent)
   const rawBrief = input.rawBrief ?? input.brief;
@@ -191,11 +205,12 @@ export async function POST(request: Request) {
       end_time: endTime ? endTime.toISOString() : null,
       max_participants: maxParticipants,
       entry_requirements: entryRequirements,
-      theme_config: themeConfig,
+      theme_config: mergedTheme,
       sponsors_json: sponsorsJson,
       raw_brief: rawBrief,
       photos: input.photos,
       ai_enriched: true,
+      ...(persist.externalId ? { external_id: persist.externalId } : {}),
     })
     .select('id')
     .single();
@@ -260,6 +275,7 @@ export async function POST(request: Request) {
     {
       ok: true,
       eventId,
+      listingBucket,
       source,
       enrichmentSource: enrichment.source,
       intent: {
@@ -277,7 +293,7 @@ export async function POST(request: Request) {
         endTime: endTime ? endTime.toISOString() : null,
         maxParticipants,
         entryRequirements,
-        themeConfig: themeConfig,
+        themeConfig: mergedTheme,
         sponsorsJson: sponsorsJson,
         aiManagementPlan: intent.aiManagementPlan,
         tags: enrichment.event.tags,

@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { SetupNotice } from '@/components/i18n/SetupNotice';
-import { canAccessManageHub, organizerRoleLabel } from '@/lib/auth/tournament-access';
-import { getVenuesForOrganizer } from '@/lib/data/organizer-venues';
+import { canAccessManageHub } from '@/lib/auth/tournament-access';
+import { getOwnedVenuesForProfile } from '@/lib/data/organizer-venues';
 import { getOrganizerUpcomingContent } from '@/lib/data/organizer-dashboard';
 import { TopAppBar } from '@/components/home/TopAppBar';
 import { ManageCreateTabs } from '@/components/manage/ManageCreateTabs';
@@ -42,12 +42,18 @@ export default async function ManagePage() {
   }
 
   const [venues, upcoming] = await Promise.all([
-    getVenuesForOrganizer(profile.id, profile.role),
+    // Only venues this account owns — never the city-wide directory.
+    getOwnedVenuesForProfile(profile.id),
     getOrganizerUpcomingContent(profile.id),
   ]);
 
   const displayName = profile.fullName ?? profile.username;
-  const roleLabel = organizerRoleLabel(profile.role);
+  const venueEyebrow =
+    venues.length === 0
+      ? t('manage.venuePending')
+      : venues.length === 1
+        ? venues[0]!.name
+        : `${venues[0]!.name} · +${venues.length - 1}`;
   const soon = t('common.comingSoon');
 
   const upcomingItems: ManageNavItem[] =
@@ -86,7 +92,7 @@ export default async function ManagePage() {
 
           <div className="space-y-1.5 px-0.5">
             <p className="font-label-caps text-[10px] uppercase tracking-widest text-secondary">
-              {roleLabel}
+              {venueEyebrow}
             </p>
             <h1 className="font-headline-md text-[1.45rem] leading-tight tracking-wide text-on-surface md:text-[1.75rem]">
               {t('manage.title')}

@@ -44,15 +44,42 @@ interface EventAtmosphereTabProps {
   index?: number;
   /** `rail` = fixed width for horizontal scroller; `fill` = stretch in a grid cell */
   layout?: 'rail' | 'fill';
+  /** Visual accent — programs pages use teal to match BrandAppBar. */
+  accent?: 'events' | 'programs';
 }
+
+const ACCENT = {
+  events: {
+    wash: 'red' as const,
+    border: 'border-[#E53935]/30 hover:border-[#E53935]/55',
+    shadow: 'hover:shadow-[0_14px_32px_rgba(229,57,53,0.18)]',
+    bg: 'bg-[#141010]',
+    soft: 'text-[#ffc9c6]',
+    strong: 'text-[#E53935]',
+    pin: 'text-[#E53935]',
+    titleHover: 'group-hover:text-[#ffc9c6]',
+  },
+  programs: {
+    wash: 'teal' as const,
+    border: 'border-teal-400/30 hover:border-teal-400/55',
+    shadow: 'hover:shadow-[0_14px_32px_rgba(45,212,191,0.16)]',
+    bg: 'bg-[#101413]',
+    soft: 'text-teal-200',
+    strong: 'text-teal-300',
+    pin: 'text-teal-300',
+    titleHover: 'group-hover:text-teal-200',
+  },
+};
 
 export function EventAtmosphereTab({
   event,
   index: _index = 0,
   layout = 'rail',
+  accent = 'events',
 }: EventAtmosphereTabProps) {
   const t = useT();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const a = ACCENT[accent];
   // No Unsplash court/venue stand-ins — only an explicit cover or a neutral gradient.
   const cover = isFormFactoryListing(event) ? null : event.coverUrl;
   const free = isFreeEvent(event);
@@ -73,19 +100,29 @@ export function EventAtmosphereTab({
         className={sizeClass}
         data-coming-up-tab
         data-event-atmosphere-tab
+        data-accent={accent}
       >
         <button
           type="button"
           onClick={() => setPreviewOpen(true)}
-          className="group relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-[#E53935]/30 bg-[#141010] p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#E53935]/55 hover:shadow-[0_14px_32px_rgba(229,57,53,0.18)] active:scale-95"
+          className={[
+            'group relative flex h-full w-full flex-col overflow-hidden rounded-xl border p-3 text-left',
+            'shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200',
+            'hover:-translate-y-0.5 active:scale-95',
+            a.bg,
+            a.border,
+            a.shadow,
+          ].join(' ')}
           aria-label={`Otvoriť event: ${event.title}`}
         >
-          <AtmosphereTabMedia src={cover} wash="red" />
+          <AtmosphereTabMedia src={cover} wash={a.wash} />
 
           <div className="relative z-10 grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] gap-1.5">
             <div className="flex h-4 items-center gap-1.5 overflow-hidden">
               {timeKnown ? (
-                <span className="shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] leading-none text-[#ffc9c6] drop-shadow-[0_1px_4px_rgba(0,0,0,0.65)]">
+                <span
+                  className={`shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] leading-none drop-shadow-[0_1px_4px_rgba(0,0,0,0.65)] ${a.soft}`}
+                >
                   {formatAppDayLabel(startsAt)}
                 </span>
               ) : null}
@@ -100,7 +137,9 @@ export function EventAtmosphereTab({
               {event.isAggregated ? (
                 <>
                   <span className="shrink-0 text-white/35 leading-none">·</span>
-                  <span className="shrink-0 truncate font-label-caps text-[8px] uppercase tracking-[0.1em] leading-none text-[#ffc9c6]/80">
+                  <span
+                    className={`shrink-0 truncate font-label-caps text-[8px] uppercase tracking-[0.1em] leading-none opacity-80 ${a.soft}`}
+                  >
                     Zdroj
                   </span>
                 </>
@@ -118,19 +157,26 @@ export function EventAtmosphereTab({
                 : formatAppDayRangeLabel(startsAt, event.endsAt)}
             </time>
 
-            <h3 className="min-h-0 overflow-hidden font-headline-md text-[12px] font-semibold leading-[1.25] text-white/95 drop-shadow-[0_1px_6px_rgba(0,0,0,0.65)] transition-colors group-hover:text-[#ffc9c6] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+            <h3
+              className={[
+                'min-h-0 overflow-hidden font-headline-md text-[12px] font-semibold leading-[1.25] text-white/95',
+                'drop-shadow-[0_1px_6px_rgba(0,0,0,0.65)] transition-colors',
+                '[display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]',
+                a.titleHover,
+              ].join(' ')}
+            >
               {event.title}
             </h3>
 
             <p className="flex h-4 min-w-0 items-center gap-1 overflow-hidden font-body-md text-[11px] leading-none text-white/75 drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)]">
-              <MapPin className="h-3 w-3 shrink-0 text-[#E53935]" strokeWidth={2.25} />
+              <MapPin className={`h-3 w-3 shrink-0 ${a.pin}`} strokeWidth={2.25} />
               <span className="min-w-0 truncate">{venue}</span>
             </p>
 
             <div className="flex h-4 shrink-0 items-center overflow-hidden">
               <span
                 className={`font-label-caps text-[10px] uppercase tracking-[0.12em] leading-none drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)] ${
-                  free ? 'text-[#ffc9c6]' : 'text-[#E53935]'
+                  free ? a.soft : a.strong
                 }`}
               >
                 {price}

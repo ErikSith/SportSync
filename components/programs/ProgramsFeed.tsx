@@ -1,82 +1,14 @@
 'use client';
 
-import { Suspense, useCallback, useMemo, useTransition } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useMemo } from 'react';
 import type { EventCardData, ParticipationMode } from '@/lib/data/events';
 import type { EventType } from '@/lib/constants/events';
 import type { ProgramsFeedTab } from '@/lib/programs/classify';
-import { groupProgramsByVenue } from '@/lib/programs/group-by-venue';
 import { EventFiltersBar } from '@/components/events/EventFiltersBar';
-import { GroupedVenueProgramsCard } from '@/components/programs/GroupedVenueProgramsCard';
+import { EventAtmosphereTab } from '@/components/events/EventAtmosphereTab';
 import { useT } from '@/components/i18n/LocaleProvider';
 
 const TEAL = '#2DD4BF';
-
-const TABS: Array<{
-  key: ProgramsFeedTab;
-  labelKey: 'programs.tab.workshops' | 'programs.tab.camps' | 'programs.tab.courses';
-}> = [
-  { key: 'workshops', labelKey: 'programs.tab.workshops' },
-  { key: 'camps', labelKey: 'programs.tab.camps' },
-  { key: 'courses', labelKey: 'programs.tab.courses' },
-];
-
-function ProgramsTabs({ active }: { active: ProgramsFeedTab }) {
-  const t = useT();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [pending, startTransition] = useTransition();
-
-  const setTab = useCallback(
-    (next: ProgramsFeedTab) => {
-      if (next === active) return;
-      const params = new URLSearchParams(searchParams.toString());
-      if (next === 'workshops') params.delete('tab');
-      else params.set('tab', next);
-      const qs = params.toString();
-      startTransition(() => {
-        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-      });
-    },
-    [active, pathname, router, searchParams],
-  );
-
-  return (
-    <div
-      className={`relative w-full border-b border-teal-400/15 ${pending ? 'opacity-85' : ''}`}
-      role="tablist"
-      aria-label={t('programs.tab.aria')}
-    >
-      <div className="flex w-full">
-        {TABS.map((tab) => {
-          const selected = active === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => setTab(tab.key)}
-              className={`relative flex flex-1 items-center justify-center px-2 py-3 font-label-caps text-[11px] uppercase tracking-[0.12em] transition-colors duration-200 sm:text-[12px] ${
-                selected ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              {t(tab.labelKey)}
-              {selected ? (
-                <span
-                  className="absolute inset-x-4 bottom-0 h-px sm:inset-x-8"
-                  style={{ backgroundColor: TEAL }}
-                  aria-hidden
-                />
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 interface ProgramsFeedProps {
   events: EventCardData[];
@@ -87,6 +19,32 @@ interface ProgramsFeedProps {
   eventDayKeys?: string[];
   emptyTitle: string;
   emptySubtitle: string;
+}
+
+function countLabel(n: number, tab: ProgramsFeedTab, t: ReturnType<typeof useT>): string {
+  if (tab === 'camps') {
+    if (n === 1) return t('programs.count.campOne', { n });
+    return t('programs.count.camps', { n });
+  }
+  if (tab === 'courses') {
+    if (n === 1) return t('programs.count.courseOne', { n });
+    return t('programs.count.courses', { n });
+  }
+  if (n === 1) return t('programs.count.workshopOne', { n });
+  return t('programs.count.workshops', { n });
+}
+
+function sectionCopy(tab: ProgramsFeedTab, t: ReturnType<typeof useT>): {
+  title: string;
+  sub: string;
+} {
+  if (tab === 'camps') {
+    return { title: t('programs.listTitle.camps'), sub: t('programs.listSub.camps') };
+  }
+  if (tab === 'courses') {
+    return { title: t('programs.listTitle.courses'), sub: t('programs.listSub.courses') };
+  }
+  return { title: t('programs.listTitle.workshops'), sub: t('programs.listSub.workshops') };
 }
 
 export function ProgramsFeed({
@@ -100,8 +58,16 @@ export function ProgramsFeed({
   emptySubtitle,
 }: ProgramsFeedProps) {
   const t = useT();
-  const venueGroups = useMemo(() => groupProgramsByVenue(events), [events]);
-  const expandFirst = venueGroups.length === 1;
+  const sorted = useMemo(
+    () =>
+      [...events].sort(
+        (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+      ),
+    [events],
+  );
+  const emptyIcon =
+    tab === 'courses' ? 'menu_book' : tab === 'workshops' ? 'school' : 'camping';
+  const section = sectionCopy(tab, t);
 
   return (
     <div className="flex flex-col gap-5">
@@ -116,18 +82,14 @@ export function ProgramsFeed({
         />
       </Suspense>
 
-      <Suspense fallback={null}>
-        <ProgramsTabs active={tab} />
-      </Suspense>
-
-      {events.length === 0 ? (
-    <div className="rounded-2xl border border-teal-400/20 bg-transparent px-5 py-10 text-center">
+      {sorted.length === 0 ? (
+        <div className="rounded-2xl border border-teal-400/20 bg-transparent px-5 py-10 text-center">
           <span
             className="material-symbols-outlined mb-3 text-[36px]"
             style={{ color: TEAL }}
             aria-hidden
           >
-            camping
+            {emptyIcon}
           </span>
           <p className="font-headline-md text-[17px] text-white">{emptyTitle}</p>
           <p className="mt-1.5 font-body-md text-sm text-zinc-400">{emptySubtitle}</p>
@@ -139,30 +101,28 @@ export function ProgramsFeed({
               <div className="mb-1 flex items-center gap-2">
                 <span className="h-1 w-6 rounded-full" style={{ backgroundColor: TEAL }} />
                 <h2 className="font-headline-md text-[15px] tracking-wide text-on-background">
-                  {t('programs.listTitle')}
+                  {section.title}
                 </h2>
               </div>
-              <p className="pl-8 font-body-md text-xs text-on-surface-variant">
-                {t('programs.listSub')}
-              </p>
+              <p className="pl-8 font-body-md text-xs text-on-surface-variant">{section.sub}</p>
             </div>
             <span className="shrink-0 rounded-full border border-teal-400/30 bg-teal-400/10 px-2.5 py-1 font-label-caps text-[10px] uppercase tracking-wider text-teal-200">
-              {venueGroups.length}
+              {countLabel(sorted.length, tab, t)}
             </span>
           </div>
 
           <div
             role="list"
-            aria-label={t('programs.listTitle')}
-            className="flex flex-col gap-2"
+            aria-label={section.title}
+            className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5"
           >
-            {venueGroups.map((group, index) => (
-              <div key={group.key} role="listitem" className="min-w-0">
-                <GroupedVenueProgramsCard
-                  group={group}
-                  tab={tab}
+            {sorted.map((event, index) => (
+              <div key={event.id} role="listitem" className="min-w-0">
+                <EventAtmosphereTab
+                  event={event}
                   index={index}
-                  defaultExpanded={expandFirst}
+                  layout="fill"
+                  accent="programs"
                 />
               </div>
             ))}

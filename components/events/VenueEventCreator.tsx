@@ -7,6 +7,10 @@ import type { EventIntent } from '@/lib/ai/event-intent';
 import type { OrganizerVenueOption } from '@/lib/data/organizer-venues';
 import { EVENT_SPORTS } from '@/lib/constants/sports';
 import { SUPPORTED_CITIES } from '@/lib/cities';
+import {
+  manageListingSuccessPath,
+  type ManageListingBucket,
+} from '@/lib/manage/listing-bucket';
 
 type Step = 'brief' | 'review' | 'publishing';
 
@@ -29,10 +33,53 @@ interface VenueEventCreatorProps {
   role: string;
   venues: OrganizerVenueOption[];
   initialVenueId?: string | null;
+  /** Hub destination after publish (event / group_class / camps / …). */
+  listingBucket?: ManageListingBucket;
 }
 
-const EXAMPLE_BRIEF =
-  'Open padel clinic next Friday at 17:00, €15 entry, max 16 players, beginner-friendly. Promote to nearby padel players.';
+const BUCKET_COPY: Record<
+  ManageListingBucket,
+  { headline: string; sub: string; example: string }
+> = {
+  event: {
+    headline: 'Describe your event',
+    sub: 'Sport, date, pricing and capacity — we\'ll draft the listing and enable AI management.',
+    example:
+      'Open padel clinic next Friday at 17:00, €15 entry, max 16 players, beginner-friendly. Promote to nearby padel players.',
+  },
+  group_class: {
+    headline: 'Describe the group class',
+    sub: 'Weekly slot — lands in Skupinové cvičenia after publish.',
+    example:
+      'Pilates Midday every Tuesday at 18:00, €12, max 12 people, beginner friendly at our studio.',
+  },
+  camps: {
+    headline: 'Describe the kids camp',
+    sub: 'Multi-day camp — lands in Programy → Tábory after publish.',
+    example:
+      'Letný tábor padel 5.–9. júla, 9:00–15:00, €180, ages 8–14, max 20 kids.',
+  },
+  workshops: {
+    headline: 'Describe the workshop',
+    sub: 'Masterclass / seminar — lands in Programy → Workshopy after publish.',
+    example:
+      'Workshop thajský box v sobotu 10:00–13:00, €45, max 16, intermediate.',
+  },
+  courses: {
+    headline: 'Describe the club / course',
+    sub: 'Seasonal krúžok — lands in Programy → Krúžky after publish.',
+    example:
+      'Krúžok curling pre deti, september–jún, streda 16:00, €40/mesiac, ages 7–12.',
+  },
+};
+
+const PAGE_TITLE: Record<ManageListingBucket, string> = {
+  event: 'Create Official Event',
+  group_class: 'Create Group Class',
+  camps: 'Create Kids Camp',
+  workshops: 'Create Workshop',
+  courses: 'Create Club',
+};
 
 function formatPreviewDate(iso: string): string {
   return new Date(iso).toLocaleString('en-GB', {
@@ -56,8 +103,10 @@ export function VenueEventCreator({
   role,
   venues,
   initialVenueId,
+  listingBucket = 'event',
 }: VenueEventCreatorProps) {
   const router = useRouter();
+  const copy = BUCKET_COPY[listingBucket];
   const [step, setStep] = useState<Step>('brief');
   const [brief, setBrief] = useState('');
   const [intent, setIntent] = useState<EventIntent | null>(null);
@@ -162,6 +211,7 @@ export function VenueEventCreator({
         organizerName,
         defaultCity: defaultCity ?? undefined,
         mode: 'official',
+        listingBucket,
       }),
     });
 
@@ -185,7 +235,7 @@ export function VenueEventCreator({
       tags: body.tags ?? [],
     });
 
-    router.push('/events');
+    router.push(manageListingSuccessPath(listingBucket));
   }
 
   function updateIntentField<K extends keyof EventIntent>(key: K, value: EventIntent[K]) {
@@ -199,16 +249,16 @@ export function VenueEventCreator({
           <span className="material-symbols-outlined mr-2 group-hover:-translate-x-1 transition-transform">arrow_back</span>
           <span className="font-label-caps text-label-caps uppercase hidden md:inline">Back</span>
         </Link>
-        <h1 className="font-headline-md text-headline-md text-on-surface font-bold">Create Official Event</h1>
+        <h1 className="font-headline-md text-headline-md text-on-surface font-bold">
+          {PAGE_TITLE[listingBucket]}
+        </h1>
         <div className="w-10" />
       </header>
 
       <main className="pt-24 pb-32 px-container-margin-mobile md:px-container-margin-desktop max-w-3xl mx-auto min-h-screen">
         <section className="mb-8 space-y-3">
-          <h2 className="font-display-lg-mobile text-display-lg-mobile text-on-surface">Describe your event</h2>
-          <p className="font-body-lg text-body-lg text-on-surface-variant">
-            Sport, date, pricing and capacity — we&apos;ll draft the listing and enable AI management.
-          </p>
+          <h2 className="font-display-lg-mobile text-display-lg-mobile text-on-surface">{copy.headline}</h2>
+          <p className="font-body-lg text-body-lg text-on-surface-variant">{copy.sub}</p>
         </section>
 
         {step === 'brief' && (
@@ -249,12 +299,12 @@ export function VenueEventCreator({
                 rows={8}
                 value={brief}
                 onChange={(e) => setBrief(e.target.value)}
-                placeholder={EXAMPLE_BRIEF}
+                placeholder={copy.example}
                 className="w-full bg-surface-container border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface font-body-md text-body-md focus:border-secondary focus:outline-none resize-y min-h-[180px]"
               />
               <button
                 type="button"
-                onClick={() => setBrief(EXAMPLE_BRIEF)}
+                onClick={() => setBrief(copy.example)}
                 className="font-label-caps text-label-caps text-secondary hover:opacity-80 transition-colors"
               >
                 Use example brief

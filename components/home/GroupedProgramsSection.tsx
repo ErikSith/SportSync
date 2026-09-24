@@ -145,7 +145,7 @@ export function GroupedProgramsSection({ events }: GroupedProgramsSectionProps) 
               {t('home.programs.camps')}
             </p>
             <Link
-              href="/programs?tab=camps"
+              href="/tabory"
               className="font-label-caps text-[9px] uppercase tracking-wider text-teal-400/80 hover:text-teal-300"
             >
               {t('common.viewAll')}
@@ -174,7 +174,7 @@ export function GroupedProgramsSection({ events }: GroupedProgramsSectionProps) 
               {t('home.programs.courses')}
             </p>
             <Link
-              href="/programs?tab=courses"
+              href="/kruzky"
               className="font-label-caps text-[9px] uppercase tracking-wider text-teal-400/80 hover:text-teal-300"
             >
               {t('common.viewAll')}

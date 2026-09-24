@@ -83,25 +83,26 @@ export function GroupedVenueProgramsCard({
 }: GroupedVenueProgramsCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const panelId = useId();
-  const countLabel = slovakProgramCountLabel(group.events.length, tab);
+  const isSeries = group.kind === 'camp_series';
+  const countLabel = slovakProgramCountLabel(group.events.length, tab, group.kind);
   const when = leadProgramWhen(group.events);
   const kidsCount = group.events.filter((e) => e.forKids).length;
   const price = priceFromLabel(group.events);
   const distance = distanceLabel(group.distanceKm);
-  const location = group.city?.trim() || 'Bratislava';
+  const location = group.city?.trim() || group.venueName || 'Bratislava';
 
   const metaLine = useMemo(
     () =>
       [
         countLabel,
-        location,
+        isSeries ? group.venueName : location,
         distance,
         kidsCount > 0 ? 'Pre deti' : null,
         price,
       ]
         .filter(Boolean)
         .join(' • '),
-    [countLabel, distance, kidsCount, location, price],
+    [countLabel, distance, isSeries, kidsCount, location, price, group.venueName],
   );
 
   const whenLabel = when
@@ -109,6 +110,9 @@ export function GroupedVenueProgramsCard({
       ? `${when.day} ${when.time}`
       : when.day
     : countLabel;
+
+  const eyebrow = isSeries ? 'Tábor' : 'Športovisko';
+  const icon = isSeries ? 'camping' : 'location_on';
 
   return (
     <motion.article
@@ -122,8 +126,9 @@ export function GroupedVenueProgramsCard({
       }}
       className={`group/programs relative w-full overflow-hidden ${SURFACE}`}
       data-grouped-venue-programs
+      data-group-kind={group.kind}
       data-expanded={expanded ? 'true' : 'false'}
-      aria-label={`${group.venueName} — ${whenLabel} — ${countLabel}`}
+      aria-label={`${group.title} — ${whenLabel} — ${countLabel}`}
     >
       <button
         type="button"
@@ -170,17 +175,17 @@ export function GroupedVenueProgramsCard({
           }}
           aria-hidden
         >
-          location_on
+          {icon}
         </span>
 
         <span className="min-w-0 flex-1">
           <span className="mb-0.5 flex items-center gap-1.5">
             <span className="font-label-caps text-[8px] uppercase tracking-[0.14em] text-zinc-500">
-              Športovisko
+              {eyebrow}
             </span>
           </span>
           <span className="block truncate font-headline-md text-base font-semibold tracking-wide text-white">
-            {group.venueName}
+            {group.title}
           </span>
           <span className="mt-0.5 block truncate font-body-md text-[13px] text-zinc-400">
             {metaLine}
@@ -209,7 +214,7 @@ export function GroupedVenueProgramsCard({
           >
             <ul
               className="flex flex-col gap-1.5 px-2.5 pb-2.5 pt-2 sm:px-3"
-              aria-label={`${countLabel} — ${group.venueName}`}
+              aria-label={`${countLabel} — ${group.title}`}
             >
               {group.events.map((event) => (
                 <li key={event.id} className="relative min-w-0">

@@ -86,14 +86,48 @@ describe('groupProgramsByVenue', () => {
     assert.equal(groups.length, 1);
     assert.equal(groups[0]!.events.length, 2);
   });
+
+  it('collapses camp turnusy with the same campSeriesId', () => {
+    const groups = groupProgramsByVenue([
+      stub({
+        id: 't1',
+        title: 'Letný padel kemp 2026',
+        venueName: 'Aurial',
+        themeConfig: { campSeriesId: 'ser-1', turnusIndex: 1 },
+        startsAt: new Date('2026-07-01T09:00:00+02:00'),
+      }),
+      stub({
+        id: 't2',
+        title: 'Letný padel kemp 2026',
+        venueName: 'Aurial',
+        themeConfig: { campSeriesId: 'ser-1', turnusIndex: 2 },
+        startsAt: new Date('2026-07-08T09:00:00+02:00'),
+      }),
+      stub({
+        id: 'other',
+        title: 'Iný workshop',
+        venueName: 'Aurial',
+      }),
+    ]);
+    assert.equal(groups.length, 2);
+    const series = groups.find((g) => g.kind === 'camp_series');
+    assert.ok(series);
+    assert.equal(series!.title, 'Letný padel kemp 2026');
+    assert.equal(series!.events.length, 2);
+    assert.deepEqual(
+      series!.events.map((e) => e.id),
+      ['t1', 't2'],
+    );
+  });
 });
 
 describe('slovakProgramCountLabel', () => {
-  it('conjugates krúžok / tábor / workshop', () => {
+  it('conjugates krúžok / tábor / workshop / turnus', () => {
     assert.equal(slovakProgramCountLabel(1, 'courses'), '1 krúžok');
     assert.equal(slovakProgramCountLabel(3, 'courses'), '3 krúžky');
     assert.equal(slovakProgramCountLabel(5, 'courses'), '5 krúžkov');
     assert.equal(slovakProgramCountLabel(2, 'camps'), '2 tábory');
+    assert.equal(slovakProgramCountLabel(3, 'camps', 'camp_series'), '3 turnusy');
     assert.equal(slovakProgramCountLabel(1, 'workshops'), '1 workshop');
   });
 });

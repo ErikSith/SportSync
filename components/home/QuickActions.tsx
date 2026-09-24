@@ -7,7 +7,7 @@ import type { MessageKey } from '@/lib/i18n/messages';
 
 /** Pure red — not Material orange (#FF5722). Hub tiles share one surface; accent is icon-only. */
 
-type HubAccent = 'red' | 'gold' | 'sky' | 'teal';
+type HubAccent = 'red' | 'gold' | 'sky' | 'teal' | 'mint' | 'sand';
 
 const ACTIONS: Array<{
   href: string;
@@ -40,9 +40,23 @@ const ACTIONS: Array<{
   {
     href: '/programs',
     labelKey: 'home.quick.programs',
-    icon: 'camping',
+    icon: 'school',
     hintKey: 'home.quick.programsHint',
     accent: 'teal',
+  },
+  {
+    href: '/tabory',
+    labelKey: 'home.quick.camps',
+    icon: 'camping',
+    hintKey: 'home.quick.campsHint',
+    accent: 'mint',
+  },
+  {
+    href: '/kruzky',
+    labelKey: 'home.quick.courses',
+    icon: 'menu_book',
+    hintKey: 'home.quick.coursesHint',
+    accent: 'sand',
   },
 ];
 
@@ -71,6 +85,18 @@ const ACCENT = {
     ring: 'group-hover:ring-teal-400/40',
     icon: 'text-teal-300',
   },
+  mint: {
+    hoverBorder: 'hover:border-emerald-400/40',
+    glow: 'bg-emerald-400/12',
+    ring: 'group-hover:ring-emerald-400/35',
+    icon: 'text-emerald-300',
+  },
+  sand: {
+    hoverBorder: 'hover:border-[#c4a882]/40',
+    glow: 'bg-[#c4a882]/12',
+    ring: 'group-hover:ring-[#c4a882]/35',
+    icon: 'text-[#d4b896]',
+  },
 } as const;
 
 const container = {
@@ -94,7 +120,7 @@ export function QuickActions() {
       variants={container}
       initial="hidden"
       animate="show"
-      className="grid grid-cols-2 gap-2.5 sm:gap-3"
+      className="grid grid-cols-3 gap-2 sm:gap-2.5"
       aria-label={t('home.quickHub')}
     >
       {ACTIONS.map((action) => {
@@ -104,33 +130,33 @@ export function QuickActions() {
             <Link
               href={action.href}
               className={[
-                'group relative flex min-h-[5.75rem] flex-col justify-between overflow-hidden rounded-2xl',
-                'border border-white/[0.06] bg-[#1F1F1F] p-3.5 sm:min-h-[6.5rem] sm:p-4',
+                'group relative flex min-h-[4.5rem] flex-col justify-between overflow-hidden rounded-xl',
+                'border border-white/[0.06] bg-[#1F1F1F] p-2.5 sm:min-h-[5rem] sm:p-3',
                 'transition duration-200 hover:bg-[#262626] active:scale-[0.98]',
                 accent.hoverBorder,
               ].join(' ')}
             >
               <div
-                className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-0 blur-2xl transition-opacity group-hover:opacity-100 ${accent.glow}`}
+                className={`pointer-events-none absolute -right-5 -top-5 h-14 w-14 rounded-full opacity-0 blur-2xl transition-opacity group-hover:opacity-100 ${accent.glow}`}
                 aria-hidden
               />
               <span
                 className={[
-                  'relative z-10 flex h-9 w-9 items-center justify-center rounded-xl bg-[#121212] ring-1 ring-white/[0.06] transition',
+                  'relative z-10 flex h-7 w-7 items-center justify-center rounded-lg bg-[#121212] ring-1 ring-white/[0.06] transition sm:h-8 sm:w-8',
                   accent.ring,
                 ].join(' ')}
                 aria-hidden
               >
-                <span className={`material-symbols-outlined text-[22px] ${accent.icon}`}>
+                <span className={`material-symbols-outlined text-[18px] sm:text-[20px] ${accent.icon}`}>
                   {action.icon}
                 </span>
               </span>
-              <div className="relative z-10 mt-3 min-w-0 space-y-0.5">
-                <span className="block truncate font-headline-md text-[14px] font-semibold text-on-surface transition-colors group-hover:text-white sm:text-[15px]">
+              <div className="relative z-10 mt-2 min-w-0 space-y-0.5">
+                <span className="block truncate font-headline-md text-[12px] font-semibold leading-tight text-on-surface transition-colors group-hover:text-white sm:text-[13px]">
                   {t(action.labelKey)}
                 </span>
                 {action.hintKey ? (
-                  <span className="block truncate font-body-md text-[11px] text-on-surface-variant/80">
+                  <span className="block truncate font-body-md text-[10px] leading-tight text-on-surface-variant/75">
                     {t(action.hintKey)}
                   </span>
                 ) : null}

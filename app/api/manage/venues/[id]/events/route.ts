@@ -10,6 +10,10 @@ import { emitDomainEvent } from '@/lib/orchestration/emit';
 import { DOMAIN_EVENTS } from '@/lib/orchestration/types';
 import { EVENT_SPORTS } from '@/lib/constants/sports';
 import { activeFeedSinceIso, isListingStillActive } from '@/lib/retention/feed-window';
+import {
+  listingPersistFields,
+  parseManageListingBucket,
+} from '@/lib/manage/listing-bucket';
 
 export const runtime = 'edge';
 
@@ -147,6 +151,11 @@ const createVenueEventSchema = z.object({
     )
     .max(8)
     .default([]),
+  /** Hub destination: event / group_class / camps / workshops / courses */
+  listingBucket: z
+    .enum(['event', 'group_class', 'camps', 'workshops', 'courses'])
+    .optional()
+    .default('event'),
 });
 
 export async function POST(
@@ -207,6 +216,8 @@ export async function POST(
   let entryRequirements = input.entryRequirements ?? null;
   let themeConfig: Record<string, unknown> | null = input.themeConfig ?? null;
   let sponsorsJson = input.sponsorsJson ?? [];
+  const listingBucket = parseManageListingBucket(input.listingBucket);
+  const persist = listingPersistFields(listingBucket);
 
   if (input.rawBrief && (!input.priceCents || !input.sportType || !input.themeConfig)) {
     try {
@@ -244,6 +255,11 @@ export async function POST(
     mode: 'official',
   });
 
+  const mergedTheme: Record<string, unknown> = {
+    ...(themeConfig ?? {}),
+    ...persist.themeConfig,
+  };
+
   const { data: event, error: insertError } = await supabase
     .from('events')
     .insert({
@@ -268,11 +284,12 @@ export async function POST(
       end_time: endTime ? endTime.toISOString() : null,
       max_participants: maxParticipants,
       entry_requirements: entryRequirements,
-      theme_config: themeConfig ?? {},
+      theme_config: mergedTheme,
       sponsors_json: sponsorsJson,
       raw_brief: input.rawBrief ?? null,
       photos: input.photos,
       ai_enriched: true,
+      ...(persist.externalId ? { external_id: persist.externalId } : {}),
     })
     .select('id')
     .single();
@@ -319,6 +336,7 @@ export async function POST(
   return NextResponse.json({
     ok: true,
     eventId,
+    listingBucket,
     enrichmentSource: enrichment.source,
     promoCopy: enrichment.event.promoCopy,
     socialPost: enrichment.event.socialPost,

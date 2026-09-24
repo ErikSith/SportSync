@@ -4,11 +4,12 @@ import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { getVenuesForOrganizer } from '@/lib/data/organizer-venues';
 import { VenueEventCreator } from '@/components/events/VenueEventCreator';
+import { parseManageListingBucket } from '@/lib/manage/listing-bucket';
 
 export const runtime = 'edge';
 
 interface CreateOfficialEventPageProps {
-  searchParams: { venueId?: string };
+  searchParams: { venueId?: string; bucket?: string };
 }
 
 export default async function CreateOfficialEventPage({ searchParams }: CreateOfficialEventPageProps) {
@@ -34,6 +35,16 @@ export default async function CreateOfficialEventPage({ searchParams }: CreateOf
   }
 
   const venues = await getVenuesForOrganizer(profile.id, profile.role);
+  // Programs use /manage/programs/create — this route is event or group_class only.
+  const rawBucket = searchParams.bucket;
+  const listingBucket =
+    rawBucket === 'group_class' ? 'group_class' : parseManageListingBucket(rawBucket);
+  const safeBucket =
+    listingBucket === 'camps' ||
+    listingBucket === 'workshops' ||
+    listingBucket === 'courses'
+      ? 'event'
+      : listingBucket;
 
   return (
     <VenueEventCreator
@@ -42,6 +53,7 @@ export default async function CreateOfficialEventPage({ searchParams }: CreateOf
       role={profile.role}
       venues={venues}
       initialVenueId={searchParams.venueId ?? null}
+      listingBucket={safeBucket}
     />
   );
 }

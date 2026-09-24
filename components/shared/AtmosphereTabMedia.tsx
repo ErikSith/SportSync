@@ -4,8 +4,8 @@
  */
 interface AtmosphereTabMediaProps {
   src: string | null;
-  /** Soft brand wash — red for events, brass for tournaments. */
-  wash?: 'coral' | 'red' | 'brass' | 'none';
+  /** Soft brand wash — red for events, brass for tournaments, teal for programs. */
+  wash?: 'coral' | 'red' | 'brass' | 'teal' | 'none';
 }
 
 export function AtmosphereTabMedia({ src, wash = 'coral' }: AtmosphereTabMediaProps) {
@@ -64,6 +64,14 @@ export function AtmosphereTabMedia({ src, wash = 'coral' }: AtmosphereTabMediaPr
           className="absolute inset-0 opacity-45"
           style={{
             background: 'linear-gradient(135deg, rgba(196,160,53,0.14) 0%, transparent 42%)',
+          }}
+        />
+      )}
+      {wash === 'teal' && (
+        <div
+          className="absolute inset-0 opacity-50"
+          style={{
+            background: 'linear-gradient(135deg, rgba(45,212,191,0.14) 0%, transparent 42%)',
           }}
         />
       )}
