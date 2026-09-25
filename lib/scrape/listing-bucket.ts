@@ -1,18 +1,21 @@
 /**
- * SportSync hub taxonomy — four destinations for scraped listings.
+ * SportSync hub taxonomy — Rýchle akcie has 6 separate groups; scraper `category`
+ * is the exact column that routes each listing into one of them.
  *
- * | Bucket        | Hub tile              | Route                  | Storage                                      |
- * |---------------|-----------------------|------------------------|----------------------------------------------|
- * | event         | Eventy                | /events                | events (not class-*, no programKind)         |
- * | tournament    | Turnaje               | /tournaments           | tournaments table                            |
- * | group_class   | Skupinové cvičenia    | /skupinove-cvicenia    | events with class-* + group-class write      |
- * | program       | Workshopy / Tábory / Krúžky | /programs, /tabory, /kruzky | events + theme_config.programKind |
- * | skip          | —                     | —                      | news / nav chrome / weak leftovers           |
+ * | category (scraper col) | Hub tile (Rýchle akcie) | Route               | Bucket after classify |
+ * |------------------------|-------------------------|---------------------|------------------------|
+ * | PODUJATIE              | Eventy                  | /events             | event                  |
+ * | TURNAJ                 | Turnaje                 | /tournaments        | tournament             |
+ * | SKUPINOVE_CVICENIE     | Skupinové cvičenia      | /skupinove-cvicenia | group_class            |
+ * | WORKSHOP               | Workshopy               | /programs           | program (workshop)     |
+ * | DETSKY_TABOR           | Tábory                  | /tabory             | program (camp)         |
+ * | DETSKY_KRUZOK          | Krúžky                  | /kruzky             | program (course)       |
+ * | —                      | —                       | —                   | skip (news / chrome)   |
  *
- * Eventy = unusual one-day happenings (marathon, Red Bull night, festival).
+ * Eventy = unusual one-day happenings (marathon, Red Bull night, festival) + A vs B watch fixtures.
  * Turnaje = open-entry cups / championships (not A vs B spectator fixtures).
  * Skupinové = repeating studio/venue schedule slots.
- * Programy = camps, workshops, seasonal kids clubs/courses.
+ * Workshopy / Tábory / Krúžky = three distinct program hubs (not one dump bucket).
  */
 import {
   looksLikeNavOrSectionTitle,

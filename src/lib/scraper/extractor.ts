@@ -149,7 +149,18 @@ AKTUÁLNY DNEŠNÝ DÁTUM JE: ${todayFormatted}.
 MAPA POLÍ → SportSync (kam čo ide — nič iné do týchto polí):
 • title → nadpis karty (Event/Tournament). IBA krátky názov aktivity.
 • sportType → ikona/filter športu (Padel, Tenis, Joga…). NIE mesto, NIE kategória.
-• category → routing: TURNAJ→tabuľka tournaments; SKUPINOVE_CVICENIE/WORKSHOP/DETSKY_*→programy/eventy; PODUJATIE→event (často Sledovať).
+• category → PRESNÁ KOLÓNKA pre hub Rýchle akcie (6 samostatných skupín na homepage).
+  Aplikácia má všetko porozdeľované do 6 dlaždíc — category rozhoduje, kam záznam pôjde.
+  JEDNA hodnota na záznam, 1:1 s dlaždicou (žiadne miešanie, žiadny „všeobecný“ odpad):
+  | category            | Dlaždica Rýchle akcie | Kam v appke              |
+  |---------------------|------------------------|--------------------------|
+  | PODUJATIE           | Eventy                 | /events                  |
+  | TURNAJ              | Turnaje                | /tournaments             |
+  | SKUPINOVE_CVICENIE  | Skupinové cvičenia     | /skupinove-cvicenia      |
+  | WORKSHOP            | Workshopy              | /programs                |
+  | DETSKY_TABOR        | Tábory                 | /tabory                  |
+  | DETSKY_KRUZOK       | Krúžky                 | /kruzky                  |
+  Zlé category = zlá dlaždica. NIKDY nepoužívaj sportType ani title na routovanie do týchto skupín.
 • startTime / endTime / timeKnown → kalendár a zoradenie (starts_at, start_time). Čas LEN začiatok hry/lekcie.
 • locationName → párovanie na venue_id (na karte sa zobrazí názov športoviska z DB). IBA názov/adresa.
 • city → geo filter; mimo Bratislavy sa záznam ZMAŽE. NIE ulica, NIE doprava.
@@ -181,17 +192,18 @@ Pravidlá:
   Tieto sloty = category SKUPINOVE_CVICENIE — nie unikátne eventy.
 - Ak je na TEJ ISTEJ stránke aj rozvrh aj jednorazové akcie/turnaje/tábory, ROZDEĽ ich po položkách.
   Nikdy neoznač celú stránku jedným typom.
-- KATEGÓRIA (práve JEDNA z 6 — pole category):
-  • TURNAJ — súťaž s otvorenou prihláškou (cup, championship, open, trophy, liga s registráciou).
+- KATEGÓRIA (práve JEDNA z 6 — pole category = kolónka pre Rýchle akcie):
+  Každá hodnota = iná samostatná skupina v UI. Zapisuj sem, nie do description/title.
+  • PODUJATIE → Eventy — jednorazová komunitná akcia, exhibícia, otvorenie, koncert, zápas A vs B.
+  • TURNAJ → Turnaje — súťaž s otvorenou prihláškou (cup, championship, open, trophy, liga s registráciou).
     NIE ligový zápas „Tím A vs Tím B“ — to je PODUJATIE (divák / Sledovať).
-  • SKUPINOVE_CVICENIE — týždenný rozvrh / skupinové cvičenie (Pilates, HIIT, Box, Yoga, FitCamp,
+  • SKUPINOVE_CVICENIE → Skupinové cvičenia — týždenný rozvrh / lekcie (Pilates, HIIT, Box, Yoga, FitCamp,
     stolný tenis, pole dance). Aj „Stronger kurz“ v rozvrhu = SKUPINOVE_CVICENIE (nie DETSKY_KRUZOK).
-  • WORKSHOP — krátkodobý intenzívny workshop / masterclass / seminár (2–4 h alebo niekoľko dní, prevažne dospelí).
-  • DETSKY_TABOR — viacdňový prázdninový/letný tábor/kemp pre deti s celodenným programom.
+  • WORKSHOP → Workshopy — krátkodobý intenzívny workshop / masterclass / seminár (2–4 h alebo niekoľko dní, prevažne dospelí).
+  • DETSKY_TABOR → Tábory — viacdňový prázdninový/letný tábor/kemp pre deti s celodenným programom.
     startTime = prvý deň, endTime = posledný. isForKids = true.
-  • DETSKY_KRUZOK — celoročný/pravidelný tréning po škole pre deti (plavecký krúžok, krúžok, juniorská akadémia).
+  • DETSKY_KRUZOK → Krúžky — celoročný/pravidelný tréning po škole pre deti (plavecký krúžok, krúžok, juniorská akadémia).
     isForKids = true. NIE drop-in fitnes lekcia pre dospelých.
-  • PODUJATIE — jednorazová komunitná akcia, exhibícia, otvorenie, koncert, zápas A vs B, iné bez špecifickej kategórie.
 - Bežný názov lekcie (Pilates, HIIT, Box, Yoga, Kickbox, Fitbox, Pole Dance) = SKUPINOVE_CVICENIE.
 - PODUJATIE = len nezvyčajná jednorazová akcia (maratón, Red Bull night, festival, party,
   deň otvorených dverí, exhibícia). NIE týždenný rozvrh, NIE novinky/výsledky.

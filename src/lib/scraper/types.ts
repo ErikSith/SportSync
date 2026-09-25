@@ -1,13 +1,16 @@
 import { z } from 'zod';
 
-/** Six mutually exclusive SportSync listing categories. */
+/**
+ * Six mutually exclusive listing categories — 1:1 with homepage Rýchle akcie tiles.
+ * This is the exact column the scraper writes so each listing lands in the right hub group.
+ */
 export const EventCategoryEnum = z.enum([
-  'PODUJATIE', // Jednorazové komunitné akcie, zápasy, akcie bez špecifickej kategórie
-  'SKUPINOVE_CVICENIE', // Pravidelné denné rozpisy vo fitku/štúdiu (Joga, Pilates, FitCamp)
-  'TURNAJ', // Súťaže, ligy, poháre (pre dospelých aj deti a ženy)
-  'WORKSHOP', // Krátkodobé intenzívne vzdelávacie/tréningové akcie
-  'DETSKY_TABOR', // Viacdňové prázdnové denné/letné kempy pre deti
-  'DETSKY_KRUZOK', // Celoročné alebo pravidelné tréningy po škole pre deti
+  'PODUJATIE', // Eventy — /events
+  'SKUPINOVE_CVICENIE', // Skupinové cvičenia — /skupinove-cvicenia
+  'TURNAJ', // Turnaje — /tournaments
+  'WORKSHOP', // Workshopy — /programs
+  'DETSKY_TABOR', // Tábory — /tabory
+  'DETSKY_KRUZOK', // Krúžky — /kruzky
 ]);
 
 export type EventCategory = z.infer<typeof EventCategoryEnum>;
@@ -23,9 +26,10 @@ export const ScrapedEventSchema = z.object({
         "ZAKÁZANÉ: 'Šport', 'Event', názov klubu, mesto, doprava.",
     ),
 
-  // HLAVNÁ KATEGORIZÁCIA (presne jedna z 6) — Gemini povinné; adapters môžu vynechať (sync doplní)
+  // HLAVNÁ KATEGORIZÁCIA = kolónka pre 6 skupín Rýchle akcie (1:1). Gemini povinné; adapters sync doplní.
   category: EventCategoryEnum.optional().describe(
-    'Presné určenie typu akcie podľa jej charakteru',
+    'Presná kolónka hubu: PODUJATIE=Eventy, TURNAJ=Turnaje, SKUPINOVE_CVICENIE=Skupinové cvičenia, ' +
+      'WORKSHOP=Workshopy, DETSKY_TABOR=Tábory, DETSKY_KRUZOK=Krúžky. Práve jedna hodnota.',
   ),
 
   // Legacy boolean flags — derived from category in normalize; kept for upsert / adapters
@@ -196,7 +200,9 @@ export const SCRAPED_EVENT_LIST_JSON_SCHEMA = {
               'DETSKY_KRUZOK',
             ],
             description:
-              'Presné určenie typu: PODUJATIE | SKUPINOVE_CVICENIE | TURNAJ | WORKSHOP | DETSKY_TABOR | DETSKY_KRUZOK',
+              'Kolónka Rýchle akcie (6 skupín): PODUJATIE=Eventy, TURNAJ=Turnaje, ' +
+              'SKUPINOVE_CVICENIE=Skupinové cvičenia, WORKSHOP=Workshopy, ' +
+              'DETSKY_TABOR=Tábory, DETSKY_KRUZOK=Krúžky. Práve jedna.',
           },
           isForWomenOnly: {
             type: 'boolean',

@@ -1,6 +1,6 @@
 /**
- * Strict 6-way event categorization + sync with legacy boolean flags
- * (isTournament / isGroupClass / isCamp / isWorkshop / isCourse) used by upsert.
+ * Strict 6-way event categorization — mirrors homepage Rýchle akcie (one tile each).
+ * Syncs with legacy boolean flags (isTournament / isGroupClass / isCamp / isWorkshop / isCourse).
  */
 
 import { EventCategoryEnum, type EventCategory } from './types';

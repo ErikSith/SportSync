@@ -5,10 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 import {
   buildHomepageInspirationFromCards,
   getHomepageEventInspiration,
-  getVenuesForHomeFilter,
   homepageInspirationHasEvents,
   mapRawEventRowsToCards,
-  type HomeFilterVenue,
   type HomepageEventInspiration,
 } from '@/lib/data/homepage';
 import { getActivePromotedBanners } from '@/lib/data/promoted';
@@ -17,7 +15,6 @@ import { activeFeedSinceIso } from '@/lib/retention/feed-window';
 import { t } from '@/lib/i18n/server';
 import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { TopAppBar } from '@/components/home/TopAppBar';
-import { CockpitHeader } from '@/components/home/CockpitHeader';
 import { QuickActions } from '@/components/home/QuickActions';
 import { FeaturedShowcaseCarousel } from '@/components/home/FeaturedShowcaseCarousel';
 import { EventsInspirationSection } from '@/components/home/EventsInspirationSection';
@@ -158,10 +155,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   let inspiration: HomepageEventInspiration | null = null;
   let promoted: PromotedBannerItem[] = [];
-  let venues: HomeFilterVenue[] = [];
 
   try {
-    const [inspirationResult, promotedResult, filterVenues] = await Promise.all([
+    const [inspirationResult, promotedResult] = await Promise.all([
       (async () => {
         let next: HomepageEventInspiration | null = null;
         if (hasGps) {
@@ -187,12 +183,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         console.error('Homepage promoted banners error:', err);
         return [] as PromotedBannerItem[];
       }),
-      getVenuesForHomeFilter(city).catch(() => [] as HomeFilterVenue[]),
     ]);
 
     inspiration = inspirationResult;
     promoted = promotedResult;
-    venues = filterVenues;
   } catch (error) {
     console.error('Homepage data fetch error:', error);
     inspiration = await getHomepageEventInspiration(profile, feedFilters, favoritesOpts);
@@ -224,11 +218,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <div className="absolute bottom-[15%] right-[-120px] h-[380px] w-[380px] rounded-full bg-[#FF5722]/[0.04] blur-3xl" />
       </div>
 
-      <TopAppBar avatarUrl={profile.avatarUrl} name={displayName} />
+      <TopAppBar avatarUrl={profile.avatarUrl} name={displayName} city={city} />
 
       <main className="relative z-10 mx-auto w-full min-w-0 max-w-7xl space-y-5 bg-[#121212] px-container-margin-mobile pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] pt-20 md:space-y-7 md:px-container-margin-desktop">
-        <CockpitHeader displayName={displayName} city={city} venues={venues} />
-
         <FeaturedShowcaseCarousel items={promoted} />
 
         <section className="space-y-3">

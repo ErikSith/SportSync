@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { ShareQrButton } from '@/components/home/ShareQrButton';
+import { HomeFeedPreferencesAside } from '@/components/home/HomeFeedFilterButton';
 import { useT } from '@/components/i18n/LocaleProvider';
 import { useIsGuest } from '@/lib/auth/use-is-guest';
 import { useAuthModal } from '@/components/auth/AuthModalProvider';
@@ -9,9 +10,11 @@ import { useAuthModal } from '@/components/auth/AuthModalProvider';
 interface TopAppBarProps {
   avatarUrl: string | null;
   name: string;
+  /** When set, shows GPS area control left of QR (homepage Rýchle akcie filter). */
+  city?: string;
 }
 
-export function TopAppBar({ avatarUrl, name }: TopAppBarProps) {
+export function TopAppBar({ avatarUrl, name, city }: TopAppBarProps) {
   const t = useT();
   const { isGuest } = useIsGuest();
   const { openAuthModal } = useAuthModal();
@@ -36,11 +39,14 @@ export function TopAppBar({ avatarUrl, name }: TopAppBarProps) {
 
   return (
     <header className="pointer-events-auto fixed left-0 right-0 top-0 z-[70] flex h-16 w-full max-w-[100vw] items-center justify-between border-b border-outline-variant/30 bg-surface/80 px-4 pt-[env(safe-area-inset-top,0px)] shadow-2xl shadow-black/50 backdrop-blur-xl sm:px-gutter">
-      <ShareQrButton />
+      <div className="flex items-center gap-2">
+        {city ? <HomeFeedPreferencesAside city={city} variant="icon" /> : null}
+        <ShareQrButton />
+      </div>
       <Link
         href="/"
         aria-label={t('nav.home')}
-        className="font-display-lg text-display-lg-mobile tracking-tighter text-primary-container transition-colors hover:text-primary-fixed-dim md:font-display-lg"
+        className="absolute left-1/2 -translate-x-1/2 font-display-lg text-display-lg-mobile tracking-tighter text-primary-container transition-colors hover:text-primary-fixed-dim md:font-display-lg"
       >
         SPORTSYNC
       </Link>

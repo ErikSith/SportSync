@@ -24,13 +24,17 @@ import {
 import { useT } from '@/components/i18n/LocaleProvider';
 import { trackSignal } from '@/lib/telemetry/track';
 
-type PreferencesChipVariant = 'pill' | 'minimal';
+type PreferencesChipVariant = 'pill' | 'minimal' | 'icon';
 
 interface HomeFeedPreferencesBarProps {
-  venues: HomeFilterVenue[];
+  venues?: HomeFilterVenue[];
   city: string;
   variant?: PreferencesChipVariant;
 }
+
+/** Matches ShareQrButton — circular header control. */
+const HEADER_ICON_BTN =
+  'group relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-outline-variant/40 bg-surface-container-high/70 text-primary transition-colors hover:border-primary-container/50 hover:text-primary-fixed-dim active:scale-95 disabled:opacity-60';
 
 function filtersFromParams(searchParams: URLSearchParams): HomeFeedFilters {
   return parseHomeFeedFilters({
@@ -406,6 +410,8 @@ export function HomeFeedPreferencesChip({ city, variant = 'pill' }: HomeFeedPref
 
   const areaLabel = feedAreaSelectionLabel(homeFeedAreaSelection(applied));
   const isMinimal = variant === 'minimal';
+  const isIcon = variant === 'icon';
+  const areaAria = areaLabel || city;
 
   return (
     <>
@@ -413,48 +419,75 @@ export function HomeFeedPreferencesChip({ city, variant = 'pill' }: HomeFeedPref
         type="button"
         onClick={openSheet}
         disabled={isPending}
-        aria-label="Change area"
+        aria-label={isIcon ? `Oblasť: ${areaAria}` : 'Change area'}
+        title={isIcon ? areaAria : undefined}
         className={
-          isMinimal
-            ? 'inline-flex max-w-[8.5rem] items-center gap-0.5 text-zinc-500 transition-colors hover:text-zinc-300 active:scale-[0.98] disabled:opacity-60'
-            : 'inline-flex max-w-[min(100%,11.5rem)] items-center gap-1 rounded-full border border-white/10 bg-zinc-900/80 py-1 pl-1.5 pr-2 text-zinc-400 transition-colors hover:border-white/15 hover:bg-zinc-900 hover:text-zinc-200 active:scale-[0.98] disabled:opacity-60'
+          isIcon
+            ? HEADER_ICON_BTN
+            : isMinimal
+              ? 'inline-flex max-w-[8.5rem] items-center gap-0.5 text-zinc-500 transition-colors hover:text-zinc-300 active:scale-[0.98] disabled:opacity-60'
+              : 'inline-flex max-w-[min(100%,11.5rem)] items-center gap-1 rounded-full border border-white/10 bg-zinc-900/80 py-1 pl-1.5 pr-2 text-zinc-400 transition-colors hover:border-white/15 hover:bg-zinc-900 hover:text-zinc-200 active:scale-[0.98] disabled:opacity-60'
         }
       >
-        <span
-          className={`material-symbols-outlined shrink-0 ${isMinimal ? 'text-[12px]' : 'text-[13px] text-zinc-500'}`}
-          style={{ fontVariationSettings: "'FILL' 1" }}
-          aria-hidden
-        >
-          location_on
-        </span>
-        <span
-          className={`min-w-0 truncate font-label-caps uppercase ${
-            isMinimal ? 'text-[8px] tracking-[0.14em]' : 'text-[9px] tracking-[0.1em]'
-          }`}
-        >
-          {areaLabel || city}
-        </span>
-        {isMinimal ? (
-          <span className="material-symbols-outlined shrink-0 text-[14px] text-zinc-600" aria-hidden>
-            expand_more
-          </span>
+        {isIcon ? (
+          <>
+            <span
+              className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary-container/15 via-transparent to-secondary/10 opacity-80"
+              aria-hidden
+            />
+            <span
+              className="material-symbols-outlined relative text-[22px]"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+              aria-hidden
+            >
+              location_on
+            </span>
+            {hasFilters ? (
+              <span
+                className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full border border-surface bg-primary-container"
+                aria-hidden
+              />
+            ) : null}
+          </>
         ) : (
           <>
-            <span className="h-2.5 w-px shrink-0 bg-white/10" aria-hidden />
-            <span className="material-symbols-outlined shrink-0 text-[13px] text-zinc-500" aria-hidden>
-              tune
+            <span
+              className={`material-symbols-outlined shrink-0 ${isMinimal ? 'text-[12px]' : 'text-[13px] text-zinc-500'}`}
+              style={{ fontVariationSettings: "'FILL' 1" }}
+              aria-hidden
+            >
+              location_on
             </span>
+            <span
+              className={`min-w-0 truncate font-label-caps uppercase ${
+                isMinimal ? 'text-[8px] tracking-[0.14em]' : 'text-[9px] tracking-[0.1em]'
+              }`}
+            >
+              {areaLabel || city}
+            </span>
+            {isMinimal ? (
+              <span className="material-symbols-outlined shrink-0 text-[14px] text-zinc-600" aria-hidden>
+                expand_more
+              </span>
+            ) : (
+              <>
+                <span className="h-2.5 w-px shrink-0 bg-white/10" aria-hidden />
+                <span className="material-symbols-outlined shrink-0 text-[13px] text-zinc-500" aria-hidden>
+                  tune
+                </span>
+              </>
+            )}
+            {hasFilters ? (
+              isMinimal ? (
+                <span className="h-1 w-1 shrink-0 rounded-full bg-primary-container" aria-hidden />
+              ) : (
+                <span className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-primary-container/40 bg-zinc-950 px-1 font-label-caps text-[8px] leading-none text-primary-container">
+                  {activeCount}
+                </span>
+              )
+            ) : null}
           </>
         )}
-        {hasFilters ? (
-          isMinimal ? (
-            <span className="h-1 w-1 shrink-0 rounded-full bg-primary-container" aria-hidden />
-          ) : (
-            <span className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-primary-container/40 bg-zinc-950 px-1 font-label-caps text-[8px] leading-none text-primary-container">
-              {activeCount}
-            </span>
-          )
-        ) : null}
       </button>
 
       {mounted ? (
@@ -475,17 +508,21 @@ export function HomeFeedPreferencesChip({ city, variant = 'pill' }: HomeFeedPref
   );
 }
 
-/** Compact location + filter control — sits top-right next to page title text. */
+/** Compact location control — pill/minimal beside titles, or icon in TopAppBar. */
 export function HomeFeedPreferencesAside({
-  venues,
+  venues = [],
   city,
   variant = 'pill',
 }: HomeFeedPreferencesBarProps) {
   return (
-    <div className="flex shrink-0 justify-end">
+    <div className={variant === 'icon' ? 'shrink-0' : 'flex shrink-0 justify-end'}>
       <Suspense
         fallback={
-          variant === 'minimal' ? (
+          variant === 'icon' ? (
+            <div className={HEADER_ICON_BTN} aria-hidden>
+              <span className="material-symbols-outlined text-[22px]">location_on</span>
+            </div>
+          ) : variant === 'minimal' ? (
             <div className="inline-flex items-center gap-0.5 text-zinc-600">
               <span className="material-symbols-outlined text-[12px]">location_on</span>
               <span className="font-label-caps text-[8px] uppercase tracking-[0.14em]">{city}</span>

@@ -5,7 +5,7 @@
  * SportSync write targets (see db-service):
  * - title            → events.title / tournaments.name (feed card)
  * - sportType        → sport + sport_type (icon / filter)
- * - category         → Event vs Tournament vs programKind routing
+ * - category         → Rýchle akcie kolónka (6 skupín: Eventy/Turnaje/Skupinové/Workshopy/Tábory/Krúžky)
  * - startTime/endTime/timeKnown → starts_at, start_time, end_time
  * - locationName     → venue_id resolve only (NOT shown raw on cards)
  * - city             → must resolve to Bratislava or event is skipped upstream
