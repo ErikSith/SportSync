@@ -15,6 +15,7 @@ import { RegisterButton } from '@/components/tournaments/RegisterButton';
 import { TournamentExternalCta } from '@/components/tournaments/TournamentExternalCta';
 import { formatAppDate, formatAppTime } from '@/lib/datetime/bratislava';
 import { ListingCover } from '@/components/shared/ListingCover';
+import { resolveTabCover } from '@/lib/media/sport-avatars';
 import { useT } from '@/components/i18n/LocaleProvider';
 
 const BRASS = '#c4a035';
@@ -90,7 +91,11 @@ export function TournamentPreviewModal({
 }: TournamentPreviewModalProps) {
   const t = useT();
   const titleId = useId();
-  const cover = tournament.coverUrl;
+  const cover = resolveTabCover({
+    tab: 'tournament',
+    sport: tournament.sport,
+    coverUrl: tournament.coverUrl,
+  });
   const status = statusMeta(tournament.status, t);
   const filled = tournament.currentParticipants;
   const max = Math.max(1, tournament.maxParticipants);

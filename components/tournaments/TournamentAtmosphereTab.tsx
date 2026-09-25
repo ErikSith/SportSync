@@ -5,6 +5,7 @@ import { MapPin } from 'lucide-react';
 import type { TournamentCardData } from '@/lib/data/tournaments';
 import { tournamentParticipationMode } from '@/lib/tournament-participation';
 import { isFormFactoryListing } from '@/lib/media/listing-cover';
+import { resolveTabCover } from '@/lib/media/sport-avatars';
 import { AtmosphereTabMedia } from '@/components/shared/AtmosphereTabMedia';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { TournamentPreviewModal } from '@/components/tournaments/TournamentPreviewModal';
@@ -69,8 +70,8 @@ export function TournamentAtmosphereTab({
   const t = useT();
   const [previewOpen, setPreviewOpen] = useState(false);
   // No stock facility / court photos until we have rights to show venue imagery.
-  // Missing cover → brand gradient only (AtmosphereTabMedia).
-  const cover = isFormFactoryListing({
+  // Missing cover → SportSync tab avatar for that sport (else brand gradient).
+  const listingCover = isFormFactoryListing({
     source: tournament.source,
     sourceUrl: tournament.sourceUrl,
     ticketUrl: tournament.ticketUrl,
@@ -80,6 +81,11 @@ export function TournamentAtmosphereTab({
   })
     ? null
     : tournament.coverUrl;
+  const cover = resolveTabCover({
+    tab: 'tournament',
+    sport: tournament.sport,
+    coverUrl: listingCover,
+  });
   const status = statusMeta(tournament.status, t);
   const venue = tournament.venueName ?? tournament.venueCity ?? 'Venue TBA';
   const filled = tournament.currentParticipants;
@@ -127,10 +133,10 @@ export function TournamentAtmosphereTab({
               />
             </div>
 
-            <div className="flex h-7 items-baseline gap-2 overflow-hidden">
+            <div className="flex h-7 max-w-[55%] items-baseline gap-2 overflow-hidden">
               <time
                 dateTime={tournament.startsAt.toISOString()}
-                className="shrink-0 font-headline-md text-[20px] leading-none tracking-[-0.02em] text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]"
+                className="shrink-0 font-headline-md text-[22px] leading-none tracking-[-0.03em] text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]"
               >
                 {formatDayHero(tournament.startsAt)}
               </time>
@@ -139,16 +145,16 @@ export function TournamentAtmosphereTab({
               </span>
             </div>
 
-            <h3 className="min-h-0 overflow-hidden font-headline-md text-[12px] font-semibold leading-[1.25] text-white/95 drop-shadow-[0_1px_6px_rgba(0,0,0,0.65)] transition-colors group-hover:text-[#e8d59a] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+            <h3 className="min-h-0 max-w-[55%] overflow-hidden font-headline-md text-[13px] font-semibold leading-[1.2] text-white drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)] transition-colors group-hover:text-[#e8d59a] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
               {tournament.name}
             </h3>
 
-            <p className="flex h-4 min-w-0 items-center gap-1 overflow-hidden font-body-md text-[11px] leading-none text-white/75 drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)]">
+            <p className="flex h-4 min-w-0 max-w-[55%] items-center gap-1 overflow-hidden font-body-md text-[11px] leading-none text-white/80 drop-shadow-[0_1px_6px_rgba(0,0,0,0.7)]">
               <MapPin className="h-3 w-3 shrink-0" style={{ color: BRASS }} strokeWidth={2.25} />
               <span className="min-w-0 truncate">{venue}</span>
             </p>
 
-            <div className="flex h-[28px] shrink-0 flex-col justify-end gap-1">
+            <div className="flex h-[28px] max-w-[55%] shrink-0 flex-col justify-end gap-1">
               {isSpectatorCup ? (
                 <div className="flex h-[28px] items-end justify-between gap-2">
                   <span className="shrink-0 font-label-caps text-[10px] uppercase tracking-[0.1em] leading-none text-[#e8d59a]">

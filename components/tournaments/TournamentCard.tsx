@@ -9,6 +9,7 @@ import { SportLabel } from '@/components/shared/SportLabel';
 import { TournamentPreviewModal } from '@/components/tournaments/TournamentPreviewModal';
 import { ListingCover } from '@/components/shared/ListingCover';
 import { formatAppDate } from '@/lib/datetime/bratislava';
+import { resolveTabCover } from '@/lib/media/sport-avatars';
 import { useT } from '@/components/i18n/LocaleProvider';
 
 /** Fixed grid tile — matches event carousel card footprint. */
@@ -47,7 +48,11 @@ function formatEntryFee(fee: number, freeText: string): string {
 export function TournamentCard({ tournament }: { tournament: TournamentCardData }) {
   const t = useT();
   const [previewOpen, setPreviewOpen] = useState(false);
-  const cover = tournament.coverUrl;
+  const cover = resolveTabCover({
+    tab: 'tournament',
+    sport: tournament.sport,
+    coverUrl: tournament.coverUrl,
+  });
   const formatLabel = FORMAT_LABELS[tournament.format] ?? tournament.format;
   const isLive = tournament.status === 'IN_PROGRESS';
   const tier = lobbyTierLabel(tournament.skillLevelMax ?? tournament.skillLevelMin);
