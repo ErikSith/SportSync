@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useT } from '@/components/i18n/LocaleProvider';
 import type { MessageKey } from '@/lib/i18n/messages';
@@ -73,7 +72,6 @@ export function AuthPanel({
   idPrefix = 'auth',
 }: AuthPanelProps) {
   const t = useT();
-  const router = useRouter();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -84,12 +82,27 @@ export function AuthPanel({
 
   function finishSuccess() {
     onSuccess?.();
-    // Hard navigation so mobile Safari keeps Set-Cookie session (soft push often drops it).
-    if (redirectTo) {
-      window.location.assign(redirectTo);
-      return;
+    // Always hard-navigate so Set-Cookie + browser setSession stick (soft
+    // refresh leaves useIsGuest / Safari client storage empty).
+    const target =
+      redirectTo ||
+      (typeof window !== 'undefined'
+        ? `${window.location.pathname}${window.location.search}` || '/'
+        : '/');
+    window.location.assign(target);
+  }
+
+  async function syncBrowserSession(accessToken?: string, refreshToken?: string) {
+    if (!accessToken || !refreshToken) return;
+    try {
+      const supabase = createClient();
+      await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+    } catch {
+      // Cookies from the API response still carry the session after hard nav.
     }
-    router.refresh();
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -110,6 +123,8 @@ export function AuthPanel({
           ok?: boolean;
           code?: string;
           error?: string;
+          accessToken?: string;
+          refreshToken?: string;
         };
 
         if (!res.ok || !payload.ok) {
@@ -118,6 +133,7 @@ export function AuthPanel({
           return;
         }
 
+        await syncBrowserSession(payload.accessToken, payload.refreshToken);
         setIsSubmitting(false);
         finishSuccess();
         return;
@@ -141,6 +157,8 @@ export function AuthPanel({
         ok?: boolean;
         code?: string;
         error?: string;
+        accessToken?: string;
+        refreshToken?: string;
       };
 
       if (!res.ok || !payload.ok) {
@@ -182,6 +200,7 @@ export function AuthPanel({
         return;
       }
 
+      await syncBrowserSession(payload.accessToken, payload.refreshToken);
       setIsSubmitting(false);
       finishSuccess();
     } catch {

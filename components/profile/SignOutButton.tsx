@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useT } from '@/components/i18n/LocaleProvider';
 
@@ -10,16 +9,27 @@ interface SignOutButtonProps {
 }
 
 export function SignOutButton({ flat = false }: SignOutButtonProps) {
-  const router = useRouter();
   const t = useT();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   async function handleSignOut() {
     setIsSigningOut(true);
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    try {
+      await fetch('/api/auth/signout', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+    } catch {
+      // Fall through to client sign-out + hard nav.
+    }
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch {
+      // Cookies may already be cleared by the API.
+    }
+    window.location.assign('/login');
   }
 
   if (flat) {

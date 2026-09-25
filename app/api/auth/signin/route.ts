@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { getSupabaseAnonEnv } from '@/lib/supabase/env';
+import { attachCookies, type CookieEntry } from '@/lib/auth/session-cookies';
 
 export const runtime = 'nodejs';
 
@@ -10,15 +11,6 @@ const signinSchema = z.object({
   email: z.string().email().max(254),
   password: z.string().min(1).max(72),
 });
-
-type CookieEntry = { name: string; value: string; options: CookieOptions };
-
-function attachCookies(response: NextResponse, pending: CookieEntry[]) {
-  for (const entry of pending) {
-    response.cookies.set(entry.name, entry.value, entry.options);
-  }
-  return response;
-}
 
 function mapSignInError(message: string): { status: number; code: string } {
   const lower = message.toLowerCase();
@@ -36,7 +28,8 @@ function mapSignInError(message: string): { status: number; code: string } {
 
 /**
  * Email/password sign-in with Set-Cookie on the response.
- * More reliable on mobile Safari than client-only cookie writes.
+ * Also returns access/refresh tokens so the browser client can `setSession`
+ * (Safari often keeps HTTP cookies but leaves the JS client empty).
  */
 export async function POST(request: Request) {
   const { url, anonKey, isConfigured } = getSupabaseAnonEnv();
@@ -80,7 +73,7 @@ export async function POST(request: Request) {
     });
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.user) {
+    if (error || !data.user || !data.session) {
       const mapped = mapSignInError(error?.message ?? 'signin_failed');
       return NextResponse.json(
         { error: error?.message ?? 'signin_failed', code: mapped.code },
@@ -88,7 +81,15 @@ export async function POST(request: Request) {
       );
     }
 
-    return attachCookies(NextResponse.json({ ok: true, userId: data.user.id }), pendingCookies);
+    return attachCookies(
+      NextResponse.json({
+        ok: true,
+        userId: data.user.id,
+        accessToken: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+      }),
+      pendingCookies,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'signin_failed';
     console.error('[api/auth/signin]', message);

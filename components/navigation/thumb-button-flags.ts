@@ -1,2 +1,2 @@
-/** Floating thumb launcher — on for player navigation. */
-export const THUMB_BUTTON_ENABLED = true;
+/** Floating thumb launcher — retired; use BackButton instead. */
+export const THUMB_BUTTON_ENABLED = false;

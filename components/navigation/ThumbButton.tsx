@@ -1,3 +1,2 @@
-'use client';
-
-export { ThumbLauncher as ThumbButton } from '@/components/navigation/ThumbLauncher';
+/** @deprecated Use BackButton — thumb launcher is retired. */
+export { BackButton as ThumbButton } from '@/components/navigation/BackButton';

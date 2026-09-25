@@ -6,6 +6,36 @@ import { isAuthBypassEnabled } from '@/lib/auth/demo-mode';
 import { loginHref, type LoginMode } from '@/lib/auth/login-href';
 
 /**
+ * If HTTP cookies hold a session but the browser client storage is empty
+ * (common on iOS / PWA after server Set-Cookie login), hydrate via the
+ * access-token bridge so UI treats the user as signed-in.
+ */
+async function hydrateSessionFromCookies(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/auth/access-token', {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (!res.ok) return false;
+    const body = (await res.json().catch(() => null)) as {
+      accessToken?: string | null;
+      refreshToken?: string | null;
+    } | null;
+    if (!body?.accessToken || !body.refreshToken) return false;
+
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.setSession({
+      access_token: body.accessToken,
+      refresh_token: body.refreshToken,
+    });
+    return !error && !!data.session?.user;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Guest = no Supabase session (browse-with-bypass).
  * While session is loading, treat as guest so profile CTAs don't flash the real profile.
  */
@@ -17,11 +47,23 @@ export function useIsGuest(): { isGuest: boolean; ready: boolean } {
     let cancelled = false;
     const supabase = createClient();
 
-    void supabase.auth.getUser().then(({ data }) => {
+    async function resolve() {
+      const { data } = await supabase.auth.getUser();
       if (cancelled) return;
-      setIsGuest(!data.user);
+
+      if (data.user) {
+        setIsGuest(false);
+        setReady(true);
+        return;
+      }
+
+      const hydrated = await hydrateSessionFromCookies();
+      if (cancelled) return;
+      setIsGuest(!hydrated);
       setReady(true);
-    });
+    }
+
+    void resolve();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsGuest(!session?.user);

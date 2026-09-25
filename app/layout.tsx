@@ -6,8 +6,7 @@ import {
 } from '@/lib/i18n/config';
 import { LocaleProvider } from '@/components/i18n/LocaleProvider';
 import { AuthModalProvider } from '@/components/auth/AuthModalProvider';
-import { ThumbLauncher } from '@/components/navigation/ThumbLauncher';
-import { THUMB_BUTTON_ENABLED } from '@/components/navigation/thumb-button-flags';
+import { BackButton } from '@/components/navigation/BackButton';
 import { ServiceWorkerRegister } from '@/components/pwa/ServiceWorkerRegister';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
@@ -61,19 +60,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body
-        className={[
-          'bg-background text-on-surface font-body-md min-h-dvh max-w-[100vw] overflow-x-clip',
-          'selection:bg-primary-container selection:text-white',
-          THUMB_BUTTON_ENABLED
-            ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]'
-            : 'pb-[env(safe-area-inset-bottom,0px)]',
-        ].join(' ')}
-      >
+      <body className="bg-background text-on-surface font-body-md min-h-dvh max-w-[100vw] overflow-x-clip pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] selection:bg-primary-container selection:text-white">
         <LocaleProvider initialLocale={locale}>
           <AuthModalProvider>
             {children}
-            <ThumbLauncher />
+            <BackButton />
             <ServiceWorkerRegister />
           </AuthModalProvider>
         </LocaleProvider>

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { isAuthBypassEnabled } from '@/lib/auth/demo-mode';
 import { getSupabaseAnonEnv } from '@/lib/supabase/env';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { hasValidServiceRoleKey } from '@/lib/db/service-role';
+import { attachCookies, type CookieEntry } from '@/lib/auth/session-cookies';
 
 // Node runtime: Edge often cannot read non-NEXT_PUBLIC secrets reliably,
 // which broke guest mint on phones (503 Guest auth unavailable → lobby 401).
@@ -14,15 +15,6 @@ type SessionPayload = {
   accessToken: string | null;
   refreshToken: string | null;
 };
-
-type CookieEntry = { name: string; value: string; options: CookieOptions };
-
-function attachCookies(response: NextResponse, pending: CookieEntry[]) {
-  for (const entry of pending) {
-    response.cookies.set(entry.name, entry.value, entry.options);
-  }
-  return response;
-}
 
 /**
  * Returns the caller's access/refresh tokens from HTTP cookies.

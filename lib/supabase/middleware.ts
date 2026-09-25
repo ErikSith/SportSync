@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { isAuthBypassEnabled } from '@/lib/auth/demo-mode';
 import { getSupabaseAnonEnv } from '@/lib/supabase/env';
+import { sanitizeCookieOptions } from '@/lib/auth/session-cookies';
 
 const PUBLIC_PATHS = ['/login', '/auth/callback'];
 
@@ -34,7 +35,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
+            supabaseResponse.cookies.set(name, value, sanitizeCookieOptions(options)),
           );
         },
       },

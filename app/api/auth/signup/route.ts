@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getSupabaseAnonEnv } from '@/lib/supabase/env';
 import { hasValidServiceRoleKey } from '@/lib/db/service-role';
 import { ensureProfileForUser } from '@/lib/auth/ensure-profile';
+import { attachCookies, type CookieEntry } from '@/lib/auth/session-cookies';
 
 export const runtime = 'nodejs';
 
@@ -21,15 +22,6 @@ const signupSchema = z.object({
   // Ignored — every self-serve signup is a player. Venue owners are granted in DB.
   role: z.string().optional(),
 });
-
-type CookieEntry = { name: string; value: string; options: CookieOptions };
-
-function attachCookies(response: NextResponse, pending: CookieEntry[]) {
-  for (const entry of pending) {
-    response.cookies.set(entry.name, entry.value, entry.options);
-  }
-  return response;
-}
 
 function mapSignupError(message: string): { status: number; code: string } {
   const lower = message.toLowerCase();
@@ -127,11 +119,14 @@ export async function POST(request: Request) {
       },
     });
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) {
+    const { data: signedIn, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (signInError || !signedIn.session) {
       return NextResponse.json(
         {
-          error: signInError.message,
+          error: signInError?.message ?? 'signin_after_signup_failed',
           code: 'signin_after_signup_failed',
           userId: created.user.id,
         },
@@ -140,7 +135,12 @@ export async function POST(request: Request) {
     }
 
     return attachCookies(
-      NextResponse.json({ ok: true, userId: created.user.id }),
+      NextResponse.json({
+        ok: true,
+        userId: created.user.id,
+        accessToken: signedIn.session.access_token,
+        refreshToken: signedIn.session.refresh_token,
+      }),
       pendingCookies,
     );
   } catch (error) {
