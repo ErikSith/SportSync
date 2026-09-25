@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { ShareQrButton } from '@/components/home/ShareQrButton';
 import { HomeFeedPreferencesAside } from '@/components/home/HomeFeedFilterButton';
 import { useT } from '@/components/i18n/LocaleProvider';
 import { useIsGuest } from '@/lib/auth/use-is-guest';
@@ -10,7 +9,7 @@ import { useAuthModal } from '@/components/auth/AuthModalProvider';
 interface TopAppBarProps {
   avatarUrl: string | null;
   name: string;
-  /** When set, shows GPS area control left of QR (homepage Rýchle akcie filter). */
+  /** When set, shows GPS area control (homepage Rýchle akcie filter). */
   city?: string;
 }
 
@@ -41,7 +40,6 @@ export function TopAppBar({ avatarUrl, name, city }: TopAppBarProps) {
     <header className="pointer-events-auto fixed left-0 right-0 top-0 z-[70] flex h-16 w-full max-w-[100vw] items-center justify-between border-b border-outline-variant/30 bg-surface/80 px-4 pt-[env(safe-area-inset-top,0px)] shadow-2xl shadow-black/50 backdrop-blur-xl sm:px-gutter">
       <div className="flex items-center gap-2">
         {city ? <HomeFeedPreferencesAside city={city} variant="icon" /> : null}
-        <ShareQrButton />
       </div>
       <Link
         href="/"
@@ -54,7 +52,7 @@ export function TopAppBar({ avatarUrl, name, city }: TopAppBarProps) {
         <button
           type="button"
           aria-label={t('nav.openProfile')}
-          onClick={() => openAuthModal({ mode: 'sign-up', redirectTo: '/profile' })}
+          onClick={() => openAuthModal({ mode: 'sign-in', redirectTo: '/profile' })}
           className={avatarClassName}
         >
           {avatarInner}

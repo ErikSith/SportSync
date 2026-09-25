@@ -8,7 +8,7 @@ export const EventCategoryEnum = z.enum([
   'PODUJATIE', // Eventy — /events
   'SKUPINOVE_CVICENIE', // Skupinové cvičenia — /skupinove-cvicenia
   'TURNAJ', // Turnaje — /tournaments
-  'WORKSHOP', // Workshopy — /programs
+  'WORKSHOP', // Workshopy — /workshopy
   'DETSKY_TABOR', // Tábory — /tabory
   'DETSKY_KRUZOK', // Krúžky — /kruzky
 ]);

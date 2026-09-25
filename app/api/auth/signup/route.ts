@@ -18,7 +18,8 @@ const signupSchema = z.object({
     .min(2)
     .max(40)
     .regex(/^[a-zA-Z0-9._-]+$/, 'Invalid username'),
-  role: z.enum(['player', 'coach', 'venue_owner']).default('player'),
+  // Ignored — every self-serve signup is a player. Venue owners are granted in DB.
+  role: z.string().optional(),
 });
 
 type CookieEntry = { name: string; value: string; options: CookieOptions };
@@ -84,7 +85,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: issue?.message ?? 'Invalid input', code }, { status: 400 });
   }
 
-  const { email, password, username, role } = parsed.data;
+  const { email, password, username } = parsed.data;
+  const role = 'player';
 
   try {
     const admin = createAdminClient();

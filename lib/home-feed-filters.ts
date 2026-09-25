@@ -253,7 +253,7 @@ export function summarizeHomeFeedFilters(
     parts.push(filters.type === 'official' ? 'Official events' : 'Community events');
   }
   if (filters.sports.length > 0) {
-    parts.push(filters.sports.map(sportDisplayLabel).join(' & '));
+    parts.push(filters.sports.map((sport) => sportDisplayLabel(sport)).join(' & '));
   }
   if (filters.venueIds.length > 0) {
     const names = filters.venueIds

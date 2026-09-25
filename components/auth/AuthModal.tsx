@@ -70,7 +70,7 @@ export function AuthModal({
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
           >
-            <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
+            <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-4 py-3">
               <p id={titleId} className="font-label-caps text-[10px] uppercase tracking-[0.14em] text-tertiary">
                 {mode === 'sign-up' ? t('login.signUp') : t('login.signIn')}
               </p>
@@ -78,13 +78,13 @@ export function AuthModal({
                 type="button"
                 onClick={onClose}
                 aria-label={t('common.close')}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-white/5 hover:text-on-surface"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-white/5 hover:text-on-surface"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <div className="overflow-y-auto overscroll-contain px-5 py-5 sm:px-6 sm:py-6">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6 sm:py-6">
               <AuthPanel
                 key={`${mode}-${redirectTo ?? 'stay'}-${open}`}
                 initialMode={mode}

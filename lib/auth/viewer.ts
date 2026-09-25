@@ -37,6 +37,7 @@ export function guestProfile(): Profile {
     isPhoneVerified: false,
     isEmailVerified: false,
     is2faEnabled: false,
+    createdAt: null,
   };
 }
 

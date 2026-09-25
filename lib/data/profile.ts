@@ -29,6 +29,7 @@ interface ProfileRow {
   is_phone_verified: boolean | null;
   is_email_verified: boolean | null;
   is_2fa_enabled: boolean | null;
+  created_at?: string | null;
 }
 
 export function mapProfile(row: ProfileRow): Profile {
@@ -54,6 +55,7 @@ export function mapProfile(row: ProfileRow): Profile {
     isPhoneVerified: row.is_phone_verified ?? false,
     isEmailVerified: row.is_email_verified ?? false,
     is2faEnabled: row.is_2fa_enabled ?? false,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
   };
 }
 

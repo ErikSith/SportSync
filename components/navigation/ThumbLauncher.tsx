@@ -46,16 +46,32 @@ const NAV_ITEMS: NavItem[] = [
     match: (p) => p === '/tournaments' || p.startsWith('/tournaments/'),
   },
   {
-    href: '/programs',
-    labelKey: 'nav.programs',
-    icon: 'camping',
+    href: '/skupinove-cvicenia',
+    labelKey: 'nav.schedules',
+    icon: 'fitness_center',
+    match: (p) => p === '/skupinove-cvicenia' || p.startsWith('/skupinove-cvicenia/'),
+  },
+  {
+    href: '/workshopy',
+    labelKey: 'nav.workshops',
+    icon: 'school',
     match: (p) =>
+      p === '/workshopy' ||
+      p.startsWith('/workshopy/') ||
       p === '/programs' ||
-      p.startsWith('/programs/') ||
-      p === '/tabory' ||
-      p.startsWith('/tabory/') ||
-      p === '/kruzky' ||
-      p.startsWith('/kruzky/'),
+      p.startsWith('/programs/'),
+  },
+  {
+    href: '/tabory',
+    labelKey: 'nav.camps',
+    icon: 'camping',
+    match: (p) => p === '/tabory' || p.startsWith('/tabory/'),
+  },
+  {
+    href: '/kruzky',
+    labelKey: 'nav.courses',
+    icon: 'menu_book',
+    match: (p) => p === '/kruzky' || p.startsWith('/kruzky/'),
   },
   {
     href: '/venues',
@@ -222,7 +238,10 @@ export function ThumbLauncher() {
                         if (needsAuthGate) {
                           e.preventDefault();
                           close();
-                          openAuthModal({ mode: 'sign-up', redirectTo: item.href });
+                          openAuthModal({
+                            mode: item.href === '/profile' ? 'sign-in' : 'sign-up',
+                            redirectTo: item.href,
+                          });
                           return;
                         }
                         if (item.match(pathname)) close();

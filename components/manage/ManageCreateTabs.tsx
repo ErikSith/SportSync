@@ -6,8 +6,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useT } from '@/components/i18n/LocaleProvider';
 import { ManageSection } from '@/components/manage/ManageNavList';
 import { LobbySchedulePicker } from '@/components/lobby/LobbySchedulePicker';
+import { SportTypeahead } from '@/components/manage/SportTypeahead';
 import type { OrganizerVenueOption } from '@/lib/data/organizer-venues';
-import { EVENT_SPORTS } from '@/lib/constants/sports';
+import { isEventSport } from '@/lib/constants/sports';
 import type { MessageKey } from '@/lib/i18n/messages';
 import { addCalendarDays, toDateKey } from '@/lib/event-date-filter';
 
@@ -20,6 +21,7 @@ type CreateChipId =
   | 'course';
 
 type AudienceKey = 'all' | 'women' | 'kids' | 'men';
+type ParticipationKey = 'participate' | 'spectator';
 
 interface CampSessionDraft {
   /** Local id for React keys — not persisted. */
@@ -72,6 +74,23 @@ const AUDIENCE_OPTIONS: Array<{ key: AudienceKey; labelKey: MessageKey }> = [
   { key: 'kids', labelKey: 'manage.form.audience.kids' },
 ];
 
+const PARTICIPATION_OPTIONS: Array<{
+  key: ParticipationKey;
+  labelKey: MessageKey;
+  hintKey: MessageKey;
+}> = [
+  {
+    key: 'participate',
+    labelKey: 'manage.form.participation.players',
+    hintKey: 'manage.form.participation.joinHint',
+  },
+  {
+    key: 'spectator',
+    labelKey: 'manage.form.participation.spectators',
+    hintKey: 'manage.form.participation.watchHint',
+  },
+];
+
 const fieldClass =
   'w-full rounded-lg border border-outline-variant/40 bg-surface-container-high px-3 py-2.5 font-body-md text-sm text-on-surface focus:border-secondary focus:outline-none';
 
@@ -93,6 +112,8 @@ interface ListingDraft {
   sport: string;
   date: string;
   time: string;
+  /** Optional last calendar day for multi-day workshops (YYYY-MM-DD). */
+  endDate: string;
   /** Owned venue id, or empty when using custom place text. */
   venueId: string;
   place: string;
@@ -100,6 +121,8 @@ interface ListingDraft {
   price: string;
   description: string;
   audience: AudienceKey;
+  /** Pripojiť sa (join) vs Sledovať (watch-only). */
+  participation: ParticipationKey;
   /** External page the app will deep-link / CTA to. */
   link: string;
   /** Camp turnusy — only used when kind === camp. */
@@ -108,15 +131,17 @@ interface ListingDraft {
 
 const EMPTY_DRAFT: ListingDraft = {
   title: '',
-  sport: 'PADEL',
+  sport: '',
   date: '',
   time: '',
+  endDate: '',
   venueId: '',
   place: '',
   placeMode: 'venue',
   price: '',
   description: '',
   audience: 'all',
+  participation: 'participate',
   link: '',
   sessions: [],
 };
@@ -124,10 +149,12 @@ const EMPTY_DRAFT: ListingDraft = {
 function freshDraft(venues: OrganizerVenueOption[], kind?: CreateChipId | null): ListingDraft {
   const primary = venues[0];
   const isCamp = kind === 'camp';
+  const today = toDateKey(new Date());
   return {
     ...EMPTY_DRAFT,
-    date: toDateKey(new Date()),
+    date: today,
     time: '18:00',
+    endDate: today,
     placeMode: primary ? 'venue' : 'custom',
     venueId: primary?.id ?? '',
     place: primary ? `${primary.name}, ${primary.city}` : '',
@@ -138,9 +165,76 @@ function freshDraft(venues: OrganizerVenueOption[], kind?: CreateChipId | null):
 
 interface ManageCreateTabsProps {
   venues: OrganizerVenueOption[];
+  editTarget?: { entityKind: 'event' | 'tournament'; id: string } | null;
+  onEditLoaded?: () => void;
+  onEditClear?: () => void;
 }
 
-export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
+type ListingApiPayload = {
+  ok?: boolean;
+  kind: 'event' | 'tournament';
+  createKind: CreateChipId;
+  id: string;
+  title: string;
+  sport: string;
+  date: string;
+  time: string;
+  endDate: string | null;
+  venueId: string | null;
+  place: string;
+  price: number;
+  description: string;
+  audience: AudienceKey;
+  participation: ParticipationKey;
+  link: string;
+  coverUrl?: string | null;
+  error?: string;
+};
+
+function stripPlaceSuffix(description: string): string {
+  return description.replace(/\n\nMiesto:\s*[^\n]*$/u, '').trim();
+}
+
+function draftFromListing(
+  listing: ListingApiPayload,
+  venues: OrganizerVenueOption[],
+): ListingDraft {
+  const venueId = listing.venueId ?? '';
+  const owned = venueId ? venues.find((v) => v.id === venueId) : undefined;
+  const placeMode: 'venue' | 'custom' = owned ? 'venue' : 'custom';
+  const endDate = listing.endDate && listing.endDate >= listing.date
+    ? listing.endDate
+    : listing.date;
+  const isCamp = listing.createKind === 'camp';
+
+  return {
+    title: listing.title,
+    sport: listing.sport,
+    date: listing.date,
+    time: listing.time || '09:00',
+    endDate,
+    venueId: owned ? owned.id : '',
+    place: owned
+      ? `${owned.name}, ${owned.city}`
+      : listing.place.trim(),
+    placeMode,
+    price: listing.price > 0 ? String(listing.price) : '',
+    description: stripPlaceSuffix(listing.description),
+    audience: listing.audience,
+    participation: listing.participation === 'spectator' ? 'spectator' : 'participate',
+    link: listing.link ?? '',
+    sessions: isCamp
+      ? [{ key: newSessionKey(), startDate: listing.date, endDate }]
+      : [],
+  };
+}
+
+export function ManageCreateTabs({
+  venues,
+  editTarget = null,
+  onEditLoaded,
+  onEditClear,
+}: ManageCreateTabsProps) {
   const t = useT();
   const router = useRouter();
   const [activeId, setActiveId] = useState<CreateChipId | null>(null);
@@ -148,6 +242,54 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{
+    entityKind: 'event' | 'tournament';
+    id: string;
+  } | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState(false);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [bannerCleared, setBannerCleared] = useState(false);
+
+  function resetBanner(nextUrl: string | null = null) {
+    setBannerPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return nextUrl;
+    });
+    setBannerFile(null);
+    setBannerCleared(false);
+  }
+
+  function pickBannerFile(file: File | null) {
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
+      setError(t('manage.form.bannerError'));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError(t('manage.form.bannerError'));
+      return;
+    }
+    setBannerPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setBannerFile(file);
+    setBannerCleared(false);
+    setError(null);
+    setNote(null);
+  }
+
+  function clearBanner() {
+    setBannerPreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setBannerFile(null);
+    setBannerCleared(true);
+    setError(null);
+    setNote(null);
+  }
 
   const visibleChips = useMemo(() => {
     if (!activeId) return CHIPS;
@@ -157,9 +299,15 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
 
   const activeChip = CHIPS.find((c) => c.id === activeId) ?? null;
   const isCamp = activeId === 'camp';
+  const isWorkshop = activeId === 'workshop';
+  /** Play vs watch only for oficiálny event / turnaj — programs stay Hrať. */
+  const showParticipation = activeId === 'event' || activeId === 'tournament';
+  const isEditing = Boolean(editing);
 
   useEffect(() => {
     // Keep draft venue in sync if owned venues load/change — never invent foreign ids.
+    // Skip while editing an existing listing (venue comes from the listing).
+    if (editing || loadingEdit) return;
     setDraft((prev) => {
       if (prev.placeMode === 'custom') return prev;
       if (prev.venueId && venues.some((v) => v.id === prev.venueId)) return prev;
@@ -174,16 +322,69 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
         place: `${primary.name}, ${primary.city}`,
       };
     });
-  }, [venues]);
+  }, [venues, editing, loadingEdit]);
+
+  useEffect(() => {
+    if (!editTarget) return;
+    let cancelled = false;
+
+    async function loadEdit() {
+      setLoadingEdit(true);
+      setError(null);
+      setNote(null);
+      try {
+        const res = await fetch(
+          `/api/manage/listings/${editTarget!.entityKind}/${editTarget!.id}`,
+        );
+        const body = (await res.json().catch(() => null)) as ListingApiPayload | null;
+        if (cancelled) return;
+        if (!res.ok || !body?.id) {
+          setError(body?.error ?? t('manage.edit.loadError'));
+          onEditLoaded?.();
+          onEditClear?.();
+          return;
+        }
+        setEditing({ entityKind: body.kind, id: body.id });
+        setActiveId(body.createKind);
+        setDraft(draftFromListing(body, venues));
+        resetBanner(body.coverUrl ?? null);
+        onEditLoaded?.();
+      } catch {
+        if (!cancelled) {
+          setError(t('manage.edit.loadError'));
+          onEditLoaded?.();
+          onEditClear?.();
+        }
+      } finally {
+        if (!cancelled) setLoadingEdit(false);
+      }
+    }
+
+    void loadEdit();
+    return () => {
+      cancelled = true;
+    };
+    // Only react to editTarget identity — venues captured at load time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTarget?.entityKind, editTarget?.id]);
+
+  function clearEditState() {
+    setEditing(null);
+    onEditClear?.();
+  }
 
   function selectChip(id: CreateChipId) {
     setError(null);
     setNote(null);
     if (activeId === id) {
       setActiveId(null);
+      clearEditState();
+      resetBanner(null);
       return;
     }
+    clearEditState();
     setDraft(freshDraft(venues, id));
+    resetBanner(null);
     setActiveId(id);
   }
 
@@ -290,14 +491,102 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
       setSaving(false);
       return;
     }
-    if (!usingVenue && !draft.place.trim()) {
+    if (!usingVenue && !draft.place.trim() && !(isEditing && !draft.venueId)) {
       setError(t('manage.form.placeRequired'));
+      setSaving(false);
+      return;
+    }
+
+    if (!isEventSport(draft.sport)) {
+      setError(t('manage.form.sportRequired'));
       setSaving(false);
       return;
     }
 
     const priceNum = draft.price.trim() ? Number(draft.price) : 0;
     const desc = draft.description.trim() || draft.title.trim();
+
+    let coverUrl: string | null | undefined = undefined;
+    if (bannerFile) {
+      const formData = new FormData();
+      formData.append('file', bannerFile);
+      const uploadRes = await fetch('/api/manage/listings/banner', {
+        method: 'POST',
+        body: formData,
+      });
+      const uploadBody = (await uploadRes.json().catch(() => null)) as {
+        error?: string;
+        coverUrl?: string;
+      } | null;
+      if (!uploadRes.ok || !uploadBody?.coverUrl) {
+        setError(uploadBody?.error ?? t('manage.form.bannerError'));
+        setSaving(false);
+        return;
+      }
+      coverUrl = uploadBody.coverUrl;
+    } else if (isEditing && bannerCleared) {
+      coverUrl = null;
+    }
+
+    if (isEditing && editing) {
+      const patchPayload: Record<string, unknown> = {
+        title: draft.title.trim(),
+        sport: draft.sport,
+        date: isCamp ? draft.sessions[0]?.startDate ?? draft.date : draft.date,
+        time: isCamp ? '09:00' : draft.time,
+        venueId: usingVenue ? draft.venueId : null,
+        place: usingVenue ? '' : draft.place.trim(),
+        price: Number.isFinite(priceNum) ? Math.max(0, priceNum) : 0,
+        description: desc,
+        audience: draft.audience,
+        participation: showParticipation ? draft.participation : 'participate',
+        link: draft.link.trim(),
+      };
+      if (coverUrl !== undefined) {
+        patchPayload.coverUrl = coverUrl;
+      }
+      if (isCamp) {
+        const session = draft.sessions[0];
+        if (session?.startDate) {
+          patchPayload.date = session.startDate;
+          patchPayload.endDate =
+            session.endDate && session.endDate >= session.startDate
+              ? session.endDate
+              : session.startDate;
+        }
+      } else if (isWorkshop && draft.endDate && draft.endDate >= draft.date) {
+        patchPayload.endDate = draft.endDate;
+      }
+
+      const res = await fetch(
+        `/api/manage/listings/${editing.entityKind}/${editing.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patchPayload),
+        },
+      );
+
+      const body = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+
+      setSaving(false);
+
+      if (!res.ok) {
+        setError(body?.error ?? t('manage.form.saveError'));
+        return;
+      }
+
+      setNote(t('manage.form.saved'));
+      setDraft(freshDraft(venues, null));
+      resetBanner(null);
+      setActiveId(null);
+      clearEditState();
+      router.refresh();
+      return;
+    }
+
     const payload: Record<string, unknown> = {
       kind: activeId,
       title: draft.title.trim(),
@@ -309,8 +598,12 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
       price: Number.isFinite(priceNum) ? Math.max(0, priceNum) : 0,
       description: desc,
       audience: draft.audience,
+      participation: showParticipation ? draft.participation : 'participate',
       link: draft.link.trim(),
     };
+    if (coverUrl) {
+      payload.coverUrl = coverUrl;
+    }
     if (isCamp) {
       payload.sessions = draft.sessions
         .filter((s) => s.startDate)
@@ -318,6 +611,8 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
           date: s.startDate,
           endDate: s.endDate && s.endDate >= s.startDate ? s.endDate : s.startDate,
         }));
+    } else if (isWorkshop && draft.endDate && draft.endDate >= draft.date) {
+      payload.endDate = draft.endDate;
     }
 
     const res = await fetch('/api/manage/listings', {
@@ -341,6 +636,7 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
 
     setNote(t('manage.form.saved'));
     setDraft(freshDraft(venues, null));
+    resetBanner(null);
     setActiveId(null);
     router.push(body.href);
     router.refresh();
@@ -389,7 +685,9 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
               className="mt-3 space-y-4 rounded-2xl border border-white/8 bg-surface-container p-4"
             >
               <p className="font-body-md text-sm text-on-surface-variant">
-                {t('manage.form.sharedHint', { type: t(activeChip.labelKey) })}
+                {isEditing
+                  ? t('manage.edit.formHint', { type: t(activeChip.labelKey) })
+                  : t('manage.form.sharedHint', { type: t(activeChip.labelKey) })}
               </p>
 
               <div className="space-y-1">
@@ -418,19 +716,48 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
                 >
                   {t('manage.form.sportType')}
                 </label>
-                <select
+                <SportTypeahead
                   id="manage-sport"
                   value={draft.sport}
-                  onChange={(e) => update('sport', e.target.value)}
+                  onChange={(sport) => update('sport', sport)}
                   className={fieldClass}
-                >
-                  {EVENT_SPORTS.map((sport) => (
-                    <option key={sport} value={sport}>
-                      {sport}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
+
+              {showParticipation ? (
+                <fieldset className="space-y-2">
+                  <legend className="font-label-caps text-[10px] uppercase tracking-wide text-on-surface-variant">
+                    {t('manage.form.participation')}
+                  </legend>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PARTICIPATION_OPTIONS.map((option) => {
+                      const selected = draft.participation === option.key;
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => update('participation', option.key)}
+                          className={[
+                            'inline-flex min-h-11 flex-col items-start justify-center rounded-xl border px-3 py-2.5',
+                            'text-left transition-colors',
+                            selected
+                              ? 'border-secondary/45 bg-secondary/15 text-secondary'
+                              : 'border-white/10 bg-surface-container-high text-on-surface-variant',
+                          ].join(' ')}
+                        >
+                          <span className="font-label-caps text-[10px] uppercase tracking-[0.08em]">
+                            {t(option.labelKey)}
+                          </span>
+                          <span className="mt-0.5 font-body-md text-[11px] leading-snug text-on-surface-variant">
+                            {t(option.hintKey)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              ) : null}
 
               {isCamp ? (
                 <fieldset className="space-y-2">
@@ -450,7 +777,7 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
                           <span className="font-label-caps text-[10px] uppercase tracking-[0.1em] text-teal-300/90">
                             {t('manage.form.turnusy')} {index + 1}
                           </span>
-                          {draft.sessions.length > 1 ? (
+                          {draft.sessions.length > 1 && !isEditing ? (
                             <button
                               type="button"
                               onClick={() => removeSession(session.key)}
@@ -502,7 +829,7 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
                       </li>
                     ))}
                   </ul>
-                  {draft.sessions.length < MAX_CAMP_SESSIONS ? (
+                  {draft.sessions.length < MAX_CAMP_SESSIONS && !isEditing ? (
                     <button
                       type="button"
                       onClick={addSession}
@@ -523,9 +850,41 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
                   <LobbySchedulePicker
                     date={draft.date}
                     time={draft.time}
-                    onDateChange={(date) => update('date', date)}
+                    onDateChange={(date) => {
+                      update('date', date);
+                      if (isWorkshop && (!draft.endDate || draft.endDate < date)) {
+                        update('endDate', date);
+                      }
+                    }}
                     onTimeChange={(time) => update('time', time)}
                   />
+                  {isWorkshop ? (
+                    <div className="space-y-1 pt-1">
+                      <label
+                        className="font-label-caps text-[10px] uppercase tracking-wide text-on-surface-variant"
+                        htmlFor="manage-workshop-end"
+                      >
+                        {t('manage.form.endDate')}
+                      </label>
+                      <input
+                        id="manage-workshop-end"
+                        type="date"
+                        min={draft.date || undefined}
+                        value={draft.endDate || draft.date}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          update(
+                            'endDate',
+                            draft.date && next < draft.date ? draft.date : next,
+                          );
+                        }}
+                        className={fieldClass}
+                      />
+                      <p className="font-body-md text-xs text-on-surface-variant">
+                        {t('manage.form.workshopRangeHint')}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               )}
 
@@ -674,12 +1033,79 @@ export function ManageCreateTabs({ venues }: ManageCreateTabsProps) {
                 />
               </div>
 
+              <div className="space-y-2">
+                <p className="font-label-caps text-[10px] uppercase tracking-wide text-on-surface-variant">
+                  {t('manage.form.banner')}
+                </p>
+                <p className="font-body-md text-xs text-on-surface-variant">
+                  {t('manage.form.bannerHint')}
+                </p>
+                {bannerPreview ? (
+                  <div className="overflow-hidden rounded-xl border border-white/10 bg-surface-container-high">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={bannerPreview}
+                      alt=""
+                      className="h-36 w-full object-cover"
+                    />
+                    <div className="flex gap-2 border-t border-white/8 p-2">
+                      <label className="inline-flex min-h-9 flex-1 cursor-pointer items-center justify-center rounded-full border border-white/12 bg-surface-container px-3 font-label-caps text-[10px] uppercase tracking-[0.1em] text-on-surface transition-transform active:scale-[0.98]">
+                        {t('manage.form.bannerChange')}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          className="sr-only"
+                          disabled={saving}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null;
+                            pickBannerFile(file);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={clearBanner}
+                        className="inline-flex min-h-9 flex-1 items-center justify-center rounded-full border border-white/12 px-3 font-label-caps text-[10px] uppercase tracking-[0.1em] text-on-surface-variant transition-transform active:scale-[0.98] hover:text-error"
+                      >
+                        {t('manage.form.bannerRemove')}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 bg-surface-container-high/50 px-3 font-label-caps text-[10px] uppercase tracking-[0.1em] text-on-surface-variant transition-colors hover:border-secondary/40 hover:text-secondary">
+                    <span className="material-symbols-outlined text-[18px]" aria-hidden>
+                      add_photo_alternate
+                    </span>
+                    {t('manage.form.banner')}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="sr-only"
+                      disabled={saving}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        pickBannerFile(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
               <button
                 type="submit"
                 disabled={saving}
                 className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-secondary/40 bg-secondary/15 font-label-caps text-[11px] uppercase tracking-[0.12em] text-secondary transition-transform active:scale-[0.98] disabled:opacity-50"
               >
-                {saving ? t('manage.form.saving') : t('manage.form.publish')}
+                {saving
+                  ? bannerFile
+                    ? t('manage.form.bannerUploading')
+                    : t('manage.form.saving')
+                  : isEditing
+                    ? t('manage.edit.save')
+                    : t('manage.form.publish')}
               </button>
 
               {error ? <p className="font-body-md text-xs text-error">{error}</p> : null}

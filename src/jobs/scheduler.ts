@@ -75,6 +75,6 @@ export function startScheduler(): void {
   });
 
   console.log(
-    '[scheduler] cron jobs registered (mercenary */5, housekeeping */10, midnight-sync 00:00 UTC purge+batch-scrape)',
+    '[scheduler] cron jobs registered (mercenary */5, housekeeping */10, midnight-sync 00:00 UTC purge; scrape only if SCRAPING_ENABLED)',
   );
 }

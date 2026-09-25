@@ -322,8 +322,8 @@ export function EventsFeed({
           <VenueSchedulesStack groups={playerFeed.venueGroupedSchedules} />
         ) : schedulesEmpty ? (
           <EmptyState
-            title={t('events.empty.schedulesTitle')}
-            subtitle={t('events.empty.schedulesSub')}
+            title={emptyTitle}
+            subtitle={emptySubtitle}
             tone="schedules"
           />
         ) : null

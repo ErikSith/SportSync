@@ -43,31 +43,31 @@ const BUCKET_COPY: Record<
 > = {
   event: {
     headline: 'Describe your event',
-    sub: 'Sport, date, pricing and capacity — we\'ll draft the listing and enable AI management.',
+    sub: 'Sport, date, pricing and capacity — lands in Rýchle akcie → Eventy after publish.',
     example:
       'Open padel clinic next Friday at 17:00, €15 entry, max 16 players, beginner-friendly. Promote to nearby padel players.',
   },
   group_class: {
     headline: 'Describe the group class',
-    sub: 'Weekly slot — lands in Skupinové cvičenia after publish.',
+    sub: 'Weekly slot — lands in Rýchle akcie → Skupinové cvičenia after publish.',
     example:
       'Pilates Midday every Tuesday at 18:00, €12, max 12 people, beginner friendly at our studio.',
   },
   camps: {
     headline: 'Describe the kids camp',
-    sub: 'Multi-day camp — lands in Programy → Tábory after publish.',
+    sub: 'Multi-day camp — lands in Rýchle akcie → Tábory after publish.',
     example:
       'Letný tábor padel 5.–9. júla, 9:00–15:00, €180, ages 8–14, max 20 kids.',
   },
   workshops: {
     headline: 'Describe the workshop',
-    sub: 'Masterclass / seminar — lands in Programy → Workshopy after publish.',
+    sub: 'Masterclass / seminar — lands in Rýchle akcie → Workshopy after publish.',
     example:
       'Workshop thajský box v sobotu 10:00–13:00, €45, max 16, intermediate.',
   },
   courses: {
     headline: 'Describe the club / course',
-    sub: 'Seasonal krúžok — lands in Programy → Krúžky after publish.',
+    sub: 'Seasonal krúžok — lands in Rýchle akcie → Krúžky after publish.',
     example:
       'Krúžok curling pre deti, september–jún, streda 16:00, €40/mesiac, ages 7–12.',
   },

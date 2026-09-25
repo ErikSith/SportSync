@@ -60,12 +60,14 @@ interface EventPreviewModalProps {
   event: EventCardData;
   open: boolean;
   onClose: () => void;
+  /** Optional resolved cover (e.g. SportSync workshop/tournament mascot). */
+  coverUrl?: string | null;
 }
 
-export function EventPreviewModal({ event, open, onClose }: EventPreviewModalProps) {
+export function EventPreviewModal({ event, open, onClose, coverUrl }: EventPreviewModalProps) {
   const t = useT();
   const titleId = useId();
-  const cover = event.coverUrl;
+  const cover = coverUrl !== undefined ? coverUrl : event.coverUrl;
   const isLive = event.status === 'live';
   const freeText = t('common.free');
   const typeBadge = isLive

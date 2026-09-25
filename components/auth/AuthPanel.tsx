@@ -31,6 +31,28 @@ function signupErrorMessage(
   }
 }
 
+function signInErrorMessage(
+  t: (key: MessageKey) => string,
+  code: string | undefined,
+  fallback?: string,
+): string {
+  switch (code) {
+    case 'invalid_credentials':
+    case 'signin_failed':
+      return t('login.error.signIn');
+    case 'email_not_confirmed':
+      return t('login.confirmEmail');
+    case 'rate_limit':
+      return t('login.error.rateLimit');
+    case 'invalid_email':
+      return t('login.error.invalidEmail');
+    case 'signin_unavailable':
+      return t('login.error.signupUnavailable');
+    default:
+      return fallback?.trim() || t('login.error.signIn');
+  }
+}
+
 export interface AuthPanelProps {
   initialMode?: AuthMode;
   /** Navigate here after auth. Omit / `null` to stay put. */
@@ -56,17 +78,18 @@ export function AuthPanel({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const [role, setRole] = useState<'player' | 'coach' | 'venue_owner'>('player');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function finishSuccess() {
+  function finishSuccess() {
     onSuccess?.();
-    router.refresh();
+    // Hard navigation so mobile Safari keeps Set-Cookie session (soft push often drops it).
     if (redirectTo) {
-      router.push(redirectTo);
+      window.location.assign(redirectTo);
+      return;
     }
+    router.refresh();
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -75,24 +98,44 @@ export function AuthPanel({
     setNotice(null);
     setIsSubmitting(true);
 
-    const supabase = createClient();
-
     if (mode === 'sign-in') {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      setIsSubmitting(false);
-      if (signInError) {
+      try {
+        const res = await fetch('/api/auth/signin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ email, password }),
+        });
+        const payload = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          code?: string;
+          error?: string;
+        };
+
+        if (!res.ok || !payload.ok) {
+          setIsSubmitting(false);
+          setError(signInErrorMessage(t, payload.code, payload.error));
+          return;
+        }
+
+        setIsSubmitting(false);
+        finishSuccess();
+        return;
+      } catch {
+        setIsSubmitting(false);
         setError(t('login.error.signIn'));
         return;
       }
-      await finishSuccess();
-      return;
     }
+
+    const supabase = createClient();
 
     try {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, username, role }),
+        credentials: 'same-origin',
+        body: JSON.stringify({ email, password, username, role: 'player' }),
       });
       const payload = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -108,7 +151,7 @@ export function AuthPanel({
             email,
             password,
             options: {
-              data: { username, role },
+              data: { username, role: 'player' },
               emailRedirectTo,
             },
           });
@@ -130,7 +173,7 @@ export function AuthPanel({
             setMode('sign-in');
             return;
           }
-          await finishSuccess();
+          finishSuccess();
           return;
         }
 
@@ -140,16 +183,30 @@ export function AuthPanel({
       }
 
       setIsSubmitting(false);
-      await finishSuccess();
+      finishSuccess();
     } catch {
       setIsSubmitting(false);
       setError(t('login.error.generic'));
     }
   }
 
+  const submitButton = (
+    <button
+      type="submit"
+      disabled={isSubmitting}
+      className="w-full rounded-lg bg-primary-container py-3.5 font-label-caps text-label-caps text-white transition-all hover:brightness-110 disabled:opacity-50 active:scale-[0.99]"
+    >
+      {isSubmitting
+        ? t('login.wait').toUpperCase()
+        : mode === 'sign-in'
+          ? t('login.submitIn').toUpperCase()
+          : t('login.submitUp').toUpperCase()}
+    </button>
+  );
+
   return (
     <div className={compact ? 'space-y-5' : 'space-y-6'}>
-      <div className="text-center space-y-2">
+      <div className="space-y-2 text-center">
         <h2
           className={[
             'font-display-lg tracking-tighter text-primary-container',
@@ -158,7 +215,7 @@ export function AuthPanel({
         >
           SPORTSYNC
         </h2>
-        <p className="font-label-caps text-label-caps text-tertiary uppercase tracking-widest">
+        <p className="font-label-caps text-label-caps uppercase tracking-widest text-tertiary">
           Apex Elite
         </p>
       </div>
@@ -167,7 +224,7 @@ export function AuthPanel({
         <button
           type="button"
           onClick={() => setMode('sign-in')}
-          className={`flex-1 py-2 font-label-caps text-label-caps transition-colors ${
+          className={`flex-1 py-2.5 font-label-caps text-label-caps transition-colors ${
             mode === 'sign-in'
               ? 'bg-primary-container text-white'
               : 'text-tertiary-container hover:bg-surface-container'
@@ -178,7 +235,7 @@ export function AuthPanel({
         <button
           type="button"
           onClick={() => setMode('sign-up')}
-          className={`flex-1 py-2 font-label-caps text-label-caps transition-colors ${
+          className={`flex-1 py-2.5 font-label-caps text-label-caps transition-colors ${
             mode === 'sign-up'
               ? 'bg-primary-container text-white'
               : 'text-tertiary-container hover:bg-surface-container'
@@ -192,19 +249,21 @@ export function AuthPanel({
         {mode === 'sign-up' && (
           <div className="space-y-1">
             <label
-              className="font-label-caps text-label-caps text-tertiary uppercase"
+              className="font-label-caps text-label-caps uppercase text-tertiary"
               htmlFor={`${idPrefix}-username`}
             >
               {t('login.username')}
             </label>
             <input
               id={`${idPrefix}-username`}
+              name="username"
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-t-lg border-b border-outline-variant/40 bg-surface-container px-3 py-2 font-body-md text-body-md text-on-surface focus:border-primary-container focus:outline-none"
+              className="w-full rounded-t-lg border-b border-outline-variant/40 bg-surface-container px-3 py-3 text-base text-on-surface focus:border-primary-container focus:outline-none"
               placeholder="marek"
               autoComplete="username"
+              enterKeyHint="next"
               pattern="[a-zA-Z0-9._\-]+"
               minLength={2}
               maxLength={40}
@@ -214,63 +273,50 @@ export function AuthPanel({
 
         <div className="space-y-1">
           <label
-            className="font-label-caps text-label-caps text-tertiary uppercase"
+            className="font-label-caps text-label-caps uppercase text-tertiary"
             htmlFor={`${idPrefix}-email`}
           >
             {t('login.email')}
           </label>
           <input
             id={`${idPrefix}-email`}
+            name="email"
             type="email"
+            inputMode="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-t-lg border-b border-outline-variant/40 bg-surface-container px-3 py-2 font-body-md text-body-md text-on-surface focus:border-primary-container focus:outline-none"
+            className="w-full rounded-t-lg border-b border-outline-variant/40 bg-surface-container px-3 py-3 text-base text-on-surface focus:border-primary-container focus:outline-none"
             placeholder="you@example.com"
             autoComplete="email"
+            enterKeyHint="next"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
           />
         </div>
 
         <div className="space-y-1">
           <label
-            className="font-label-caps text-label-caps text-tertiary uppercase"
+            className="font-label-caps text-label-caps uppercase text-tertiary"
             htmlFor={`${idPrefix}-password`}
           >
             {t('login.password')}
           </label>
           <input
             id={`${idPrefix}-password`}
+            name="password"
             type="password"
             required
             minLength={6}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-t-lg border-b border-outline-variant/40 bg-surface-container px-3 py-2 font-body-md text-body-md text-on-surface focus:border-primary-container focus:outline-none"
+            className="w-full rounded-t-lg border-b border-outline-variant/40 bg-surface-container px-3 py-3 text-base text-on-surface focus:border-primary-container focus:outline-none"
             placeholder="••••••••"
             autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
+            enterKeyHint="go"
           />
         </div>
-
-        {mode === 'sign-up' && (
-          <div className="space-y-1">
-            <label
-              className="font-label-caps text-label-caps text-tertiary uppercase"
-              htmlFor={`${idPrefix}-role`}
-            >
-              {t('login.iAm')}
-            </label>
-            <select
-              id={`${idPrefix}-role`}
-              value={role}
-              onChange={(e) => setRole(e.target.value as typeof role)}
-              className="w-full rounded-lg border border-outline-variant/40 bg-surface-container px-3 py-2 font-body-md text-body-md text-on-surface focus:border-primary-container focus:outline-none"
-            >
-              <option value="player">{t('login.player')}</option>
-              <option value="coach">{t('login.coach')}</option>
-              <option value="venue_owner">{t('login.venueOwner')}</option>
-            </select>
-          </div>
-        )}
 
         {authError === 'auth-callback-failed' && (
           <p className="font-body-md text-body-md text-error">{t('login.callbackFailed')}</p>
@@ -278,17 +324,12 @@ export function AuthPanel({
         {error && <p className="font-body-md text-body-md text-error">{error}</p>}
         {notice && <p className="font-body-md text-body-md text-secondary">{notice}</p>}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded-lg bg-primary-container py-3 font-label-caps text-label-caps text-white transition-all hover:brightness-110 disabled:opacity-50"
-        >
-          {isSubmitting
-            ? t('login.wait').toUpperCase()
-            : mode === 'sign-in'
-              ? t('login.submitIn').toUpperCase()
-              : t('login.submitUp').toUpperCase()}
-        </button>
+        {!compact ? submitButton : null}
+        {compact ? (
+          <div className="sticky bottom-0 -mx-1 border-t border-white/[0.06] bg-[#1a1919]/95 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md">
+            {submitButton}
+          </div>
+        ) : null}
       </form>
     </div>
   );

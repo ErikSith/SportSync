@@ -23,6 +23,7 @@ import {
   type TournamentCardData,
 } from '@/lib/data/tournaments';
 import { listingParticipationMode } from '@/lib/participation/fixture-match';
+import { tournamentParticipationMode } from '@/lib/tournament-participation';
 import { FEED_ACTIVE_GRACE_HOURS, activeFeedSinceIso } from '@/lib/retention/feed-window';
 import { lobbyActiveSinceIso } from '@/lib/retention/lobbies';
 import { toVenueHomepageUrl } from '@/lib/venues/homepage-url';
@@ -339,7 +340,7 @@ function tournamentToEventCard(
     venueId: tournament.venueId,
     venueName: tournament.venueName,
     themeConfig: { listingKind: 'tournament' },
-    participationMode: listingParticipationMode(tournament.name, 'participate'),
+    participationMode: tournamentParticipationMode(tournament),
     ticketUrl: tournament.ticketUrl,
     sourceUrl: tournament.sourceUrl,
     sourceName: null,

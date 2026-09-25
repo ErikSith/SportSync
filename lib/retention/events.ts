@@ -14,6 +14,21 @@ export const SCRAPED_EVENT_RETENTION_HOURS = 48;
 
 const DELETE_BATCH_SIZE = 200;
 
+/** Keep all Skupinové cvičenia — scraped (`class-*`) and manage-created. */
+function isGroupClassListing(row: {
+  external_id?: string | null;
+  theme_config?: unknown;
+}): boolean {
+  const externalId = (row.external_id ?? '').toLowerCase();
+  if (externalId.startsWith('class-')) return true;
+  const theme = row.theme_config;
+  if (theme && typeof theme === 'object' && theme !== null) {
+    const bucket = (theme as { listingBucket?: unknown }).listingBucket;
+    if (bucket === 'group_class') return true;
+  }
+  return false;
+}
+
 export interface CleanupExpiredEventsResult {
   deleted: number;
   deletedEvents: number;
@@ -30,15 +45,43 @@ async function deleteExpiredBatchSupabase(
   let deleted = 0;
 
   for (;;) {
-    let query = supabase.from(table).select('id').lt('starts_at', thresholdIso).limit(DELETE_BATCH_SIZE);
-
     if (table === 'events') {
-      query = query.eq('is_aggregated', true);
-    } else {
-      query = query.not('source', 'is', null);
+      // Exclude Skupinové cvičenia (`class-*` / `class-manage-*`) at query level
+      // so protected rows do not stall the batch cursor.
+      const { data: batch, error: selectError } = await supabase
+        .from('events')
+        .select('id, external_id, theme_config')
+        .eq('is_aggregated', true)
+        .lt('starts_at', thresholdIso)
+        .or('external_id.is.null,external_id.not.ilike.class-%')
+        .limit(DELETE_BATCH_SIZE);
+
+      if (selectError) {
+        throw new Error(`[RetentionEngine] events select failed: ${selectError.message}`);
+      }
+
+      const ids = (batch ?? [])
+        .filter((row) => !isGroupClassListing(row))
+        .map((row) => row.id as string);
+
+      if (ids.length === 0) break;
+
+      const { error: deleteError } = await supabase.from('events').delete().in('id', ids);
+      if (deleteError) {
+        throw new Error(`[RetentionEngine] events delete failed: ${deleteError.message}`);
+      }
+
+      deleted += ids.length;
+      if ((batch?.length ?? 0) < DELETE_BATCH_SIZE) break;
+      continue;
     }
 
-    const { data: batch, error: selectError } = await query;
+    const { data: batch, error: selectError } = await supabase
+      .from(table)
+      .select('id')
+      .lt('starts_at', thresholdIso)
+      .limit(DELETE_BATCH_SIZE)
+      .not('source', 'is', null);
 
     if (selectError) {
       throw new Error(`[RetentionEngine] ${table} select failed: ${selectError.message}`);
@@ -72,6 +115,8 @@ async function deleteExpiredViaPg(thresholdIso: string): Promise<{
        select id from events
        where is_aggregated = true
          and starts_at < $1::timestamptz
+         and coalesce(external_id, '') not ilike 'class-%'
+         and coalesce(theme_config->>'listingBucket', '') <> 'group_class'
        limit $2
      ),
      deleted as (
@@ -105,7 +150,7 @@ async function deleteExpiredViaPg(thresholdIso: string): Promise<{
 
 /**
  * Hard-delete expired scraped/aggregated events and tournaments past the retention window.
- * User-created rows are never removed here.
+ * User-created rows and Skupinové cvičenia (group classes) are never removed here.
  *
  * Uses `starts_at` (canonical) — scrapes rarely set a full end datetime.
  */

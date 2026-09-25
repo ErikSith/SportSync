@@ -22,6 +22,8 @@ export interface Profile {
   isPhoneVerified: boolean;
   isEmailVerified: boolean;
   is2faEnabled: boolean;
+  /** ISO timestamp when the account/profile row was created. */
+  createdAt: string | null;
 }
 
 export interface ProfileHeroStats {

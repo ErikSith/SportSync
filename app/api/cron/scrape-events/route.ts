@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isAuthorizedCron } from '@/lib/cron/authorize';
 import { scrapeSlotIndex, SCRAPE_ADAPTER_IDS } from '@/lib/scrape/adapter-registry';
+import { isScrapingEnabled } from '@/lib/scrape/scraping-enabled';
 import { runScrapeAdapterShard } from '@/lib/scrape/run';
 
 /** Cloudflare Pages / Workers — keep Edge; Node FS lives only in source-health-fs (scripts). */
@@ -19,6 +20,14 @@ export const maxDuration = 30;
  * Optional: ?slot=3  or  ?adapter=hc-slovan  (debug / manual)
  */
 export async function POST(request: Request) {
+  if (!isScrapingEnabled()) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: 'SCRAPING_ENABLED is off — venues publish via /manage',
+    });
+  }
+
   const cronOk = isAuthorizedCron(request);
 
   if (!cronOk) {

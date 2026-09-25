@@ -16,6 +16,8 @@ type TournamentParticipationFields = {
   ticketUrl: string | null;
   sourceUrl: string | null;
   source?: string | null;
+  /** Explicit mode from manage hub / mapper (wins over heuristics). */
+  participationMode?: ParticipationMode;
 };
 
 /**
@@ -26,6 +28,10 @@ type TournamentParticipationFields = {
  * spectator signal by itself.
  */
 export function tournamentParticipationMode(t: TournamentParticipationFields): ParticipationMode {
+  if (t.participationMode === 'spectator' || t.participationMode === 'participate') {
+    return t.participationMode;
+  }
+  if (t.description?.includes('[[ss:watch]]')) return 'spectator';
   return resolveParticipationMode({
     title: t.name,
     description: t.description,

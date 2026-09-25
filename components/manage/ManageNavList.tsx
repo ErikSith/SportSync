@@ -10,6 +10,9 @@ export interface ManageNavItem {
   /** Soft accent on the icon tile (defaults to secondary / organizer). */
   accent?: 'secondary' | 'primary' | 'programs';
   comingSoon?: boolean;
+  /** Inline edit — opens the matching quick-action form on the manage hub. */
+  onEdit?: () => void;
+  editBusy?: boolean;
 }
 
 const ACCENT_TILE: Record<NonNullable<ManageNavItem['accent']>, string> = {
@@ -21,19 +24,24 @@ const ACCENT_TILE: Record<NonNullable<ManageNavItem['accent']>, string> = {
 interface ManageNavListProps {
   items: ManageNavItem[];
   comingSoonLabel: string;
+  editLabel?: string;
 }
 
 /** Profile-style stacked rows for manage hub actions / venues / upcoming. */
-export function ManageNavList({ items, comingSoonLabel }: ManageNavListProps) {
+export function ManageNavList({
+  items,
+  comingSoonLabel,
+  editLabel = 'Upraviť',
+}: ManageNavListProps) {
   return (
     <nav className="overflow-hidden rounded-2xl border border-white/8 bg-surface-container">
       {items.map((item, index) => {
         const tile = ACCENT_TILE[item.accent ?? 'secondary'];
-        const rowClass = `flex min-h-[56px] items-center gap-3 px-4 py-3 transition-colors ${
+        const rowClass = `flex min-h-[56px] items-center gap-2 px-3 py-3 transition-colors sm:gap-3 sm:px-4 ${
           index > 0 ? 'border-t border-white/6' : ''
         }`;
 
-        const inner = (
+        const body = (
           <>
             <span
               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tile}`}
@@ -55,28 +63,49 @@ export function ManageNavList({ items, comingSoonLabel }: ManageNavListProps) {
                 {item.hint}
               </span>
             </span>
-            <span className="material-symbols-outlined text-on-surface-variant/70">
-              {!item.href ? 'schedule' : 'chevron_right'}
-            </span>
           </>
         );
+
+        const editButton = item.onEdit ? (
+          <button
+            type="button"
+            aria-label={`${editLabel}: ${item.label}`}
+            title={editLabel}
+            disabled={item.editBusy}
+            onClick={item.onEdit}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-on-surface-variant transition-colors hover:border-secondary/35 hover:bg-secondary/10 hover:text-secondary active:scale-[0.96] disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-[20px]" aria-hidden>
+              {item.editBusy ? 'progress_activity' : 'edit'}
+            </span>
+          </button>
+        ) : null;
 
         if (!item.href) {
           return (
             <div key={item.key} className={`${rowClass} opacity-70`} aria-disabled>
-              {inner}
+              {body}
+              {editButton}
+              <span className="material-symbols-outlined text-on-surface-variant/70">
+                schedule
+              </span>
             </div>
           );
         }
 
         return (
-          <Link
-            key={item.key}
-            href={item.href}
-            className={`${rowClass} active:bg-white/5`}
-          >
-            {inner}
-          </Link>
+          <div key={item.key} className={rowClass}>
+            <Link
+              href={item.href}
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-0.5 transition-colors active:bg-white/5"
+            >
+              {body}
+              <span className="material-symbols-outlined shrink-0 text-on-surface-variant/70">
+                chevron_right
+              </span>
+            </Link>
+            {editButton}
+          </div>
         );
       })}
     </nav>

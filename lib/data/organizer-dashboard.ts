@@ -36,8 +36,9 @@ export async function getOrganizerUpcomingContent(profileId: string): Promise<Or
   const items: OrganizerContentItem[] = [];
 
   for (const row of eventsResult.data ?? []) {
+    const id = row.id as string;
     items.push({
-      id: row.id as string,
+      id,
       kind: 'event',
       title: row.title as string,
       sport: row.sport as string,
@@ -48,8 +49,9 @@ export async function getOrganizerUpcomingContent(profileId: string): Promise<Or
   }
 
   for (const row of tournamentsResult.data ?? []) {
+    const id = row.id as string;
     items.push({
-      id: row.id as string,
+      id,
       kind: 'tournament',
       title: row.name as string,
       sport: row.sport as string,

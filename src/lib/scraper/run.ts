@@ -30,6 +30,7 @@ import {
   recordUrlResult,
   shouldSkipUrl,
 } from '@/lib/scrape/source-health';
+import { isScrapingEnabled } from '@/lib/scrape/scraping-enabled';
 import { scrapeVenuePage } from './scrape-venue-page';
 
 export interface VenueScrapeTarget {
@@ -280,6 +281,16 @@ async function resolveTargets(options: RunScraperOptions): Promise<VenueScrapeTa
 export async function runGeminiScraper(
   options: RunScraperOptions = {},
 ): Promise<ScraperRunReport> {
+  if (!isScrapingEnabled()) {
+    console.log('[scraper] skipped — SCRAPING_ENABLED is off (venues publish via /manage)');
+    return {
+      dryRun: options.dryRun ?? false,
+      urls: 0,
+      extracted: 0,
+      upsert: emptyUpsert(),
+      results: [],
+    };
+  }
   const dryRun =
     options.dryRun ?? parseBool(process.env.SCRAPER_DRY_RUN, false);
   const limit =

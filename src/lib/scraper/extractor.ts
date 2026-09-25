@@ -157,7 +157,7 @@ MAPA POLÍ → SportSync (kam čo ide — nič iné do týchto polí):
   | PODUJATIE           | Eventy                 | /events                  |
   | TURNAJ              | Turnaje                | /tournaments             |
   | SKUPINOVE_CVICENIE  | Skupinové cvičenia     | /skupinove-cvicenia      |
-  | WORKSHOP            | Workshopy              | /programs                |
+  | WORKSHOP            | Workshopy              | /workshopy               |
   | DETSKY_TABOR        | Tábory                 | /tabory                  |
   | DETSKY_KRUZOK       | Krúžky                 | /kruzky                  |
   Zlé category = zlá dlaždica. NIKDY nepoužívaj sportType ani title na routovanie do týchto skupín.

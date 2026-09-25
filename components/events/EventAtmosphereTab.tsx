@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { MapPin } from 'lucide-react';
 import type { EventCardData } from '@/lib/data/events';
 import { isFormFactoryListing } from '@/lib/media/listing-cover';
+import { isSportAvatarUrl, resolveTabCover, type SportAvatarTab } from '@/lib/media/sport-avatars';
 import { AtmosphereTabMedia } from '@/components/shared/AtmosphereTabMedia';
 import { SportLabel } from '@/components/shared/SportLabel';
 import { EventPreviewModal } from '@/components/events/EventPreviewModal';
@@ -46,6 +47,11 @@ interface EventAtmosphereTabProps {
   layout?: 'rail' | 'fill';
   /** Visual accent — programs pages use teal to match BrandAppBar. */
   accent?: 'events' | 'programs';
+  /**
+   * Which SportSync mascot pack to use (Tournament / Event / Workshop folders).
+   * Defaults to `event`. Programs → Workshopy should pass `workshop`.
+   */
+  avatarTab?: SportAvatarTab;
 }
 
 const ACCENT = {
@@ -76,12 +82,20 @@ export function EventAtmosphereTab({
   index: _index = 0,
   layout = 'rail',
   accent = 'events',
+  avatarTab,
 }: EventAtmosphereTabProps) {
   const t = useT();
   const [previewOpen, setPreviewOpen] = useState(false);
   const a = ACCENT[accent];
-  // No Unsplash court/venue stand-ins — only an explicit cover or a neutral gradient.
-  const cover = isFormFactoryListing(event) ? null : event.coverUrl;
+  const tab: SportAvatarTab = avatarTab ?? 'event';
+  // No Unsplash court/venue stand-ins — mascot when shipped for this tab, else cover / gradient.
+  const listingCover = isFormFactoryListing(event) ? null : event.coverUrl;
+  const cover = resolveTabCover({
+    tab,
+    sport: event.sport,
+    coverUrl: listingCover,
+  });
+  const hasAvatar = isSportAvatarUrl(cover);
   const free = isFreeEvent(event);
   const venue = event.venueName ?? event.city;
   const timeKnown = event.timeKnown !== false;
@@ -93,6 +107,7 @@ export function EventAtmosphereTab({
       ? `w-full ${EVENT_TAB_FILL_H}`
       : `${EVENT_TAB_RAIL_W} ${EVENT_TAB_H} shrink-0 snap-start`;
   const price = priceLabel(event, t('common.free'));
+  const textMax = hasAvatar ? 'max-w-[55%]' : '';
 
   return (
     <>
@@ -118,7 +133,7 @@ export function EventAtmosphereTab({
           <AtmosphereTabMedia src={cover} wash={a.wash} />
 
           <div className="relative z-10 grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] gap-1.5">
-            <div className="flex h-4 items-center gap-1.5 overflow-hidden">
+            <div className={`flex h-4 items-center gap-1.5 overflow-hidden ${textMax}`}>
               {timeKnown ? (
                 <span
                   className={`shrink-0 font-label-caps text-[9px] uppercase tracking-[0.14em] leading-none drop-shadow-[0_1px_4px_rgba(0,0,0,0.65)] ${a.soft}`}
@@ -150,7 +165,7 @@ export function EventAtmosphereTab({
               dateTime={
                 timeKnown ? startsAt.toISOString() : startsAt.toISOString().slice(0, 10)
               }
-              className="flex h-7 sm:h-8 items-center overflow-hidden font-headline-md text-[22px] sm:text-[26px] leading-none tracking-[-0.03em] text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]"
+              className={`flex h-7 sm:h-8 items-center overflow-hidden font-headline-md text-[22px] sm:text-[26px] leading-none tracking-[-0.03em] text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)] ${textMax}`}
             >
               {timeKnown
                 ? formatStartTime(startsAt)
@@ -163,17 +178,20 @@ export function EventAtmosphereTab({
                 'drop-shadow-[0_1px_6px_rgba(0,0,0,0.65)] transition-colors',
                 '[display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]',
                 a.titleHover,
+                textMax,
               ].join(' ')}
             >
               {event.title}
             </h3>
 
-            <p className="flex h-4 min-w-0 items-center gap-1 overflow-hidden font-body-md text-[11px] leading-none text-white/75 drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)]">
+            <p
+              className={`flex h-4 min-w-0 items-center gap-1 overflow-hidden font-body-md text-[11px] leading-none text-white/75 drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)] ${textMax}`}
+            >
               <MapPin className={`h-3 w-3 shrink-0 ${a.pin}`} strokeWidth={2.25} />
               <span className="min-w-0 truncate">{venue}</span>
             </p>
 
-            <div className="flex h-4 shrink-0 items-center overflow-hidden">
+            <div className={`flex h-4 shrink-0 items-center overflow-hidden ${textMax}`}>
               <span
                 className={`font-label-caps text-[10px] uppercase tracking-[0.12em] leading-none drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)] ${
                   free ? a.soft : a.strong
@@ -190,6 +208,7 @@ export function EventAtmosphereTab({
         event={event}
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
+        coverUrl={cover}
       />
     </>
   );

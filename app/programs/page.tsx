@@ -1,8 +1,5 @@
 import { redirect } from 'next/navigation';
-import {
-  ProgramsBucketPage,
-  type ProgramsBucketSearchParams,
-} from '@/app/programs/programs-bucket-page';
+import type { ProgramsBucketSearchParams } from '@/app/programs/programs-bucket-page';
 
 export const runtime = 'edge';
 
@@ -10,35 +7,29 @@ interface ProgramsPageProps {
   searchParams: ProgramsBucketSearchParams & { tab?: string };
 }
 
-/** Workshopy — camps → /tabory, courses → /kruzky. */
+function qsWithoutTab(searchParams: ProgramsPageProps['searchParams']): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (key === 'tab' || value == null || value === '') continue;
+    params.set(key, String(value));
+  }
+  return params.toString();
+}
+
+/**
+ * Legacy /programs — workshops live at /workshopy.
+ * Old ?tab=camps|courses still redirect to /tabory|/kruzky.
+ */
 export default async function ProgramsPage({ searchParams }: ProgramsPageProps) {
   if (searchParams.tab === 'camps') {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(searchParams)) {
-      if (key === 'tab' || value == null || value === '') continue;
-      params.set(key, String(value));
-    }
-    const qs = params.toString();
+    const qs = qsWithoutTab(searchParams);
     redirect(qs ? `/tabory?${qs}` : '/tabory');
   }
   if (searchParams.tab === 'courses') {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(searchParams)) {
-      if (key === 'tab' || value == null || value === '') continue;
-      params.set(key, String(value));
-    }
-    const qs = params.toString();
+    const qs = qsWithoutTab(searchParams);
     redirect(qs ? `/kruzky?${qs}` : '/kruzky');
   }
 
-  return (
-    <ProgramsBucketPage
-      searchParams={searchParams}
-      bucket="workshops"
-      pageKey="programs"
-      eyebrowKey="programs.eyebrow"
-      titleKey="programs.title"
-      subtitleKey="programs.subtitle"
-    />
-  );
+  const qs = qsWithoutTab(searchParams);
+  redirect(qs ? `/workshopy?${qs}` : '/workshopy');
 }

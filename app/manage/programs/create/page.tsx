@@ -1,11 +1,8 @@
 import { redirect } from 'next/navigation';
-import { getPageViewer } from '@/lib/auth/viewer';
-import { SetupNotice } from '@/components/i18n/SetupNotice';
-import { canAccessManageHub } from '@/lib/auth/tournament-access';
-import { getVenuesForOrganizer } from '@/lib/data/organizer-venues';
-import { VenueEventCreator } from '@/components/events/VenueEventCreator';
-import { programKindToListingBucket } from '@/lib/manage/listing-bucket';
-import { loginHref } from '@/lib/auth/login-href';
+import {
+  manageListingCreatePath,
+  programKindToListingBucket,
+} from '@/lib/manage/listing-bucket';
 
 export const runtime = 'edge';
 
@@ -14,34 +11,13 @@ interface CreateProgramPageProps {
 }
 
 /**
- * Kids camps / workshops / courses — same Event Factory as official events,
- * with listingBucket so theme_config.programKind lands on /programs.
+ * Legacy /manage/programs/create — redirects to per-hub Rýchle akcie create routes.
  */
 export default async function CreateProgramPage({ searchParams }: CreateProgramPageProps) {
-  const viewer = await getPageViewer();
-  if (viewer.status === 'setup') {
-    return <SetupNotice />;
-  }
-
-  if (viewer.isGuest) {
-    redirect(loginHref('/manage/programs/create', { mode: 'sign-up' }));
-  }
-
-  if (!canAccessManageHub(viewer.profile.role)) {
-    redirect('/');
-  }
-
-  const venues = await getVenuesForOrganizer(viewer.profile.id, viewer.profile.role);
-  const listingBucket = programKindToListingBucket(searchParams.kind);
-
-  return (
-    <VenueEventCreator
-      defaultCity={viewer.profile.city}
-      organizerName={viewer.profile.fullName ?? viewer.profile.username}
-      role={viewer.profile.role}
-      venues={venues}
-      initialVenueId={searchParams.venueId ?? null}
-      listingBucket={listingBucket}
-    />
-  );
+  const bucket = programKindToListingBucket(searchParams.kind);
+  const base = manageListingCreatePath(bucket);
+  const params = new URLSearchParams();
+  if (searchParams.venueId) params.set('venueId', searchParams.venueId);
+  const qs = params.toString();
+  redirect(qs ? `${base}?${qs}` : base);
 }

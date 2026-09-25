@@ -5,6 +5,8 @@ import { activeFeedSinceIso, isListingStillActive } from '@/lib/retention/feed-w
 import { titleIsOutsideBratislava, isBratislavaCity } from '@/lib/cities';
 import { looksLikeNavOrSectionTitle } from '@/lib/feed/group-class';
 import { titleLooksLikeHeadToHeadFixture } from '@/lib/participation/fixture-match';
+import { stripManageWatchMarker } from '@/lib/manage/listing-bucket';
+import type { ParticipationMode } from '@/lib/data/events';
 
 export interface TournamentCardData {
   id: string;
@@ -37,6 +39,11 @@ export interface TournamentCardData {
   forKids: boolean;
   /** Women-only tournament. */
   forWomen: boolean;
+  /**
+   * When set (manage hub watch listings), feed tabs honor this over title heuristics.
+   * Omit / undefined → resolve from title, URLs, description.
+   */
+  participationMode?: ParticipationMode;
 }
 
 export interface TournamentDetailData extends TournamentCardData {
@@ -124,10 +131,15 @@ function isUpcomingTournamentRow(row: TournamentRow, now = new Date()): boolean 
 
 function mapTournamentRow(row: TournamentRow): TournamentCardData {
   const venue = resolveVenue(row.venues);
+  const rawDescription = row.description;
+  const watchMarked = Boolean(rawDescription?.includes('[[ss:watch]]'));
+  const description = rawDescription
+    ? stripManageWatchMarker(rawDescription).description || null
+    : null;
   return {
     id: row.id,
     name: row.name,
-    description: row.description,
+    description,
     sport: row.sport,
     format: row.format,
     status: row.status,
@@ -160,6 +172,7 @@ function mapTournamentRow(row: TournamentRow): TournamentCardData {
     isAggregated: Boolean(row.source),
     forKids: Boolean(row.for_kids),
     forWomen: Boolean(row.for_women),
+    ...(watchMarked ? { participationMode: 'spectator' as const } : {}),
   };
 }
 

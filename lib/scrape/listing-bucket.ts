@@ -7,7 +7,7 @@
  * | PODUJATIE              | Eventy                  | /events             | event                  |
  * | TURNAJ                 | Turnaje                 | /tournaments        | tournament             |
  * | SKUPINOVE_CVICENIE     | Skupinové cvičenia      | /skupinove-cvicenia | group_class            |
- * | WORKSHOP               | Workshopy               | /programs           | program (workshop)     |
+ * | WORKSHOP               | Workshopy               | /workshopy          | program (workshop)     |
  * | DETSKY_TABOR           | Tábory                  | /tabory             | program (camp)         |
  * | DETSKY_KRUZOK          | Krúžky                  | /kruzky             | program (course)       |
  * | —                      | —                       | —                   | skip (news / chrome)   |
@@ -15,7 +15,7 @@
  * Eventy = unusual one-day happenings (marathon, Red Bull night, festival) + A vs B watch fixtures.
  * Turnaje = open-entry cups / championships (not A vs B spectator fixtures).
  * Skupinové = repeating studio/venue schedule slots.
- * Workshopy / Tábory / Krúžky = three distinct program hubs (not one dump bucket).
+ * Workshopy / Tábory / Krúžky = three distinct Rýchle akcie hubs (not one programs dump).
  */
 import {
   looksLikeNavOrSectionTitle,

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { getPageViewer } from '@/lib/auth/viewer';
 import { SetupNotice } from '@/components/i18n/SetupNotice';
@@ -6,8 +7,10 @@ import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { getOwnedVenuesForProfile } from '@/lib/data/organizer-venues';
 import { getOrganizerUpcomingContent } from '@/lib/data/organizer-dashboard';
 import { TopAppBar } from '@/components/home/TopAppBar';
-import { ManageCreateTabs } from '@/components/manage/ManageCreateTabs';
-import { ManageNavList, ManageSection, type ManageNavItem } from '@/components/manage/ManageNavList';
+import {
+  ManageHubBody,
+  type ManageUpcomingRow,
+} from '@/components/manage/ManageHubBody';
 import { t } from '@/lib/i18n/server';
 import { loginHref } from '@/lib/auth/login-href';
 
@@ -52,26 +55,30 @@ export default async function ManagePage() {
         ? venues[0]!.name
         : `${venues[0]!.name} · +${venues.length - 1}`;
   const soon = t('common.comingSoon');
+  const upcomingEmpty = upcoming.length === 0;
 
-  const upcomingItems: ManageNavItem[] =
-    upcoming.length === 0
-      ? [
-          {
-            key: 'upcoming-empty',
-            icon: 'upcoming',
-            label: t('manage.upcomingEmpty'),
-            hint: t('manage.upcomingEmptyHint'),
-            accent: 'primary',
-          },
-        ]
-      : upcoming.map((item) => ({
-          key: `${item.kind}-${item.id}`,
-          href: item.href,
-          icon: item.kind === 'tournament' ? 'emoji_events' : 'event',
-          label: item.title,
-          hint: `${item.kind} · ${item.sport} · ${formatDateTime(item.startsAt)}`,
-          accent: item.kind === 'tournament' ? ('secondary' as const) : ('primary' as const),
-        }));
+  const upcomingItems: ManageUpcomingRow[] = upcomingEmpty
+    ? [
+        {
+          key: 'upcoming-empty',
+          entityKind: 'event',
+          entityId: '',
+          icon: 'upcoming',
+          label: t('manage.upcomingEmpty'),
+          hint: t('manage.upcomingEmptyHint'),
+          accent: 'primary',
+        },
+      ]
+    : upcoming.map((item) => ({
+        key: `${item.kind}-${item.id}`,
+        href: item.href,
+        entityKind: item.kind,
+        entityId: item.id,
+        icon: item.kind === 'tournament' ? 'emoji_events' : 'event',
+        label: item.title,
+        hint: `${item.kind} · ${item.sport} · ${formatDateTime(item.startsAt)}`,
+        accent: item.kind === 'tournament' ? ('secondary' as const) : ('primary' as const),
+      }));
 
   return (
     <>
@@ -101,11 +108,20 @@ export default async function ManagePage() {
           </div>
         </div>
 
-        <ManageCreateTabs venues={venues} />
-
-        <ManageSection title={t('manage.section.upcoming')}>
-          <ManageNavList items={upcomingItems} comingSoonLabel={soon} />
-        </ManageSection>
+        <Suspense
+          fallback={
+            <div className="h-24 animate-pulse rounded-2xl border border-white/8 bg-surface-container" />
+          }
+        >
+          <ManageHubBody
+            venues={venues}
+            upcomingItems={upcomingItems}
+            upcomingEmpty={upcomingEmpty}
+            comingSoonLabel={soon}
+            editLabel={t('manage.edit.action')}
+            upcomingTitle={t('manage.section.upcoming')}
+          />
+        </Suspense>
       </main>
     </>
   );

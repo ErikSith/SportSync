@@ -60,7 +60,11 @@ export async function purgePastListings(now = new Date()): Promise<MidnightPurge
   await prisma.sportGroupActivity.updateMany({
     where: {
       eventId: { not: null },
-      event: { isAggregated: true, startsAt: { lt: expiration } },
+      event: {
+        isAggregated: true,
+        startsAt: { lt: expiration },
+        OR: [{ externalId: null }, { NOT: { externalId: { startsWith: 'class-' } } }],
+      },
     },
     data: { eventId: null },
   });
@@ -69,6 +73,7 @@ export async function purgePastListings(now = new Date()): Promise<MidnightPurge
     where: {
       isAggregated: true,
       startsAt: { lt: expiration },
+      OR: [{ externalId: null }, { NOT: { externalId: { startsWith: 'class-' } } }],
     },
   });
 

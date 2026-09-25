@@ -123,6 +123,44 @@ export const EVENT_SPORT_LABELS: Record<EventSport, string> = {
   OTHER: 'Iné',
 };
 
+/** English labels for pickers when UI locale is `en`. */
+export const EVENT_SPORT_LABELS_EN: Record<EventSport, string> = {
+  TENNIS: 'Tennis',
+  PADEL: 'Padel',
+  BADMINTON: 'Badminton',
+  FOOTBALL: 'Football',
+  BASKETBALL: 'Basketball',
+  HOCKEY: 'Hockey',
+  HANDBALL: 'Handball',
+  FLOORBALL: 'Floorball',
+  RUNNING: 'Running',
+  CYCLING: 'Cycling',
+  GOLF: 'Golf',
+  FITNESS: 'Fitness',
+  JUMPING: 'Jumping',
+  TRAMPOLINE: 'Trampoline',
+  CROSSFIT: 'CrossFit',
+  CURLING: 'Curling',
+  YOGA: 'Yoga',
+  PILATES: 'Pilates',
+  COMBAT: 'Combat sports',
+  PARKOUR: 'Parkour',
+  GYMNASTICS: 'Gymnastics',
+  SQUASH: 'Squash',
+  VOLLEYBALL: 'Volleyball',
+  SWIMMING: 'Swimming',
+  SURFING: 'Surfing',
+  TABLE_TENNIS: 'Table tennis',
+  CLIMBING: 'Climbing',
+  BOWLING: 'Bowling',
+  DARTS: 'Darts',
+  SKATING: 'Skating',
+  SKATEBOARD: 'Skateboard',
+  SCOOTER: 'Scooter',
+  BILLIARDS: 'Billiards',
+  OTHER: 'Other',
+};
+
 /**
  * Keywords for heuristic sport detection (briefs, scrapers, AI fallback).
  * Order of keys in EVENT_SPORTS does not matter — prefer more specific matches first
@@ -316,21 +354,92 @@ export function isLobbySport(value: string): value is LobbySport {
   return (LOBBY_SPORTS as readonly string[]).includes(value.toUpperCase());
 }
 
-export function sportDisplayLabel(sport: string): string {
+export type SportLabelLocale = 'sk' | 'en';
+
+export function sportDisplayLabel(
+  sport: string,
+  locale: SportLabelLocale = 'sk',
+): string {
   const key = sport.toUpperCase();
-  if (isEventSport(key)) return EVENT_SPORT_LABELS[key];
-  return key.charAt(0) + key.slice(1).toLowerCase();
+  if (isEventSport(key)) {
+    return locale === 'en' ? EVENT_SPORT_LABELS_EN[key] : EVENT_SPORT_LABELS[key];
+  }
+  return key.charAt(0) + key.slice(1).toLowerCase().replace(/_/g, ' ');
 }
 
-/** Picker order: Slovak A–Z by label, `OTHER` / Iné always last. */
-export function eventSportsSortedByLabel(): EventSport[] {
+function normalizeSportSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+/** Match typed query against SK/EN labels, keywords, and canonical code. */
+export function sportMatchesTypedQuery(sport: EventSport, query: string): boolean {
+  const q = normalizeSportSearch(query);
+  if (!q) return true;
+  const haystacks = [
+    sport,
+    EVENT_SPORT_LABELS[sport],
+    EVENT_SPORT_LABELS_EN[sport],
+    ...(EVENT_SPORT_KEYWORDS[sport] ?? []),
+  ];
+  return haystacks.some((h) => normalizeSportSearch(h).includes(q));
+}
+
+/** Rank for typeahead: prefix match on locale label first, then any match. */
+export function rankSportForTypedQuery(
+  sport: EventSport,
+  query: string,
+  locale: SportLabelLocale,
+): number {
+  const q = normalizeSportSearch(query);
+  if (!q) return 0;
+  const label = normalizeSportSearch(sportDisplayLabel(sport, locale));
+  const sk = normalizeSportSearch(EVENT_SPORT_LABELS[sport]);
+  const en = normalizeSportSearch(EVENT_SPORT_LABELS_EN[sport]);
+  if (label.startsWith(q) || sk.startsWith(q) || en.startsWith(q)) return 0;
+  if (label.includes(q) || sk.includes(q) || en.includes(q)) return 1;
+  if (normalizeSportSearch(sport).includes(q)) return 2;
+  return 3;
+}
+
+/** Picker order: A–Z by label for locale, `OTHER` always last. */
+export function eventSportsSortedByLabel(locale: SportLabelLocale = 'sk'): EventSport[] {
+  const collatorLocale = locale === 'en' ? 'en' : 'sk';
   return [...EVENT_SPORTS].sort((a, b) => {
     if (a === 'OTHER') return 1;
     if (b === 'OTHER') return -1;
-    return EVENT_SPORT_LABELS[a].localeCompare(EVENT_SPORT_LABELS[b], 'sk', {
-      sensitivity: 'base',
-    });
+    return sportDisplayLabel(a, locale).localeCompare(
+      sportDisplayLabel(b, locale),
+      collatorLocale,
+      { sensitivity: 'base' },
+    );
   });
+}
+
+/** Typeahead suggestions: filter + rank by typed query. Empty query → sorted catalog. */
+export function suggestSportsForQuery(
+  query: string,
+  locale: SportLabelLocale = 'sk',
+  limit = 8,
+): EventSport[] {
+  const trimmed = query.trim();
+  if (!trimmed) return eventSportsSortedByLabel(locale).slice(0, limit);
+  return EVENT_SPORTS.filter((sport) => sportMatchesTypedQuery(sport, trimmed))
+    .sort((a, b) => {
+      const rankDiff =
+        rankSportForTypedQuery(a, trimmed, locale) -
+        rankSportForTypedQuery(b, trimmed, locale);
+      if (rankDiff !== 0) return rankDiff;
+      return sportDisplayLabel(a, locale).localeCompare(
+        sportDisplayLabel(b, locale),
+        locale === 'en' ? 'en' : 'sk',
+        { sensitivity: 'base' },
+      );
+    })
+    .slice(0, limit);
 }
 
 /** How you play — drill-down groups kept for non-filter callers. */

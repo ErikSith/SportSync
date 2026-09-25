@@ -38,7 +38,7 @@ const ACTIONS: Array<{
     accent: 'sky',
   },
   {
-    href: '/programs',
+    href: '/workshopy',
     labelKey: 'home.quick.programs',
     icon: 'school',
     hintKey: 'home.quick.programsHint',

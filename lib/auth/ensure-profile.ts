@@ -23,9 +23,7 @@ export async function ensureProfileForUser(
       ? metaName.slice(0, 40)
       : `guest_${user.id.replace(/-/g, '').slice(0, 12)}`;
 
-  const roleRaw = String(user.user_metadata?.role ?? 'player').toLowerCase();
-  const role =
-    roleRaw === 'venue_owner' || roleRaw === 'coach' ? roleRaw.toUpperCase() : 'PLAYER';
+  const role = 'PLAYER';
 
   const { error } = await supabase.from('profiles').upsert(
     {

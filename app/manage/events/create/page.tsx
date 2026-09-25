@@ -4,7 +4,7 @@ import { SetupNotice } from '@/components/i18n/SetupNotice';
 import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { getVenuesForOrganizer } from '@/lib/data/organizer-venues';
 import { VenueEventCreator } from '@/components/events/VenueEventCreator';
-import { parseManageListingBucket } from '@/lib/manage/listing-bucket';
+import { manageListingCreatePath } from '@/lib/manage/listing-bucket';
 import { loginHref } from '@/lib/auth/login-href';
 
 export const runtime = 'edge';
@@ -13,7 +13,16 @@ interface CreateOfficialEventPageProps {
   searchParams: { venueId?: string; bucket?: string };
 }
 
+/** Rýchle akcie → Eventy create (group_class redirects to its own hub route). */
 export default async function CreateOfficialEventPage({ searchParams }: CreateOfficialEventPageProps) {
+  if (searchParams.bucket === 'group_class') {
+    const params = new URLSearchParams();
+    if (searchParams.venueId) params.set('venueId', searchParams.venueId);
+    const qs = params.toString();
+    const base = manageListingCreatePath('group_class');
+    redirect(qs ? `${base}?${qs}` : base);
+  }
+
   const viewer = await getPageViewer();
   if (viewer.status === 'setup') {
     return <SetupNotice />;
@@ -30,16 +39,6 @@ export default async function CreateOfficialEventPage({ searchParams }: CreateOf
   }
 
   const venues = await getVenuesForOrganizer(profile.id, profile.role);
-  // Programs use /manage/programs/create — this route is event or group_class only.
-  const rawBucket = searchParams.bucket;
-  const listingBucket =
-    rawBucket === 'group_class' ? 'group_class' : parseManageListingBucket(rawBucket);
-  const safeBucket =
-    listingBucket === 'camps' ||
-    listingBucket === 'workshops' ||
-    listingBucket === 'courses'
-      ? 'event'
-      : listingBucket;
 
   return (
     <VenueEventCreator
@@ -48,7 +47,7 @@ export default async function CreateOfficialEventPage({ searchParams }: CreateOf
       role={profile.role}
       venues={venues}
       initialVenueId={searchParams.venueId ?? null}
-      listingBucket={safeBucket}
+      listingBucket="event"
     />
   );
 }

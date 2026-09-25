@@ -6,6 +6,7 @@ import { canAccessManageHub } from '@/lib/auth/tournament-access';
 import { getOwnedVenuesForProfile } from '@/lib/data/organizer-venues';
 import { EVENT_SPORTS } from '@/lib/constants/sports';
 import {
+  applyManageWatchMarker,
   listingPersistFields,
   manageListingSuccessPath,
   type ManageListingBucket,
@@ -43,6 +44,8 @@ const createListingSchema = z.object({
   price: z.number().min(0).default(0),
   description: z.string().max(2000).optional().default(''),
   audience: audienceSchema.default('all'),
+  /** participate = Pripojiť sa / Hrať; spectator = Sledovať. */
+  participation: z.enum(['participate', 'spectator']).default('participate'),
   /** External CTA URL — stored as ticket_url + source_url for in-app deep links. */
   link: z
     .string()
@@ -55,6 +58,21 @@ const createListingSchema = z.object({
     }),
   /** Camp turnusy — one event row per session, linked by campSeriesId. */
   sessions: z.array(campSessionSchema).min(1).max(12).optional(),
+  /** Multi-day workshop (and similar) — last calendar day, inclusive. */
+  endDate: dateKeySchema.optional(),
+  /** Optional banner for this listing only (cover_url). */
+  coverUrl: z
+    .union([
+      z
+        .string()
+        .max(2000)
+        .refine((s) => /^https?:\/\/.+/i.test(s.trim()), {
+          message: 'Cover must be an http(s) URL',
+        })
+        .transform((s) => s.trim()),
+      z.null(),
+    ])
+    .optional(),
 });
 
 function kindToBucket(
@@ -140,11 +158,17 @@ export async function POST(request: Request) {
 
   const audience = audienceFlags(input.audience);
   const bucket = kindToBucket(input.kind);
-  const description =
+  const participation = input.participation;
+  const descriptionRaw =
     input.description.trim().length >= 3
       ? input.description.trim()
       : `${input.title.trim()} — ${input.sport}`;
+  const description =
+    bucket === 'tournament'
+      ? applyManageWatchMarker(descriptionRaw, participation)
+      : descriptionRaw;
   const externalLink = input.link.length > 0 ? input.link : null;
+  const coverUrl = input.coverUrl ?? null;
 
   let cityName = profile.city ?? 'Bratislava';
   let latitude: number | null = null;
@@ -215,6 +239,7 @@ export async function POST(request: Request) {
         for_women: audience.forWomen,
         source_url: externalLink,
         ticket_url: externalLink,
+        ...(coverUrl ? { cover_url: coverUrl } : {}),
       })
       .select('id')
       .single();
@@ -277,6 +302,16 @@ export async function POST(request: Request) {
         : `camp-${Date.now().toString(36)}`
       : null;
 
+  const workshopEndDate =
+    bucket === 'workshops' &&
+    input.endDate &&
+    input.endDate >= input.date
+      ? input.endDate
+      : null;
+  const workshopMultiDay = Boolean(
+    workshopEndDate && workshopEndDate > input.date,
+  );
+
   const sessionSpecs =
     campSessions?.map((s) => ({
       startsAt: combineLocalDateTime(s.date, '09:00'),
@@ -286,7 +321,10 @@ export async function POST(request: Request) {
     })) ?? [
       {
         startsAt,
-        endsAt: null as Date | null,
+        endsAt: workshopMultiDay
+          ? combineLocalDateTime(workshopEndDate!, '18:00')
+          : null,
+        // Multi-day workshops: keep start wall-clock, persist end as later calendar day.
         dateOnly: false as const,
       },
     ];
@@ -338,8 +376,10 @@ export async function POST(request: Request) {
         theme_config: themeConfig,
         for_kids: audience.forKids || bucket === 'camps',
         for_women: audience.forWomen,
+        participation_mode: participation,
         source_url: externalLink,
         ticket_url: externalLink,
+        ...(coverUrl ? { cover_url: coverUrl } : {}),
         ...(persist.externalId ? { external_id: persist.externalId } : {}),
       })
       .select('id')

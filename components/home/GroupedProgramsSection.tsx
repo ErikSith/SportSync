@@ -8,15 +8,18 @@ import { EventPreviewModal } from '@/components/events/EventPreviewModal';
 import { ListingCover } from '@/components/shared/ListingCover';
 import { useT } from '@/components/i18n/LocaleProvider';
 import { classifyProgram, type ProgramBucket } from '@/lib/programs/classify';
+import type { MessageKey } from '@/lib/i18n/messages';
 
 function ProgramCard({
   event,
   index,
   badge,
+  accentClass,
 }: {
   event: EventCardData;
   index: number;
   badge: string;
+  accentClass: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -28,7 +31,7 @@ function ProgramCard({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.05, duration: 0.25 }}
         onClick={() => setOpen(true)}
-        className="group flex w-[min(220px,72vw)] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-teal-400/20 bg-[#1F1F1F] text-left transition hover:border-teal-400/45"
+        className={`group flex w-[min(220px,72vw)] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border bg-[#1F1F1F] text-left transition ${accentClass}`}
       >
         <div className="relative h-28 overflow-hidden">
           <ListingCover
@@ -55,146 +58,124 @@ function ProgramCard({
   );
 }
 
+const HUBS: Array<{
+  bucket: ProgramBucket;
+  href: string;
+  icon: string;
+  titleKey: MessageKey;
+  subKey: MessageKey;
+  badgeKey: MessageKey;
+  borderClass: string;
+  linkClass: string;
+  iconClass: string;
+}> = [
+  {
+    bucket: 'workshops',
+    href: '/workshopy',
+    icon: 'school',
+    titleKey: 'home.hub.workshops',
+    subKey: 'home.hub.workshopsSub',
+    badgeKey: 'home.programs.workshopBadge',
+    borderClass: 'border-teal-400/20 hover:border-teal-400/45',
+    linkClass: 'text-teal-300 hover:text-teal-200',
+    iconClass: 'text-teal-300',
+  },
+  {
+    bucket: 'camps',
+    href: '/tabory',
+    icon: 'camping',
+    titleKey: 'home.hub.camps',
+    subKey: 'home.hub.campsSub',
+    badgeKey: 'home.programs.campBadge',
+    borderClass: 'border-emerald-400/20 hover:border-emerald-400/45',
+    linkClass: 'text-emerald-300 hover:text-emerald-200',
+    iconClass: 'text-emerald-300',
+  },
+  {
+    bucket: 'courses',
+    href: '/kruzky',
+    icon: 'menu_book',
+    titleKey: 'home.hub.courses',
+    subKey: 'home.hub.coursesSub',
+    badgeKey: 'home.programs.courseBadge',
+    borderClass: 'border-[#c4a882]/20 hover:border-[#c4a882]/45',
+    linkClass: 'text-[#d4b896] hover:text-[#e0c9a8]',
+    iconClass: 'text-[#d4b896]',
+  },
+];
+
 interface GroupedProgramsSectionProps {
   events: EventCardData[];
 }
 
+/** Three peer Rýchle akcie hubs — workshopy / tábory / krúžky (no programs umbrella). */
 export function GroupedProgramsSection({ events }: GroupedProgramsSectionProps) {
   const t = useT();
 
-  const { camps, courses, workshops } = useMemo(() => {
-    const campsList: EventCardData[] = [];
-    const coursesList: EventCardData[] = [];
-    const workshopsList: EventCardData[] = [];
+  const byBucket = useMemo(() => {
+    const map: Record<ProgramBucket, EventCardData[]> = {
+      camps: [],
+      courses: [],
+      workshops: [],
+    };
     const seen = new Set<string>();
 
     for (const event of events) {
       if (seen.has(event.id)) continue;
-      const bucket: ProgramBucket | null = classifyProgram(event);
+      const bucket = classifyProgram(event);
       if (!bucket) continue;
       seen.add(event.id);
-      if (bucket === 'camps') campsList.push(event);
-      else if (bucket === 'workshops') workshopsList.push(event);
-      else coursesList.push(event);
+      if (map[bucket].length < 8) map[bucket].push(event);
     }
 
-    return {
-      camps: campsList.slice(0, 8),
-      courses: coursesList.slice(0, 8),
-      workshops: workshopsList.slice(0, 8),
-    };
+    return map;
   }, [events]);
 
-  if (camps.length === 0 && courses.length === 0 && workshops.length === 0) return null;
+  const visible = HUBS.filter((hub) => byBucket[hub.bucket].length > 0);
+  if (visible.length === 0) return null;
 
   return (
-    <section className="space-y-5">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <h3 className="flex items-center gap-2 font-headline-md text-[15px] text-on-surface md:text-headline-md">
-            <span className="material-symbols-outlined text-teal-300" aria-hidden>
-              camping
-            </span>
-            {t('home.programs')}
-          </h3>
-          <p className="mt-0.5 pl-8 font-body-md text-sm text-on-surface-variant">
-            {t('home.programsSub')}
-          </p>
-        </div>
-        <Link
-          href="/programs"
-          className="shrink-0 font-label-caps text-[10px] uppercase tracking-[0.12em] text-teal-300 hover:text-teal-200"
-        >
-          {t('common.viewAll')}
-        </Link>
-      </div>
-
-      {workshops.length > 0 ? (
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <p className="font-label-caps text-[10px] uppercase tracking-[0.14em] text-on-surface-variant">
-              {t('home.programs.workshops')}
-            </p>
-            <Link
-              href="/programs"
-              className="font-label-caps text-[9px] uppercase tracking-wider text-teal-400/80 hover:text-teal-300"
+    <div className="space-y-8">
+      {visible.map((hub) => {
+        const list = byBucket[hub.bucket];
+        return (
+          <section key={hub.bucket} className="space-y-2.5">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <h3 className="flex items-center gap-2 font-headline-md text-[15px] text-on-surface md:text-headline-md">
+                  <span className={`material-symbols-outlined ${hub.iconClass}`} aria-hidden>
+                    {hub.icon}
+                  </span>
+                  {t(hub.titleKey)}
+                </h3>
+                <p className="mt-0.5 pl-8 font-body-md text-sm text-on-surface-variant">
+                  {t(hub.subKey)}
+                </p>
+              </div>
+              <Link
+                href={hub.href}
+                className={`shrink-0 font-label-caps text-[10px] uppercase tracking-[0.12em] ${hub.linkClass}`}
+              >
+                {t('common.viewAll')}
+              </Link>
+            </div>
+            <div
+              className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto hide-scrollbar -mx-container-margin-mobile px-container-margin-mobile md:mx-0 md:px-0"
+              style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              {t('common.viewAll')}
-            </Link>
-          </div>
-          <div
-            className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto hide-scrollbar -mx-container-margin-mobile px-container-margin-mobile md:mx-0 md:px-0"
-            style={{ WebkitOverflowScrolling: 'touch' }}
-          >
-            {workshops.map((event, index) => (
-              <ProgramCard
-                key={event.id}
-                event={event}
-                index={index}
-                badge={t('home.programs.workshopBadge')}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {camps.length > 0 ? (
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <p className="font-label-caps text-[10px] uppercase tracking-[0.14em] text-on-surface-variant">
-              {t('home.programs.camps')}
-            </p>
-            <Link
-              href="/tabory"
-              className="font-label-caps text-[9px] uppercase tracking-wider text-teal-400/80 hover:text-teal-300"
-            >
-              {t('common.viewAll')}
-            </Link>
-          </div>
-          <div
-            className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto hide-scrollbar -mx-container-margin-mobile px-container-margin-mobile md:mx-0 md:px-0"
-            style={{ WebkitOverflowScrolling: 'touch' }}
-          >
-            {camps.map((event, index) => (
-              <ProgramCard
-                key={event.id}
-                event={event}
-                index={index}
-                badge={t('home.programs.campBadge')}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {courses.length > 0 ? (
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <p className="font-label-caps text-[10px] uppercase tracking-[0.14em] text-on-surface-variant">
-              {t('home.programs.courses')}
-            </p>
-            <Link
-              href="/kruzky"
-              className="font-label-caps text-[9px] uppercase tracking-wider text-teal-400/80 hover:text-teal-300"
-            >
-              {t('common.viewAll')}
-            </Link>
-          </div>
-          <div
-            className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto hide-scrollbar -mx-container-margin-mobile px-container-margin-mobile md:mx-0 md:px-0"
-            style={{ WebkitOverflowScrolling: 'touch' }}
-          >
-            {courses.map((event, index) => (
-              <ProgramCard
-                key={event.id}
-                event={event}
-                index={index}
-                badge={t('home.programs.courseBadge')}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </section>
+              {list.map((event, index) => (
+                <ProgramCard
+                  key={event.id}
+                  event={event}
+                  index={index}
+                  badge={t(hub.badgeKey)}
+                  accentClass={hub.borderClass}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
   );
 }

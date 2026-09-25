@@ -32,7 +32,7 @@ interface HomeFeedPreferencesBarProps {
   variant?: PreferencesChipVariant;
 }
 
-/** Matches ShareQrButton — circular header control. */
+/** Circular header control. */
 const HEADER_ICON_BTN =
   'group relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-outline-variant/40 bg-surface-container-high/70 text-primary transition-colors hover:border-primary-container/50 hover:text-primary-fixed-dim active:scale-95 disabled:opacity-60';
 

@@ -38,6 +38,7 @@ import {
   pickSoftIdentityMatch,
   softMatchWindow,
 } from '@/lib/scrape/dedupe-identity';
+import { isScrapingEnabled } from '@/lib/scrape/scraping-enabled';
 
 type UpsertStats = { created: number; updated: number; skipped: number; unchanged: number };
 
@@ -760,7 +761,14 @@ async function runScrapersSequentially(): Promise<AdapterResult[]> {
   return results;
 }
 
+function emptyScrapeReportSkipped(): ScrapeRunReport {
+  return { created: 0, updated: 0, skipped: 0, unchanged: 0, adapters: [] };
+}
+
 export async function runAllScrapers(): Promise<ScrapeRunReport> {
+  if (!isScrapingEnabled()) {
+    return emptyScrapeReportSkipped();
+  }
   if (isEdgeScrapeRuntime()) {
     throw new Error(
       'runAllScrapers is Node-only. Cloudflare Edge must call runScrapeAdapterShard() (1 adapter / isolate).',
@@ -772,6 +780,9 @@ export async function runAllScrapers(): Promise<ScrapeRunReport> {
 
 /** Node-only: run a subset of adapters then upsert (local rescrape / ops). */
 export async function runNamedScrapers(ids: ScrapeAdapterId[]): Promise<ScrapeRunReport> {
+  if (!isScrapingEnabled()) {
+    return emptyScrapeReportSkipped();
+  }
   if (isEdgeScrapeRuntime()) {
     throw new Error(
       'runNamedScrapers is Node-only. Cloudflare Edge must call runScrapeAdapterShard().',
@@ -825,6 +836,16 @@ export async function runMidnightBatchedScrapers(options?: {
   batchSize?: number;
   startIndex?: number;
 }): Promise<MidnightBatchScrapeReport> {
+  if (!isScrapingEnabled()) {
+    return {
+      ...emptyScrapeReportSkipped(),
+      adaptersRun: [],
+      startIndex: options?.startIndex ?? midnightScrapeStartIndex(),
+      nextIndex: null,
+      stoppedEarly: false,
+      elapsedMs: 0,
+    };
+  }
   if (isEdgeScrapeRuntime()) {
     throw new Error(
       'runMidnightBatchedScrapers is Node-only. Use /api/cron/midnight-sync on nodejs runtime.',
@@ -904,6 +925,15 @@ export async function runScrapeAdapterShard(slot = scrapeSlotIndex()): Promise<S
   const total = SCRAPE_ADAPTER_IDS.length;
   const index = ((slot % total) + total) % total;
   const adapter = SCRAPE_ADAPTER_IDS[index]!;
+  if (!isScrapingEnabled()) {
+    return {
+      ...emptyScrapeReportSkipped(),
+      adapter,
+      slot: index,
+      totalAdapters: total,
+      edgeSafe: true,
+    };
+  }
   const result = await executeNamedAdapter(adapter);
   await recordAdapterResult(result);
   const persisted = await persistAdapterResults([result]);
@@ -929,6 +959,9 @@ export async function runScraper(
   urls: string[],
   dryRun = false,
 ): Promise<RunScraperReport> {
+  if (!isScrapingEnabled()) {
+    return { ...emptyScrapeReportSkipped(), urls: 0, dryRun };
+  }
   const unique = [
     ...new Set(
       urls

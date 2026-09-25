@@ -60,3 +60,37 @@ export async function uploadProfileImage(
   const publicUrl = `${data.publicUrl}?v=${Date.now()}`;
   return { publicUrl };
 }
+
+/** Venue-owner listing banner for a single event/tournament (manage hub). */
+export async function uploadListingBanner(
+  userId: string,
+  file: File,
+): Promise<{ publicUrl: string } | { error: string }> {
+  const validationError = validateProfileImage(file);
+  if (validationError) return { error: validationError };
+
+  const ext = extensionForMime(file.type);
+  const id =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+  const path = `${userId}/listing-banners/${id}.${ext}`;
+  const supabase = await createClient();
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  const { error: uploadError } = await supabase.storage
+    .from(PROFILE_MEDIA_BUCKET)
+    .upload(path, bytes, {
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    return { error: uploadError.message };
+  }
+
+  const { data } = supabase.storage.from(PROFILE_MEDIA_BUCKET).getPublicUrl(path);
+  const publicUrl = `${data.publicUrl}?v=${Date.now()}`;
+  return { publicUrl };
+}
